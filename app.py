@@ -27,7 +27,6 @@ st.set_page_config(page_title="Ferramentas CKAN", layout="wide")
 # Cabeçalho inicial
 # ===============================
 st.title("FERRAMENTAS CKAN")
-st.write("Use o menu lateral para escolher a ação desejada.")
 
 # ===============================
 # Menu lateral simples
@@ -42,10 +41,6 @@ opcao = st.sidebar.radio(
 # ===============================
 if opcao == "Gerar Dicionário":
     st.header("Gerar Dicionário")
-    st.write(
-        "Insira o link completo do recurso CKAN que deseja documentar. "
-        "Ao finalizar, será gerado um arquivo Word com o dicionário de dados."
-    )
 
     recurso_url = st.text_input("Link do recurso CKAN:")
     template_path = "modelo_bia2_pronto_para_preencher.docx"
@@ -86,12 +81,9 @@ else:
         if not portal_url:
             st.error("Informe o link do portal CKAN.")
         else:
-            with st.spinner("Atualizando planilha..."):
-                try:
-                    sucesso, mensagem = atualizar_planilha(portal_url, verificar_urls)
-                    if sucesso:
-                        st.success(mensagem)
-                    else:
-                        st.error(mensagem)
-                except Exception as e:
-                    st.error(f"Ocorreu um erro ao atualizar a planilha: {e}")
+            # sem spinner aqui, apenas a barra virá do pine.py
+            sucesso, mensagem = atualizar_planilha(portal_url, verificar_urls)
+            if sucesso:
+                st.success(mensagem)
+            else:
+                st.error(mensagem)
