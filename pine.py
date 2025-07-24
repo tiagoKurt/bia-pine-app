@@ -3,6 +3,9 @@ import requests
 import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import os
+import json
+import streamlit as st
 
 def atualizar_planilha(portal_url: str, verificar_urls: bool):
     """
@@ -10,31 +13,40 @@ def atualizar_planilha(portal_url: str, verificar_urls: bool):
     Retorna (sucesso: bool, mensagem: str)
     """
 
-    # Configuração da planilha (ajuste o nome se necessário)
     SHEET_NAME = "RELATORIO"
     WORKSHEET_NAME = "Página1"
 
     try:
         # ============================
-        # Autenticação no Google Sheets
+        # Autenticação no Google Sheets via variável de ambiente
         # ============================
         scope = [
             "https://spreadsheets.google.com/feeds",
             "https://www.googleapis.com/auth/drive"
         ]
-        creds = ServiceAccountCredentials.from_json_keyfile_name("credenciaisbiapine.json", scope)
+        credenciais_str = os.getenv("GOOGLE_CREDENTIALS_JSON")
+        if not credenciais_str:
+            return False, "Variável de ambiente GOOGLE_CREDENTIALS_JSON não configurada."
+        creds_dict = json.loads(credenciais_str)
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
 
         # ============================
         # Buscar lista de datasets
         # ============================
         BASE_URL = f"{portal_url.rstrip('/')}/api/3/action"
-
         resp_list = requests.get(f"{BASE_URL}/package_list", timeout=30)
         resp_list.raise_for_status()
         lista_datasets = resp_list.json().get("result", [])
 
         dados_finais = []
+
+        # ============================
+        # Barra de progresso
+        # ============================
+        total = len(lista_datasets)
+        progresso = st.progress(0, text="🔄 Iniciando leitura do CKAN...")
+        contador = 0
 
         # ============================
         # Processar cada dataset
@@ -95,8 +107,12 @@ def atualizar_planilha(portal_url: str, verificar_urls: bool):
                 })
 
             except Exception as e:
-                # Continua mesmo se um dataset falhar
                 print(f"⚠️ Erro ao processar dataset {dataset_id}: {e}")
+
+            # Atualizar barra de progresso após cada dataset
+            contador += 1
+            porcentagem = int((contador / total) * 100)
+            progresso.progress(porcentagem, text=f"🔄 Processando CKAN... ({contador}/{total})")
 
         # ============================
         # Atualizar planilha no Google Sheets
@@ -115,6 +131,7 @@ def atualizar_planilha(portal_url: str, verificar_urls: bool):
         aba.clear()
         aba.update(dados)
 
+        progresso.progress(100, text="✅ Concluído!")
         return True, f"A planilha '{WORKSHEET_NAME}' foi atualizada com sucesso!"
 
     except Exception as e:
