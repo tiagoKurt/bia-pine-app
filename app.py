@@ -1,16 +1,37 @@
 import streamlit as st
 import os
+import json
 from bia import gerar_dicionario_word
 from pine import atualizar_planilha
 
+# ================================
+# 🔐 Carregar credenciais da variável de ambiente
+# ================================
+# Agora o app não tenta mais abrir o arquivo local credenciaisbiapine.json
+# Ele lê diretamente da variável GOOGLE_CREDENTIALS_JSON configurada no Render
+credenciais_str = os.getenv("GOOGLE_CREDENTIALS_JSON")
+if credenciais_str:
+    try:
+        dados_credenciais = json.loads(credenciais_str)
+    except Exception as e:
+        dados_credenciais = None
+        st.error(f"⚠️ Erro ao carregar credenciais do ambiente: {e}")
+else:
+    dados_credenciais = None
+    st.warning("⚠️ Nenhuma credencial encontrada na variável de ambiente GOOGLE_CREDENTIALS_JSON.")
+
+# ================================
+# Configurações do Streamlit
+# ================================
 st.set_page_config(page_title="Ferramentas CKAN – BIA & PINE", layout="wide")
 st.title("🔗 Ferramentas CKAN – BIA & PINE")
 
+# Menu lateral
 opcao = st.sidebar.radio("Escolha a ferramenta:", ["📖 BIA – Dicionário de Dados", "📈 PINE – Monitoramento"])
 
-# ============================
+# ================================
 # Aba BIA
-# ============================
+# ================================
 if opcao.startswith("📖"):
     st.header("📖 BIA – Gerar Dicionário de Dados em Word")
     recurso_url = st.text_input("Cole o link completo do recurso CKAN:")
@@ -39,9 +60,9 @@ if opcao.startswith("📖"):
                 except Exception as e:
                     st.error(f"⚠️ Erro ao gerar o dicionário: {e}")
 
-# ============================
+# ================================
 # Aba PINE
-# ============================
+# ================================
 else:
     st.header("📈 PINE – Atualizar Monitoramento")
     portal_url = st.text_input("Cole o link do portal CKAN:")
