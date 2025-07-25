@@ -5,26 +5,6 @@ from bia import gerar_dicionario_word
 from pine import atualizar_planilha
 
 # ===============================
-# Controle de autenticação com session_state
-# ===============================
-senha_correta = os.getenv("APP_PASSWORD")
-
-if "autenticado" not in st.session_state:
-    st.session_state.autenticado = False
-
-if not st.session_state.autenticado:
-    st.set_page_config(page_title="Ferramentas CKAN – Login", layout="wide")
-    st.title("FERRAMENTAS CKAN")
-    senha_digitada = st.text_input("Digite a senha:", type="password")
-    if senha_digitada:
-        if senha_digitada == senha_correta:
-            st.session_state.autenticado = True
-            st.rerun()
-        else:
-            st.error("Senha incorreta.")
-    st.stop()
-
-# ===============================
 # Carrega credenciais de ambiente
 # ===============================
 credenciais_str = os.getenv("GOOGLE_CREDENTIALS_JSON")
@@ -42,10 +22,14 @@ else:
 # Configuração geral da página
 # ===============================
 st.set_page_config(page_title="Ferramentas CKAN", layout="wide")
+
+# ===============================
+# Cabeçalho inicial
+# ===============================
 st.title("FERRAMENTAS CKAN")
 
 # ===============================
-# Menu lateral
+# Menu lateral simples
 # ===============================
 opcao = st.sidebar.radio(
     "Selecione a ação:",
@@ -93,11 +77,11 @@ else:
 
     portal_url = st.text_input("Link do portal CKAN:")
     verificar_urls = st.checkbox("Verificar URLs dos recursos durante o processamento")
-
     if st.button("Atualizar Planilha"):
         if not portal_url:
             st.error("Informe o link do portal CKAN.")
         else:
+            # sem spinner aqui, apenas a barra virá do pine.py
             sucesso, mensagem = atualizar_planilha(portal_url, verificar_urls)
             if sucesso:
                 st.success(mensagem)
