@@ -9,8 +9,13 @@ st.title("Ferramentas CKAN")
 
 senha_digitada = st.text_input("Digite a senha:", type="password")
 
-if senha_digitada != senha_correta:
-    st.error("Senha incorreta ou não fornecida.")
+if senha_digitada:
+    # só valida se o usuário digitou algo
+    if senha_digitada != senha_correta:
+        st.error("Senha incorreta.")
+        st.stop()
+else:
+    # se o campo está vazio, apenas interrompe sem mostrar erro
     st.stop()
 
 # Abaixo segue o código original do aplicativo
