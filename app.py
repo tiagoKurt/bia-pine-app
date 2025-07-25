@@ -1,34 +1,8 @@
 import streamlit as st
 import os
 import json
-import smtplib
-from email.mime.text import MIMEText
-from datetime import datetime
 from bia import gerar_dicionario_word
 from pine import atualizar_planilha
-
-# ===============================
-# Função para enviar aviso por e-mail
-# ===============================
-def enviar_aviso_pine():
-    remetente = "bia.generator@gmail.com"  # seu Gmail remetente
-    senha_email = os.getenv("EMAIL_PASSWORD")  # senha de app do Gmail configurada no Render
-    destinatario = "fernandabas1209@gmail.com"  # e-mail que vai receber o aviso
-
-    agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    corpo = f"O sistema PINE foi atualizado em {agora}."
-
-    msg = MIMEText(corpo)
-    msg["Subject"] = "Aviso: Atualização no PINE"
-    msg["From"] = remetente
-    msg["To"] = destinatario
-
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as servidor:
-            servidor.login(remetente, senha_email)
-            servidor.sendmail(remetente, destinatario, msg.as_string())
-    except Exception as e:
-        st.warning(f"Não foi possível enviar o e-mail de aviso: {e}")
 
 # ===============================
 # Controle de autenticação com session_state
@@ -127,10 +101,5 @@ else:
             sucesso, mensagem = atualizar_planilha(portal_url, verificar_urls)
             if sucesso:
                 st.success(mensagem)
-                # Verifica variável de ambiente para saber se envia e-mail
-                enviar_aviso = os.getenv("ENVIAR_AVISO_PINE", "false").lower() == "true"
-                if enviar_aviso:
-                    enviar_aviso_pine()
             else:
                 st.error(mensagem)
-
