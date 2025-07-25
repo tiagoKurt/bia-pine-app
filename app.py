@@ -1,5 +1,24 @@
 import streamlit as st
 import os
+
+# Configuração de senha
+senha_correta = os.getenv("CGEGEDA18151")
+
+st.set_page_config(page_title="BIA/PINE – Acesso Restrito", layout="wide")
+
+st.title("Acesso Restrito – Ferramentas BIA/PINE")
+st.markdown("Digite a senha para continuar:")
+
+senha_digitada = st.text_input("Senha:", type="password")
+
+if senha_digitada != senha_correta:
+    st.error("Senha incorreta ou não fornecida.")
+    st.stop()
+
+st.success("Acesso autorizado.")
+# Abaixo segue o código original do aplicativo
+import streamlit as st
+import os
 import json
 from bia import gerar_dicionario_word
 from pine import atualizar_planilha
