@@ -14,7 +14,7 @@ if "autenticado" not in st.session_state:
 
 if not st.session_state.autenticado:
     st.set_page_config(page_title="Ferramentas CKAN – Login", layout="wide")
-    st.title("Acesso Restrito – Ferramentas CKAN")
+    st.title("FERRAMENTAS CKAN")
     senha_digitada = st.text_input("Digite a senha:", type="password")
     if senha_digitada:
         if senha_digitada == senha_correta:
