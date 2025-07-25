@@ -4,9 +4,6 @@ import os
 # Configuração de senha
 senha_correta = os.getenv("APP_PASSWORD")
 
-
-st.title("Ferramentas CKAN")
-
 senha_digitada = st.text_input("Digite a senha:", type="password")
 
 if senha_digitada:
