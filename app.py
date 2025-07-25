@@ -2,7 +2,7 @@ import streamlit as st
 import os
 
 # Configuração de senha
-senha_correta = os.getenv("CGEGEDA18151")
+senha_correta = os.getenv("APP_PASSWORD")
 
 st.set_page_config(page_title="BIA/PINE – Acesso Restrito", layout="wide")
 
