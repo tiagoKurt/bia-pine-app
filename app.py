@@ -19,7 +19,7 @@ if not st.session_state.autenticado:
     if senha_digitada:
         if senha_digitada == senha_correta:
             st.session_state.autenticado = True
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Senha incorreta.")
     st.stop()
