@@ -1,26 +1,54 @@
 import streamlit as st
 import os
-
-# Configuração de senha
-senha_correta = os.getenv("APP_PASSWORD")
-
-senha_digitada = st.text_input("Digite a senha:", type="password")
-
-if senha_digitada:
-    # só valida se o usuário digitou algo
-    if senha_digitada != senha_correta:
-        st.error("Senha incorreta.")
-        st.stop()
-else:
-    # se o campo está vazio, apenas interrompe sem mostrar erro
-    st.stop()
-
-# Abaixo segue o código original do aplicativo
-import streamlit as st
-import os
 import json
+import smtplib
+from email.mime.text import MIMEText
+from datetime import datetime
 from bia import gerar_dicionario_word
 from pine import atualizar_planilha
+
+# ===============================
+# Função para enviar aviso por e-mail
+# ===============================
+def enviar_aviso_pine():
+    remetente = "seuemail@gmail.com"  # seu Gmail remetente
+    senha_email = os.getenv("EMAIL_PASSWORD")  # senha de app configurada no Render
+    destinatario = "seuemail@gmail.com"  # e-mail que vai receber o aviso
+
+    agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    corpo = f"O sistema PINE foi atualizado em {agora}."
+
+    msg = MIMEText(corpo)
+    msg["Subject"] = "Aviso: Atualização no PINE"
+    msg["From"] = remetente
+    msg["To"] = destinatario
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as servidor:
+            servidor.login(remetente, senha_email)
+            servidor.sendmail(remetente, destinatario, msg.as_string())
+    except Exception as e:
+        st.warning(f"Não foi possível enviar o e-mail de aviso: {e}")
+
+# ===============================
+# Controle de autenticação com session_state
+# ===============================
+senha_correta = os.getenv("APP_PASSWORD")
+
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
+
+if not st.session_state.autenticado:
+    st.set_page_config(page_title="Ferramentas CKAN – Login", layout="wide")
+    st.title("Acesso Restrito – Ferramentas CKAN")
+    senha_digitada = st.text_input("Digite a senha:", type="password")
+    if senha_digitada:
+        if senha_digitada == senha_correta:
+            st.session_state.autenticado = True
+            st.experimental_rerun()
+        else:
+            st.error("Senha incorreta.")
+    st.stop()
 
 # ===============================
 # Carrega credenciais de ambiente
@@ -40,10 +68,6 @@ else:
 # Configuração geral da página
 # ===============================
 st.set_page_config(page_title="Ferramentas CKAN", layout="wide")
-
-# ===============================
-# Cabeçalho inicial
-# ===============================
 st.title("FERRAMENTAS CKAN")
 
 # ===============================
@@ -95,13 +119,17 @@ else:
 
     portal_url = st.text_input("Link do portal CKAN:")
     verificar_urls = st.checkbox("Verificar URLs dos recursos durante o processamento")
+
     if st.button("Atualizar Planilha"):
         if not portal_url:
             st.error("Informe o link do portal CKAN.")
         else:
-            # sem spinner aqui, apenas a barra virá do pine.py
             sucesso, mensagem = atualizar_planilha(portal_url, verificar_urls)
             if sucesso:
                 st.success(mensagem)
+                # Verifica variável de ambiente para saber se envia e-mail
+                enviar_aviso = os.getenv("ENVIAR_AVISO_PINE", "false").lower() == "true"
+                if enviar_aviso:
+                    enviar_aviso_pine()
             else:
                 st.error(mensagem)
