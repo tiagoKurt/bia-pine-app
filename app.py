@@ -11,9 +11,9 @@ from pine import atualizar_planilha
 # Função para enviar aviso por e-mail
 # ===============================
 def enviar_aviso_pine():
-    remetente = "seuemail@gmail.com"  # seu Gmail remetente
-    senha_email = os.getenv("EMAIL_PASSWORD")  # senha de app configurada no Render
-    destinatario = "seuemail@gmail.com"  # e-mail que vai receber o aviso
+    remetente = "bia.generator@gmail.com"  # seu Gmail remetente
+    senha_email = os.getenv("EMAIL_PASSWORD")  # senha de app do Gmail configurada no Render
+    destinatario = "fernandabas1209@gmail.com"  # e-mail que vai receber o aviso
 
     agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     corpo = f"O sistema PINE foi atualizado em {agora}."
@@ -71,7 +71,7 @@ st.set_page_config(page_title="Ferramentas CKAN", layout="wide")
 st.title("FERRAMENTAS CKAN")
 
 # ===============================
-# Menu lateral simples
+# Menu lateral
 # ===============================
 opcao = st.sidebar.radio(
     "Selecione a ação:",
@@ -133,3 +133,4 @@ else:
                     enviar_aviso_pine()
             else:
                 st.error(mensagem)
+
