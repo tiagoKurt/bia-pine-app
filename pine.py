@@ -11,7 +11,7 @@ def atualizar_planilha(portal_url: str, verificar_urls: bool):
     WORKSHEET_NAME = "Página1"
 
     try:
-        # 🔑 Autenticação
+        # Autenticação
         scope = [
             "https://spreadsheets.google.com/feeds",
             "https://www.googleapis.com/auth/drive"
@@ -42,12 +42,9 @@ def atualizar_planilha(portal_url: str, verificar_urls: bool):
                 resp.raise_for_status()
                 info = resp.json()["result"]
 
-                id_base = info.get("id", dataset_id)  # ✅ ID único da base
+                id_base = info.get("id", dataset_id)  # ✅ pega o ID único da base
                 nome_base = info.get("title", dataset_id)
-
-                # ✅ agora pega a sigla/slug do órgão
-                orgao_sigla = info.get("organization", {}).get("name", "nao_informado")
-
+                orgao = info.get("organization", {}).get("title", "Não informado")
                 ultima_atualizacao = info.get("metadata_modified", "")
                 data_criacao = info.get("metadata_created", "")
                 resources = info.get("resources", [])
@@ -80,11 +77,12 @@ def atualizar_planilha(portal_url: str, verificar_urls: bool):
                         except:
                             qtd_erro += 1
 
-                # ✅ monta o dicionário com a nova coluna Orgao_Sigla
+                # ✅ Agora adicionamos o ID na primeira coluna
+                # ✅ E deixamos o total de recursos na última
                 dados_finais.append({
                     "ID_da_Base": id_base,                # COLUNA A
                     "Nome_da_Base": nome_base,
-                    "Orgao_Sigla": orgao_sigla,          # ✅ agora sigla do órgão
+                    "Orgao": orgao,
                     "Ultima_Atualizacao": ultima_atualizacao,
                     "Data_Criacao": data_criacao,
                     "Quantidade_CSV": qtd_csv,
@@ -92,7 +90,7 @@ def atualizar_planilha(portal_url: str, verificar_urls: bool):
                     "Quantidade_PDF": qtd_pdf,
                     "Quantidade_JSON": qtd_json,
                     "Quantidade_ErroLeitura": qtd_erro,
-                    "Quantidade_de_Recursos": qtd_total  # ÚLTIMA COLUNA
+                    "Quantidade_de_Recursos": qtd_total   # ÚLTIMA COLUNA
                 })
 
             except Exception as e:
