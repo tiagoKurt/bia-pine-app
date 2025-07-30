@@ -67,7 +67,11 @@ def atualizar_planilha(portal_url: str, verificar_urls: bool):
             resources = pkg.get("resources", [])
 
             # Agregar formatos por dataset
-            formatos_set = { str(r.get("format", "")).lower() for r in resources if r.get("format") }
+            formatos_set = {
+                str(r.get("format", "")).lower()
+                for r in resources
+                if r.get("format")
+            }
             formatos_str = "; ".join(sorted(formatos_set)).upper()
 
             # Contar erros por dataset (checagem opcional de URLs)
@@ -106,12 +110,16 @@ def atualizar_planilha(portal_url: str, verificar_urls: bool):
         df = pd.DataFrame(dados)
 
         # Converter datas para formato legível
-        for col in ["Data_Criacao_Dataset", "Ultima_Atualizacao_Dataset", "Data_Publicacao_Recurso"]:
+        for col in [
+            "Data_Criacao_Dataset",
+            "Ultima_Atualizacao_Dataset",
+            "Data_Publicacao_Recurso"
+        ]:
             df[col] = pd.to_datetime(df[col], errors="coerce")
             df[col] = df[col].dt.strftime("%d/%m/%Y %H:%M")
 
         # ─────────── Tratar valores ausentes (remover NaN) ───────────
-        df = df.fillna("")  # substitui todos os NaN por string vazia
+        df = df.fillna("")
 
         # ─────────── Enviar para Google Sheets ───────────
         valores = [df.columns.tolist()] + df.values.tolist()
@@ -120,10 +128,6 @@ def atualizar_planilha(portal_url: str, verificar_urls: bool):
 
         progresso.progress(100)
         return True, "Os dados foram extraídos e atualizados com sucesso!"
-
-    except Exception as e:
-        return False, f"Erro ao atualizar planilha: {e}"
- extraídos e atualizados com sucesso!"
 
     except Exception as e:
         return False, f"Erro ao atualizar planilha: {e}"
