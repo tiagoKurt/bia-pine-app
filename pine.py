@@ -110,6 +110,9 @@ def atualizar_planilha(portal_url: str, verificar_urls: bool):
             df[col] = pd.to_datetime(df[col], errors="coerce")
             df[col] = df[col].dt.strftime("%d/%m/%Y %H:%M")
 
+        # ─────────── Tratar valores ausentes (remover NaN) ───────────
+        df = df.fillna("")  # substitui todos os NaN por string vazia
+
         # ─────────── Enviar para Google Sheets ───────────
         valores = [df.columns.tolist()] + df.values.tolist()
         aba.clear()
@@ -117,6 +120,10 @@ def atualizar_planilha(portal_url: str, verificar_urls: bool):
 
         progresso.progress(100)
         return True, "Os dados foram extraídos e atualizados com sucesso!"
+
+    except Exception as e:
+        return False, f"Erro ao atualizar planilha: {e}"
+ extraídos e atualizados com sucesso!"
 
     except Exception as e:
         return False, f"Erro ao atualizar planilha: {e}"
