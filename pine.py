@@ -1,9 +1,9 @@
-import os
-import json
 import requests
 import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import os
+import json
 import streamlit as st
 
 def atualizar_planilha(portal_url: str, verificar_urls: bool):
@@ -11,7 +11,7 @@ def atualizar_planilha(portal_url: str, verificar_urls: bool):
     WORKSHEET_NAME = "Página1"
 
     try:
-        # ─────────── Autenticação Google Sheets ───────────
+        # Autenticação Google Sheets
         scope = [
             "https://spreadsheets.google.com/feeds",
             "https://www.googleapis.com/auth/drive"
@@ -22,112 +22,115 @@ def atualizar_planilha(portal_url: str, verificar_urls: bool):
         creds_dict = json.loads(credenciais_str)
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
-        planilha = client.open(SHEET_NAME)
-        aba = planilha.worksheet(WORKSHEET_NAME)
 
-        # ─────────── Buscar todos os datasets + recursos ───────────
+        # Requisição à API CKAN
         BASE_URL = f"{portal_url.rstrip('/')}/api/3/action"
-        session = requests.Session()
+        resp_list = requests.get(f"{BASE_URL}/package_list", timeout=30)
+        resp_list.raise_for_status()
+        lista_datasets = resp_list.json().get("result", [])
 
-        # Paginação para garantir que tragam *todos* os datasets
-        start = 0
-        rows = 100
-        all_packages = []
-        while True:
-            resp = session.get(
-                f"{BASE_URL}/package_search",
-                params={"q": "*:*", "rows": rows, "start": start},
-                timeout=30
-            )
-            resp.raise_for_status()
-            js = resp.json()
-            if not js.get("success", False):
-                err = js.get("error", {})
-                raise Exception(f"API CKAN retornou erro: {err.get('message', err)}")
-            result = js["result"]
-            packages = result.get("results", [])
-            total = result.get("count", 0)
+        dados_finais = []
+        total = len(lista_datasets)
+        progresso = st.progress(0, text="Lendo CKAN...")
+        contador = 0
 
-            all_packages.extend(packages)
-            start += rows
-            if start >= total:
-                break
+        for dataset_id in lista_datasets:
+            try:
+                resp = requests.get(f"{BASE_URL}/package_show?id={dataset_id}", timeout=30)
+                resp.raise_for_status()
+                info = resp.json()["result"]
 
-        # ─────────── Montar tabela unificada (1 linha por recurso) ───────────
-        dados = []
-        total_datasets = len(all_packages)
-        progresso = st.progress(0)
+                # Informações gerais do dataset
+                id_base = info.get("id", "")
+                nome_base = info.get("title", "")
+                nome_tecnico = info.get("name", "")
+                orgao_nome = info.get("organization", {}).get("title", "Não informado")
+                orgao_id = info.get("organization", {}).get("name", "")
+                descricao = info.get("notes", "")
+                privado = "Sim" if info.get("private", False) else "Não"
+                tipo = info.get("type", "")
+                criado_em = info.get("metadata_created", "")
+                modificado_em = info.get("metadata_modified", "")
+                tags = "; ".join([tag.get("name", "") for tag in info.get("tags", [])])
+                grupos = "; ".join([grp.get("name", "") for grp in info.get("groups", [])])
+                extras = "; ".join([f"{e.get('key')}: {e.get('value')}" for e in info.get("extras", [])])
 
-        for idx, pkg in enumerate(all_packages, start=1):
-            dataset_id = pkg.get("id", "")
-            dataset_title = pkg.get("title", "")
-            orgao = pkg.get("organization", {}).get("title", "Não informado")
-            data_criacao = pkg.get("metadata_created", "")
-            ultima_atualizacao = pkg.get("metadata_modified", "")
-            resources = pkg.get("resources", [])
+                # Recursos
+                resources = info.get("resources", [])
+                qtd_total = len(resources)
+                qtd_csv = qtd_xlsx = qtd_pdf = qtd_json = qtd_erro = 0
+                formatos = set()
+                urls = []
 
-            # Agregar formatos por dataset
-            formatos_set = {
-                str(r.get("format", "")).lower()
-                for r in resources
-                if r.get("format")
-            }
-            formatos_str = "; ".join(sorted(formatos_set)).upper()
-
-            # Contar erros por dataset (checagem opcional de URLs)
-            qtd_erro = 0
-            if verificar_urls:
                 for res in resources:
+                    formato = str(res.get("format", "")).lower()
+                    formatos.add(formato.upper())
                     url = res.get("url", "")
-                    try:
-                        head = session.head(url, timeout=5)
-                        if head.status_code != 200:
-                            qtd_erro += 1
-                    except Exception:
-                        qtd_erro += 1
+                    urls.append(url)
 
-            # Gerar 1 linha por recurso
-            for res in resources:
-                dados.append({
-                    "ID_Dataset": dataset_id,
-                    "Nome_Dataset": dataset_title,
-                    "Orgao": orgao,
-                    "Data_Criacao_Dataset": data_criacao,
-                    "Ultima_Atualizacao_Dataset": ultima_atualizacao,
-                    "Formatos_Disponiveis": formatos_str,
-                    "Qtde_Erros_Dataset": qtd_erro,
-                    "Nome_Recurso": res.get("name", ""),
-                    "Formato_Recurso": res.get("format", ""),
-                    "URL_Recurso": res.get("url", ""),
-                    "Data_Publicacao_Recurso": res.get("created", ""),
-                    "Tamanho_Recurso_Bytes": res.get("size", ""),
-                    "Descricao_Recurso": res.get("description", "")
+                    if formato == "csv":
+                        qtd_csv += 1
+                    elif formato == "xlsx":
+                        qtd_xlsx += 1
+                    elif formato == "pdf":
+                        qtd_pdf += 1
+                    elif formato == "json":
+                        qtd_json += 1
+
+                if verificar_urls:
+                    for url in urls:
+                        try:
+                            check = requests.head(url, timeout=5)
+                            if check.status_code != 200:
+                                qtd_erro += 1
+                        except:
+                            qtd_erro += 1
+
+                dados_finais.append({
+                    "ID": id_base,
+                    "Nome_Tecnico": nome_tecnico,
+                    "Nome_da_Base": nome_base,
+                    "Descrição": descricao,
+                    "Tipo": tipo,
+                    "Privado?": privado,
+                    "Órgão (ID)": orgao_id,
+                    "Órgão (Nome)": orgao_nome,
+                    "Tags": tags,
+                    "Grupos": grupos,
+                    "Extras": extras,
+                    "Data_Criacao": criado_em,
+                    "Ultima_Atualizacao": modificado_em,
+                    "Quantidade_de_Recursos": qtd_total,
+                    "Quantidade_CSV": qtd_csv,
+                    "Quantidade_XLSX": qtd_xlsx,
+                    "Quantidade_PDF": qtd_pdf,
+                    "Quantidade_JSON": qtd_json,
+                    "Formatos_Encontrados": "; ".join(sorted(formatos)),
+                    "Quantidade_ErroLeitura": qtd_erro
                 })
 
-            progresso.progress(int(idx / total_datasets * 100))
+            except Exception as e:
+                print(f"⚠️ Erro ao processar dataset {dataset_id}: {e}")
 
-        # ─────────── Preparar e formatar DataFrame ───────────
-        df = pd.DataFrame(dados)
+            contador += 1
+            progresso.progress(int((contador / total) * 100), text=f"Processando {contador}/{total}...")
 
-        # Converter datas para formato legível
-        for col in [
-            "Data_Criacao_Dataset",
-            "Ultima_Atualizacao_Dataset",
-            "Data_Publicacao_Recurso"
-        ]:
-            df[col] = pd.to_datetime(df[col], errors="coerce")
-            df[col] = df[col].dt.strftime("%d/%m/%Y %H:%M")
+        # Enviar para o Google Sheets
+        planilha = client.open(SHEET_NAME)
+        aba = planilha.worksheet(WORKSHEET_NAME)
+        df_novos = pd.DataFrame(dados_finais).fillna("")
 
-        # ─────────── Tratar valores ausentes (remover NaN) ───────────
-        df = df.fillna("")
+        if not df_novos.empty:
+            df_novos['Data_Criacao'] = pd.to_datetime(df_novos['Data_Criacao'], errors='coerce').dt.strftime('%d/%m/%Y')
+            df_novos['Ultima_Atualizacao'] = pd.to_datetime(df_novos['Ultima_Atualizacao'], errors='coerce').dt.strftime('%d/%m/%Y')
 
-        # ─────────── Enviar para Google Sheets ───────────
-        valores = [df.columns.tolist()] + df.values.tolist()
+        dados = [df_novos.columns.tolist()] + df_novos.values.tolist()
         aba.clear()
-        aba.update(valores)
+        aba.update(dados)
 
-        progresso.progress(100)
-        return True, "Os dados foram extraídos e atualizados com sucesso!"
+        progresso.progress(100, text="Concluído!")
+        return True, "Os dados foram extraídos com sucesso!"
 
     except Exception as e:
         return False, f"Erro ao atualizar planilha: {e}"
+
