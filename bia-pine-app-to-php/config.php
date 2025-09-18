@@ -1,14 +1,16 @@
 <?php
-/**
- * Arquivo de configuração principal
- * Configure suas credenciais e configurações aqui
- */
+if (file_exists(__DIR__ . '/.env')) {
+    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+    $dotenv->load();
+}
 
-// Carregar configurações do arquivo de exemplo se não existir
 if (!defined('GOOGLE_CREDENTIALS_JSON')) {
-    // Credenciais Google para autenticação com APIs
-    // Substitua pelo conteúdo JSON das suas credenciais de serviço
-    define('GOOGLE_CREDENTIALS_JSON', '{"type":"service_account","project_id":"seu-projeto","private_key_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"...","client_id":"...","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url":"..."}');
+    $credenciaisEnv = getenv('GOOGLE_CREDENTIALS_JSON');
+    if ($credenciaisEnv) {
+        define('GOOGLE_CREDENTIALS_JSON', $credenciaisEnv);
+    } else {
+        define('GOOGLE_CREDENTIALS_JSON', '{"type":"service_account","project_id":"seu-projeto","private_key_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"...","client_id":"...","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url":"..."}');
+    }
 }
 
 if (!defined('GOOGLE_SPREADSHEET_ID')) {
