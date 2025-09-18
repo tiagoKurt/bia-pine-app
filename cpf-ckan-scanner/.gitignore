@@ -1,0 +1,23 @@
+# Dependências
+/vendor
+
+# Arquivos de ambiente
+.env
+
+# Cache
+/cache/*.json
+
+# Arquivos temporários
+/tmp
+*.tmp
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
