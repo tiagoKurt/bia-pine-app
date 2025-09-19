@@ -4,6 +4,42 @@ if (file_exists(__DIR__ . '/.env')) {
     $dotenv->load();
 }
 
+if (!defined('DB_CONNECTION')) {
+    define('DB_CONNECTION', 'mysql');
+}
+if (!defined('DB_HOST')) {
+    define('DB_HOST', '127.0.0.1');
+}
+if (!defined('DB_PORT')) {
+    define('DB_PORT', '3306');
+}
+if (!defined('DB_DATABASE')) {
+    define('DB_DATABASE', 'analise_ckan');
+}
+if (!defined('DB_USERNAME')) {
+    define('DB_USERNAME', 'root');
+}
+if (!defined('DB_PASSWORD')) {
+    define('DB_PASSWORD', ''); 
+}
+
+// CREATE DATABASE IF NOT EXISTS analise_ckan;
+
+// USE analise_ckan;
+
+// CREATE TABLE IF NOT EXISTS datasets (
+//     id INT AUTO_INCREMENT PRIMARY KEY,
+//     dataset_id VARCHAR(255) NOT NULL UNIQUE,
+//     name VARCHAR(255) NOT NULL,
+//     organization VARCHAR(255),
+//     last_updated DATETIME,
+//     status VARCHAR(20),
+//     days_since_update INT,
+//     resources_count INT,
+//     url VARCHAR(2083),
+//     portal_url VARCHAR(2083)
+// );
+
 if (!defined('GOOGLE_CREDENTIALS_JSON')) {
     $credenciaisEnv = getenv('GOOGLE_CREDENTIALS_JSON');
     if ($credenciaisEnv) {

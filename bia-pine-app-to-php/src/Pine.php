@@ -4,22 +4,16 @@ namespace App;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
-use Google\Client as GoogleClient;
-use Google\Service\Sheets;
-use Google\Service\Sheets\ValueRange;
-use Google\Service\Sheets\ClearValuesRequest;
 use RuntimeException;
 use DateTime;
+use PDO;
+use PDOException;
 
 class Pine
 {
     private Client $httpClient;
-    private GoogleClient $googleClient;
-    private Sheets $sheetsService;
-    
-    private const SHEET_NAME = "RELATORIO";
-    private const WORKSHEET_NAME = "Página1";
-    
+    private ?PDO $db = null;
+
     public function __construct()
     {
         $this->httpClient = new Client([
@@ -27,16 +21,34 @@ class Pine
             'verify' => defined('HTTP_VERIFY_SSL') ? HTTP_VERIFY_SSL : false,
             'http_errors' => false
         ]);
-        
-        $this->inicializarGoogleClient();
+
+        try {
+            $dsn = sprintf(
+                '%s:host=%s;port=%s;dbname=%s;charset=utf8mb4',
+                DB_CONNECTION,
+                DB_HOST,
+                DB_PORT,
+                DB_DATABASE
+            );
+            
+            $this->db = new PDO($dsn, DB_USERNAME, DB_PASSWORD, [
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+            ]);
+            
+            $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+        } catch (PDOException $e) {
+            // Em uma aplicação real, você deveria logar este erro de forma segura.
+            throw new RuntimeException('Erro de conexão com o banco de dados. Verifique as credenciais no arquivo de configuração.');
+        }
     }
 
-    public function analisarPortal(string $portalUrl, int $diasParaDesatualizado = 30): array
+    public function analisarESalvarPortal(string $portalUrl, int $diasParaDesatualizado = 30): array
     {
         $baseUrl = rtrim($portalUrl, '/') . '/api/3/action';
         $listaDatasetsIds = $this->buscarListaDatasets($baseUrl);
 
-        $datasetsProcessados = [];
+        $datasetsParaSalvar = [];
         $totalDatasets = 0;
         $datasetsAtualizados = 0;
         $datasetsDesatualizados = 0;
@@ -44,17 +56,17 @@ class Pine
 
         foreach ($listaDatasetsIds as $datasetId) {
             try {
-                $info = $this->processarDataset($baseUrl, $datasetId, $portalUrl, false);
-                
+                $info = $this->processarDataset($baseUrl, $datasetId, $portalUrl);
+
                 if (!$info) {
                     continue;
                 }
 
                 $totalDatasets++;
 
-                $ultimaAtualizacaoStr = $info['Ultima_Atualizacao'];
+                $ultimaAtualizacaoStr = $info['last_updated'];
                 $diasDesdeAtualizacao = PHP_INT_MAX;
-                $status = 'outdated';
+                $status = 'Desatualizado';
 
                 if (!empty($ultimaAtualizacaoStr)) {
                     $dataAtualizacao = new DateTime($ultimaAtualizacaoStr);
@@ -62,7 +74,7 @@ class Pine
                     $diasDesdeAtualizacao = (int)$intervalo->format('%a');
 
                     if ($diasDesdeAtualizacao <= $diasParaDesatualizado) {
-                        $status = 'updated';
+                        $status = 'Atualizado';
                         $datasetsAtualizados++;
                     } else {
                         $datasetsDesatualizados++;
@@ -70,259 +82,140 @@ class Pine
                 } else {
                     $datasetsDesatualizados++;
                 }
-                
-                $datasetsProcessados[] = [
-                    'id' => $datasetId,
-                    'name' => $info['Nome_da_Base'],
-                    'organization' => $info['Orgao'],
-                    'last_updated' => $ultimaAtualizacaoStr,
+
+                $datasetsParaSalvar[] = [
+                    'dataset_id' => $datasetId,
+                    'name' => $info['name'],
+                    'organization' => $info['organization'],
+                    'last_updated' => $ultimaAtualizacaoStr ?: null,
                     'status' => $status,
                     'days_since_update' => $diasDesdeAtualizacao,
-                    'resources_count' => $info['Quantidade_de_Recursos'],
-                    'url' => $info['Link_Base']
+                    'resources_count' => $info['resources_count'],
+                    'url' => $info['url'],
+                    'portal_url' => $portalUrl
                 ];
 
             } catch (RuntimeException $e) {
-                error_log("⚠️ Erro ao processar o dataset '{$datasetId}' na análise do portal: " . $e->getMessage());
+                error_log("Erro ao processar o dataset '{$datasetId}': " . $e->getMessage());
             }
+        }
+        
+        $this->limparDadosAntigosDoPortal($portalUrl);
+
+        if (!empty($datasetsParaSalvar)) {
+            $this->salvarDatasetsEmLote($datasetsParaSalvar);
         }
 
         return [
-            'portal_url' => $portalUrl,
-            'analysis_date' => date('Y-m-d H:i:s'),
             'total_datasets' => $totalDatasets,
             'updated_datasets' => $datasetsAtualizados,
             'outdated_datasets' => $datasetsDesatualizados,
-            'datasets' => $datasetsProcessados
         ];
     }
-    
-    private function inicializarGoogleClient(): void
-    {
-        $this->googleClient = new GoogleClient();
-        $this->googleClient->setApplicationName('BIA-PINE-App');
-        $this->googleClient->setScopes([
-            'https://www.googleapis.com/auth/spreadsheets',
-            'https://www.googleapis.com/auth/drive'
-        ]);
-        
-        $credenciaisJson = defined('GOOGLE_CREDENTIALS_JSON') ? GOOGLE_CREDENTIALS_JSON : null;
-        if (!$credenciaisJson) {
-            throw new RuntimeException('Variável de ambiente GOOGLE_CREDENTIALS_JSON não configurada.');
-        }
-        
-        $credenciais = json_decode($credenciaisJson, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new RuntimeException('Erro ao decodificar as credenciais Google. Verifique o formato do JSON.');
-        }
-        
-        $this->googleClient->setAuthConfig($credenciais);
-        $this->sheetsService = new Sheets($this->googleClient);
-    }
-    
-    public function atualizarPlanilha(string $portalUrl, bool $verificarUrls): array
-    {
-        try {
-            $baseUrl = rtrim($portalUrl, '/') . '/api/3/action';
-            $listaDatasets = $this->buscarListaDatasets($baseUrl);
-            
-            $dadosFinais = [];
-            $total = count($listaDatasets);
-            
-            foreach ($listaDatasets as $index => $datasetId) {
-                try {
-                    $dadosDataset = $this->processarDataset($baseUrl, $datasetId, $portalUrl, $verificarUrls);
-                    if ($dadosDataset) {
-                        $dadosFinais[] = $dadosDataset;
-                    }
-                } catch (RuntimeException $e) {
-                    error_log("⚠️ Erro ao processar o dataset '{$datasetId}': " . $e->getMessage());
-                }
-                
-                if (($index + 1) % 10 === 0 || ($index + 1) === $total) {
-                    error_log("Processados " . ($index + 1) . " de " . $total . " datasets.");
-                }
-            }
-            
-            if (empty($dadosFinais)) {
-                return [
-                    'sucesso' => true,
-                    'mensagem' => 'Nenhum dado foi encontrado ou processado nos datasets. A planilha não foi alterada.'
-                ];
-            }
-            
-            $this->atualizarPlanilhaGoogle($dadosFinais);
-            
-            return [
-                'sucesso' => true,
-                'mensagem' => 'Os dados foram extraídos e a planilha foi atualizada com sucesso!'
-            ];
-            
-        } catch (RuntimeException $e) {
-            return [
-                'sucesso' => false,
-                'mensagem' => 'Erro geral ao atualizar planilha: ' . $e->getMessage()
-            ];
-        }
-    }
-    
+
     private function buscarListaDatasets(string $baseUrl): array
     {
         $url = "{$baseUrl}/package_list";
         $response = $this->httpClient->get($url);
-        
+
         if ($response->getStatusCode() !== 200) {
             throw new RuntimeException("Erro ao buscar lista de datasets. Status: " . $response->getStatusCode());
         }
 
         $data = json_decode($response->getBody()->getContents(), true);
-        
+
         if (!isset($data['success']) || $data['success'] !== true || !isset($data['result'])) {
-            throw new RuntimeException('A resposta da API para a lista de datasets não foi bem-sucedida ou está malformada.');
+            throw new RuntimeException('A resposta da API para a lista de datasets não foi bem-sucedida.');
         }
-        
+
         return $data['result'];
     }
-    
-    private function processarDataset(string $baseUrl, string $datasetId, string $portalUrl, bool $verificarUrls): ?array
+
+    private function processarDataset(string $baseUrl, string $datasetId, string $portalUrl): ?array
     {
         $url = "{$baseUrl}/package_show?id={$datasetId}";
         $response = $this->httpClient->get($url);
 
         if ($response->getStatusCode() !== 200) {
-            throw new RuntimeException("Não foi possível obter detalhes do dataset. Status: " . $response->getStatusCode());
+            throw new RuntimeException("Não foi possível obter detalhes do dataset '{$datasetId}'.");
         }
-        
+
         $info = json_decode($response->getBody()->getContents(), true)['result'];
-        
-        $nomeBase = $info['title'] ?? $datasetId;
-        $orgao = $info['organization']['title'] ?? 'Não informado';
-        $ultimaAtualizacao = $info['metadata_modified'] ?? '';
-        $dataCriacao = $info['metadata_created'] ?? '';
-        
-        $linkBase = rtrim($portalUrl, '/') . '/dataset/' . $datasetId;
-        
-        $resources = $info['resources'] ?? [];
-        $qtdTotal = count($resources);
-        
-        $contadores = $this->contarTiposRecursos($resources);
-        
-        $qtdErro = 0;
-        if ($verificarUrls) {
-            $qtdErro = $this->verificarUrlsRecursos($resources);
-        }
-        
+
         return [
-            'Nome_da_Base' => $nomeBase,
-            'Orgao' => $orgao,
-            'Ultima_Atualizacao' => $ultimaAtualizacao,
-            'Data_Criacao' => $dataCriacao,
-            'Link_Base' => $linkBase,
-            'Quantidade_de_Recursos' => $qtdTotal,
-            'Quantidade_CSV' => $contadores['csv'],
-            'Quantidade_XLSX' => $contadores['xlsx'],
-            'Quantidade_PDF' => $contadores['pdf'],
-            'Quantidade_JSON' => $contadores['json'],
-            'Quantidade_ErroLeitura' => $qtdErro
+            'name' => $info['title'] ?? $datasetId,
+            'organization' => $info['organization']['title'] ?? 'Não informado',
+            'last_updated' => $info['metadata_modified'] ?? '',
+            'resources_count' => count($info['resources'] ?? []),
+            'url' => rtrim($portalUrl, '/') . '/dataset/' . $datasetId
         ];
     }
     
-    private function contarTiposRecursos(array $resources): array
+    private function limparDadosAntigosDoPortal(string $portalUrl): void
     {
-        $contadores = ['csv' => 0, 'xlsx' => 0, 'pdf' => 0, 'json' => 0];
+        $sql = "DELETE FROM datasets WHERE portal_url = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$portalUrl]);
+    }
+
+
+    private function salvarDatasetsEmLote(array $datasets): void
+    {
+        $sql = "INSERT INTO datasets (dataset_id, name, organization, last_updated, status, days_since_update, resources_count, url, portal_url) VALUES ";
         
-        foreach ($resources as $res) {
-            $formato = strtolower($res['format'] ?? '');
-            if (array_key_exists($formato, $contadores)) {
-                $contadores[$formato]++;
-            }
+        $placeholders = [];
+        $values = [];
+        foreach ($datasets as $dataset) {
+            $placeholders[] = '(?, ?, ?, ?, ?, ?, ?, ?, ?)';
+            array_push($values,
+                $dataset['dataset_id'],
+                $dataset['name'],
+                $dataset['organization'],
+                $dataset['last_updated'],
+                $dataset['status'],
+                $dataset['days_since_update'],
+                $dataset['resources_count'],
+                $dataset['url'],
+                $dataset['portal_url']
+            );
         }
         
-        return $contadores;
-    }
-    
-    private function verificarUrlsRecursos(array $resources): int
-    {
-        $qtdErro = 0;
+        $sql .= implode(', ', $placeholders);
         
-        foreach ($resources as $res) {
-            $url = $res['url'] ?? '';
-            if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
-                $qtdErro++;
-                continue;
-            }
-            
-            try {
-                $response = $this->httpClient->head($url, ['timeout' => 10]);
-                if ($response->getStatusCode() >= 400) {
-                    $qtdErro++;
-                }
-            } catch (RequestException $e) {
-                $qtdErro++;
-            }
+        try {
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($values);
+        } catch(PDOException $e) {
+            error_log("Erro ao salvar datasets em lote: " . $e->getMessage());
+            throw new RuntimeException("Falha ao salvar os dados no banco.");
         }
-        
-        return $qtdErro;
     }
-    
-    private function atualizarPlanilhaGoogle(array $dadosFinais): void
+
+    public function getDatasetsPaginados(string $portalUrl, int $pagina = 1, int $porPagina = 10): array
     {
-        $spreadsheetId = $this->obterSpreadsheetId();
-        
-        $dadosFormatados = $this->formatarDatas($dadosFinais);
-        
-        $headers = array_keys($dadosFormatados[0]);
-        $values = array_map(fn($row) => array_values($row), $dadosFormatados);
-        
-        array_unshift($values, $headers);
-        
-        $range = self::WORKSHEET_NAME . '!A1';
-        $valueRange = new ValueRange(['values' => $values]);
-        
-        $params = ['valueInputOption' => 'USER_ENTERED'];
-        
-        $this->sheetsService->spreadsheets_values->clear($spreadsheetId, self::WORKSHEET_NAME, new ClearValuesRequest());
-        
-        $this->sheetsService->spreadsheets_values->update(
-            $spreadsheetId,
-            $range,
-            $valueRange,
-            $params
+        $offset = ($pagina - 1) * $porPagina;
+
+        $totalStmt = $this->db->prepare("SELECT COUNT(id) FROM datasets WHERE portal_url = ?");
+        $totalStmt->execute([$portalUrl]);
+        $totalRegistros = (int) $totalStmt->fetchColumn();
+
+        // Pega os dados paginados
+        $dataStmt = $this->db->prepare(
+            "SELECT * FROM datasets WHERE portal_url = ? ORDER BY last_updated DESC LIMIT ? OFFSET ?"
         );
-    }
-    
-    private function formatarDatas(array $dados): array
-    {
-        foreach ($dados as &$row) {
-            if (!empty($row['Ultima_Atualizacao'])) {
-                try {
-                    $data = new DateTime($row['Ultima_Atualizacao']);
-                    $row['Ultima_Atualizacao'] = $data->format('d/m/Y');
-                } catch (\Exception $e) {
-                    $row['Ultima_Atualizacao'] = ''; 
-                }
-            }
-            
-            if (!empty($row['Data_Criacao'])) {
-                 try {
-                    $data = new DateTime($row['Data_Criacao']);
-                    $row['Data_Criacao'] = $data->format('d/m/Y');
-                } catch (\Exception $e) {
-                    $row['Data_Criacao'] = '';
-                }
-            }
-        }
-        
-        return $dados;
-    }
-    
-    private function obterSpreadsheetId(): string
-    {
-        $spreadsheetId = defined('GOOGLE_SPREADSHEET_ID') ? GOOGLE_SPREADSHEET_ID : null;
-        if (!$spreadsheetId) {
-            throw new RuntimeException('A constante GOOGLE_SPREADSHEET_ID não está configurada.');
-        }
-        
-        return $spreadsheetId;
+        $dataStmt->bindValue(1, $portalUrl, PDO::PARAM_STR);
+        $dataStmt->bindValue(2, $porPagina, PDO::PARAM_INT);
+        $dataStmt->bindValue(3, $offset, PDO::PARAM_INT);
+        $dataStmt->execute();
+
+        $datasets = $dataStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return [
+            'datasets' => $datasets,
+            'total' => $totalRegistros,
+            'pagina' => $pagina,
+            'por_pagina' => $porPagina,
+            'total_paginas' => ceil($totalRegistros / $porPagina)
+        ];
     }
 }

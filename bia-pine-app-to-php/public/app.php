@@ -2,22 +2,36 @@
 session_start();
 
 require __DIR__ . '/../config.php';
-
 require __DIR__ . '/../vendor/autoload.php';
 
 use App\Bia;
 use App\Pine;
 
 $bia = new Bia();
-$pine = new Pine();
+try {
+    $pine = new Pine();
+} catch (Exception $e) {
+    die('Erro fatal de conexão com o banco de dados: ' . $e->getMessage());
+}
 
-$message = '';
-$messageType = 'error';
-$downloadFile = null;
-$downloadFileName = null;
 
-$analysisResults = $_SESSION['analysisResults'] ?? null;
+$message = $_SESSION['message'] ?? '';
+$messageType = $_SESSION['messageType'] ?? 'error';
+$downloadFile = $_SESSION['downloadFile'] ?? null;
+$downloadFileName = $_SESSION['downloadFileName'] ?? null;
+unset($_SESSION['message'], $_SESSION['messageType'], $_SESSION['downloadFile'], $_SESSION['downloadFileName']);
+
+const DIAS_PARA_DESATUALIZADO = 30;
 $portalUrl = $_SESSION['portalUrl'] ?? '';
+
+$paginaAtual = isset($_GET['page']) && isset($_GET['tab']) && $_GET['tab'] === 'pine' ? (int)$_GET['page'] : 1;
+$itensPorPagina = 15;
+
+$analysisResults = []; 
+if (!empty($portalUrl)) {
+    $analysisResults = $pine->getDatasetsPaginados($portalUrl, $paginaAtual, $itensPorPagina);
+}
+
 
 $cpfFindings = [
     [
@@ -54,77 +68,76 @@ $cpfFindings = [
 $totalCpfs = array_sum(array_column($cpfFindings, 'cpf_count'));
 $totalResources = count($cpfFindings);
 
-const DIAS_PARA_DESATUALIZADO = 30;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     
+    // Ação da aba BIA
     if ($action === 'gerar_dicionario') {
         $recursoUrl = $_POST['recurso_url'] ?? '';
         
         if (empty($recursoUrl)) {
-            $message = 'Informe o link do recurso CKAN.';
-            $messageType = 'error';
+            $_SESSION['message'] = 'Informe o link do recurso CKAN.';
+            $_SESSION['messageType'] = 'error';
         } else {
             try {
                 $templateFile = __DIR__ . '/../templates/modelo_bia2_pronto_para_preencher.docx';
                 $outputFile = $bia->gerarDicionarioWord($recursoUrl, $templateFile);
 
-                $message = 'Documento gerado com sucesso.';
-                $messageType = 'success';
-                $downloadFile = $outputFile;
-                $downloadFileName = basename($outputFile);
+                $_SESSION['message'] = 'Documento gerado e baixado com sucesso!';
+                $_SESSION['messageType'] = 'success';
+                $_SESSION['downloadFile'] = $outputFile;
+                $_SESSION['downloadFileName'] = basename($outputFile);
                 
             } catch (Exception $e) {
-                $message = 'Ocorreu um erro ao gerar o dicionário: ' . $e->getMessage();
-                $messageType = 'error';
+                $_SESSION['message'] = 'Ocorreu um erro ao gerar o dicionário: ' . $e->getMessage();
+                $_SESSION['messageType'] = 'error';
             }
         }
+        header("Location: " . $_SERVER['PHP_SELF'] . "?tab=bia");
+        exit;
     }
     
     if ($action === 'analyze_portal') {
         $portalUrl = $_POST['portal_url'] ?? '';
         $_SESSION['portalUrl'] = $portalUrl;
-        
+
         if (empty($portalUrl) || !filter_var($portalUrl, FILTER_VALIDATE_URL)) {
-            $message = 'Por favor, informe uma URL válida para o portal CKAN.';
-            $analysisResults = null;
+            $_SESSION['message'] = 'Por favor, informe uma URL válida para o portal CKAN.';
+            $_SESSION['messageType'] = 'error';
         } else {
             try {
-                $analysisResults = $pine->analisarPortal($portalUrl, DIAS_PARA_DESATUALIZADO);
-                $_SESSION['analysisResults'] = $analysisResults;
-                
-                if (empty($analysisResults['datasets'])) {
-                    $message = 'Nenhum dataset foi encontrado ou pôde ser processado no portal informado.';
-                    $messageType = 'warning';
-                } else {
-                    $message = 'Análise concluída com sucesso!';
-                    $messageType = 'success';
-                }
-                
+                $pine->analisarESalvarPortal($portalUrl, DIAS_PARA_DESATUALIZADO); //
+                $_SESSION['message'] = 'Análise concluída e dados salvos com sucesso!';
+                $_SESSION['messageType'] = 'success';
+
             } catch (Exception $e) {
-                $message = 'Ocorreu um erro ao analisar o portal: ' . $e->getMessage();
-                $analysisResults = null;
+                $_SESSION['message'] = 'Ocorreu um erro ao analisar o portal: ' . $e->getMessage();
+                $_SESSION['messageType'] = 'error';
             }
         }
+        header("Location: " . $_SERVER['PHP_SELF'] . "?tab=pine");
+        exit;
     }
     
     if ($action === 'export_pine_csv') {
-        if ($analysisResults && !empty($analysisResults['datasets'])) {
+        $exportData = $pine->getDatasetsPaginados($portalUrl, 1, 99999); 
+        
+        if ($exportData && !empty($exportData['datasets'])) {
             header('Content-Type: text/csv; charset=utf-8');
             header('Content-Disposition: attachment; filename="analise_pine_' . date('Y-m-d') . '.csv"');
             
             $output = fopen('php://output', 'w');
-            fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
+            fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM para UTF-8 no Excel
             fputcsv($output, ['ID', 'Nome do Dataset', 'Órgão', 'Última Atualização', 'Status', 'Dias Desde Atualização', 'Recursos', 'Link']);
             
-            foreach ($analysisResults['datasets'] as $dataset) {
+            foreach ($exportData['datasets'] as $dataset) {
                 fputcsv($output, [
-                    $dataset['id'],
+                    $dataset['dataset_id'],
                     $dataset['name'],
                     $dataset['organization'],
                     $dataset['last_updated'] ? date('d/m/Y H:i', strtotime($dataset['last_updated'])) : 'N/A',
-                    $dataset['status'] === 'updated' ? 'Atualizado' : 'Desatualizado',
+                    $dataset['status'],
                     $dataset['days_since_update'] === PHP_INT_MAX ? 'N/A' : $dataset['days_since_update'],
                     $dataset['resources_count'],
                     $dataset['url']
@@ -158,7 +171,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 }
-
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -170,6 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        /* Seu CSS (sem alterações) */
         :root {
             --primary-color: #3d6b35;
             --primary-dark: #2d5a27;
@@ -658,7 +671,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <!-- Main Content -->
         <div class="main-content">
             <div class="container">
-                <?php if ($message): ?>
+                <?php if ($message && !isset($_GET['tab'])): ?>
                     <div class="alert alert-<?= $messageType === 'success' ? 'success' : ($messageType === 'warning' ? 'warning' : 'danger') ?> alert-dismissible fade show" role="alert">
                         <i class="fas fa-<?= $messageType === 'success' ? 'check-circle' : ($messageType === 'warning' ? 'exclamation-triangle' : 'exclamation-triangle') ?> icon"></i>
                         <?= htmlspecialchars($message) ?>
@@ -682,12 +695,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <!-- Navigation Tabs -->
                 <ul class="nav nav-tabs" id="mainTabs" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="bia-tab" data-bs-toggle="tab" data-bs-target="#bia" type="button" role="tab">
+                        <button class="nav-link <?= isset($_GET['tab']) && $_GET['tab'] === 'bia' ? 'active' : (!isset($_GET['tab']) ? 'active' : '') ?>" id="bia-tab" data-bs-toggle="tab" data-bs-target="#bia" type="button" role="tab">
                             <i class="fas fa-file-word icon"></i> BIA
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="pine-tab" data-bs-toggle="tab" data-bs-target="#pine" type="button" role="tab">
+                        <button class="nav-link <?= isset($_GET['tab']) && $_GET['tab'] === 'pine' ? 'active' : '' ?>" id="pine-tab" data-bs-toggle="tab" data-bs-target="#pine" type="button" role="tab">
                             <i class="fas fa-chart-line icon"></i> PINE
                         </button>
                     </li>
@@ -698,10 +711,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </li>
                 </ul>
 
-                <!-- Tab Content -->
                 <div class="tab-content" id="mainTabsContent">
                     <!-- BIA Tab -->
-                    <div class="tab-pane fade show active" id="bia" role="tabpanel">
+                    <div class="tab-pane fade <?= isset($_GET['tab']) && $_GET['tab'] === 'bia' ? 'show active' : (!isset($_GET['tab']) ? 'show active' : '') ?>" id="bia" role="tabpanel">
                         <h2>
                             <i class="fas fa-file-word icon"></i>
                             Gerar Dicionário de Dados
@@ -711,7 +723,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             O sistema analisa automaticamente a estrutura dos dados e gera documentação completa.
                         </p>
                         
-                        <form method="POST" class="mt-4">
+                        <form method="POST" class="mt-4" id="dicionario-form">
                             <input type="hidden" name="action" value="gerar_dicionario">
                             <div class="mb-4">
                                 <label for="recurso_url" class="form-label">
@@ -724,20 +736,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     Cole aqui o link completo do recurso que deseja documentar
                                 </div>
                             </div>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-magic icon"></i> Gerar Dicionário
+                            <button type="submit" id="gerar-btn" class="btn btn-primary">
+                                <span id="btn-text">
+                                    <i class="fas fa-magic icon"></i> Gerar Dicionário
+                                </span>
+                                <span id="btn-loading" class="d-none">
+                                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                    Gerando dicionário...
+                                </span>
                             </button>
                         </form>
                         
-                        <?php if ($downloadFile && file_exists($downloadFile)): ?>
-                            <div class="download-section">
-                                <h4 class="text-primary mb-3">
-                                    <i class="fas fa-download icon"></i> Documento Gerado com Sucesso!
-                                </h4>
-                                <a href="download.php?file=<?= urlencode($downloadFileName) ?>&path=<?= urlencode($downloadFile) ?>" class="btn btn-success">
-                                    <i class="fas fa-download icon"></i> Baixar Documento Word
-                                </a>
+                        <!-- Barra de progresso -->
+                        <div id="progress-container" class="d-none mt-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <i class="fas fa-cogs icon"></i> Gerando Dicionário de Dados
+                                    </h5>
+                                    <p class="card-text text-muted">
+                                        Analisando a estrutura dos dados e gerando documentação...
+                                    </p>
+                                    <div class="progress mb-3">
+                                        <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                             role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                        </div>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <small class="text-muted" id="progress-text">Iniciando...</small>
+                                        <small class="text-muted" id="progress-percent">0%</small>
+                                    </div>
+                                </div>
                             </div>
+                        </div>
+                        
+                        <?php if ($downloadFile && file_exists($downloadFile)): ?>
+                            <div id="download-notification" class="alert alert-success alert-dismissible fade show" role="alert">
+                                <i class="fas fa-check-circle icon"></i>
+                                Documento gerado e baixado com sucesso!
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                            <script>
+                                // Aguardar o Bootstrap carregar
+                                document.addEventListener('DOMContentLoaded', function() {
+                                    // Download automático
+                                    window.location.href = 'download.php?file=<?= urlencode($downloadFileName) ?>&path=<?= urlencode($downloadFile) ?>';
+                                    
+                                    // Remove o pop-up após 3 segundos
+                                    setTimeout(function() {
+                                        const notification = document.getElementById('download-notification');
+                                        if (notification) {
+                                            // Usar método nativo do Bootstrap 5
+                                            if (typeof bootstrap !== 'undefined') {
+                                                const bsAlert = bootstrap.Alert.getOrCreateInstance(notification);
+                                                bsAlert.close();
+                                            } else {
+                                                // Fallback: remover manualmente
+                                                notification.style.display = 'none';
+                                            }
+                                        }
+                                    }, 3000);
+                                });
+                            </script>
                         <?php endif; ?>
                     </div>
 
@@ -748,7 +808,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             Iniciar Análise PINE
                         </h2>
                         <p class="description-text">
-                            Digite a URL do portal CKAN para analisar a atualização dos datasets. O processo pode levar alguns minutos.
+                            Digite a URL do portal CKAN para analisar a atualização dos datasets. Os dados são salvos e exibidos abaixo.
                         </p>
                         
                         <form method="POST" id="analysis-form">
@@ -773,13 +833,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                             </div>
                         </form>
-
+                        
                         <?php if ($analysisResults && !empty($analysisResults['datasets'])): ?>
                             <div class="mt-4">
                                 <div class="d-flex justify-content-between align-items-center mb-4">
                                     <h3>
                                         <i class="fas fa-list icon"></i>
-                                        Lista de Datasets (<?= $analysisResults['total_datasets'] ?>)
+                                        Lista de Datasets (<?= $analysisResults['total'] ?>)
                                     </h3>
                                     <div>
                                         <form method="POST" class="d-inline">
@@ -808,9 +868,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 <tr>
                                                     <td>
                                                         <div>
-                                                            <strong><?= htmlspecialchars($dataset['name']) ?></strong>
-                                                            <br>
-                                                            <small class="text-muted">ID: <?= htmlspecialchars($dataset['id']) ?></small>
+                                                            <strong><?= htmlspecialchars($dataset['name']) ?></strong><br>
+                                                            <small class="text-muted">ID: <?= htmlspecialchars($dataset['dataset_id']) ?></small>
                                                         </div>
                                                     </td>
                                                     <td>
@@ -818,23 +877,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                     </td>
                                                     <td>
                                                         <div>
-                                                            <strong><?= $dataset['last_updated'] ? date('d/m/Y', strtotime($dataset['last_updated'])) : 'N/A' ?></strong>
-                                                            <br>
+                                                            <strong><?= $dataset['last_updated'] ? date('d/m/Y', strtotime($dataset['last_updated'])) : 'N/A' ?></strong><br>
                                                             <small class="text-muted">
                                                                 <?= $dataset['days_since_update'] !== PHP_INT_MAX ? $dataset['days_since_update'] . ' dias atrás' : 'Sem data' ?>
                                                             </small>
                                                         </div>
                                                     </td>
                                                     <td>
-                                                        <?php if ($dataset['status'] === 'updated'): ?>
+                                                        <?php if ($dataset['status'] === 'Atualizado'): ?>
                                                             <span class="badge bg-success"><i class="fas fa-check icon"></i> Atualizado</span>
                                                         <?php else: ?>
                                                             <span class="badge bg-danger"><i class="fas fa-exclamation-triangle icon"></i> Desatualizado</span>
                                                         <?php endif; ?>
                                                     </td>
-                                                    <td>
-                                                        <span class="badge bg-secondary"><?= $dataset['resources_count'] ?></span>
-                                                    </td>
+                                                    <td><span class="badge bg-secondary"><?= $dataset['resources_count'] ?></span></td>
                                                     <td>
                                                         <a href="<?= htmlspecialchars($dataset['url']) ?>" target="_blank" class="btn btn-outline-primary btn-sm">
                                                             <i class="fas fa-external-link-alt icon"></i> Ver
@@ -845,11 +901,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         </tbody>
                                     </table>
                                 </div>
+
+                                <?php if (isset($analysisResults['total_paginas']) && $analysisResults['total_paginas'] > 1): ?>
+                                    <nav class="mt-4">
+                                        <ul class="pagination justify-content-center" id="pagination">
+                                            <li class="page-item <?= $paginaAtual <= 1 ? 'disabled' : '' ?>">
+                                                <a class="page-link" href="#" data-page="<?= $paginaAtual - 1 ?>">Anterior</a>
+                                            </li>
+                                            <?php for ($i = 1; $i <= $analysisResults['total_paginas']; $i++): ?>
+                                                <li class="page-item <?= $i === $paginaAtual ? 'active' : '' ?>">
+                                                    <a class="page-link" href="#" data-page="<?= $i ?>"><?= $i ?></a>
+                                                </li>
+                                            <?php endfor; ?>
+                                            <li class="page-item <?= $paginaAtual >= $analysisResults['total_paginas'] ? 'disabled' : '' ?>">
+                                                <a class="page-link" href="#" data-page="<?= $paginaAtual + 1 ?>">Próximo</a>
+                                            </li>
+                                        </ul>
+                                    </nav>
+                                <?php endif; ?>
                             </div>
                         <?php endif; ?>
                     </div>
 
-                    <!-- CPF Tab -->
                     <div class="tab-pane fade" id="cpf" role="tabpanel">
                         <h2>
                             <i class="fas fa-shield-alt icon"></i>
@@ -1007,27 +1080,146 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Script para mostrar um feedback de carregamento no botão de análise PINE
+        // Script para carregamento no botão de análise PINE
         document.getElementById('analysis-form').addEventListener('submit', function() {
             const submitBtn = document.getElementById('submit-btn');
             const btnText = document.getElementById('btn-text');
             const loadingSpinner = document.getElementById('loading-spinner');
-
+            
             submitBtn.disabled = true;
             btnText.classList.add('d-none');
             loadingSpinner.classList.remove('d-none');
         });
 
-        // Auto-close alerts after 5 seconds
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-                const alerts = document.querySelectorAll('.alert');
-                alerts.forEach(alert => {
-                    const bsAlert = new bootstrap.Alert(alert);
-                    bsAlert.close();
-                });
-            }, 5000);
+        // Script para carregamento no botão de geração de dicionário BIA
+        document.getElementById('dicionario-form').addEventListener('submit', function() {
+            const gerarBtn = document.getElementById('gerar-btn');
+            const btnText = document.getElementById('btn-text');
+            const btnLoading = document.getElementById('btn-loading');
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            const progressPercent = document.getElementById('progress-percent');
+            
+            // Desabilitar botão e mostrar loading
+            gerarBtn.disabled = true;
+            btnText.classList.add('d-none');
+            btnLoading.classList.remove('d-none');
+            
+            // Mostrar barra de progresso
+            progressContainer.classList.remove('d-none');
+            
+            // Simular progresso
+            let progress = 0;
+            const progressSteps = [
+                { percent: 20, text: 'Conectando com a API CKAN...' },
+                { percent: 40, text: 'Analisando estrutura dos dados...' },
+                { percent: 60, text: 'Processando metadados...' },
+                { percent: 80, text: 'Gerando documento Word...' },
+                { percent: 100, text: 'Finalizando e preparando download...' }
+            ];
+            
+            let currentStep = 0;
+            const progressInterval = setInterval(() => {
+                if (currentStep < progressSteps.length) {
+                    const step = progressSteps[currentStep];
+                    progressBar.style.width = step.percent + '%';
+                    progressBar.setAttribute('aria-valuenow', step.percent);
+                    progressText.textContent = step.text;
+                    progressPercent.textContent = step.percent + '%';
+                    currentStep++;
+                } else {
+                    clearInterval(progressInterval);
+                }
+            }, 800);
         });
+
+        // Script para manter a aba ativa após o refresh da página
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const tab = urlParams.get('tab');
+            if (tab) {
+                const tabElement = document.querySelector('#' + tab + '-tab');
+                if(tabElement) {
+                    const tabInstance = new bootstrap.Tab(tabElement);
+                    tabInstance.show();
+                }
+            }
+            
+            // Paginação AJAX
+            const pagination = document.getElementById('pagination');
+            if (pagination) {
+                pagination.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const pageLink = e.target.closest('.page-link');
+                    if (pageLink && !pageLink.parentElement.classList.contains('disabled')) {
+                        const page = pageLink.getAttribute('data-page');
+                        if (page) {
+                            loadPinePage(page);
+                        }
+                    }
+                });
+            }
+        });
+
+        // Função para carregar página do PINE via AJAX
+        function loadPinePage(page) {
+            const portalUrl = document.getElementById('portal_url').value;
+            if (!portalUrl) return;
+            
+            // Mostrar loading
+            const tableContainer = document.querySelector('#pine .table-responsive');
+            if (tableContainer) {
+                tableContainer.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
+            }
+            
+            // Fazer requisição AJAX
+            fetch('pine.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'action=load_page&page=' + page + '&portal_url=' + encodeURIComponent(portalUrl)
+            })
+            .then(response => response.text())
+            .then(data => {
+                // Atualizar apenas a tabela e paginação
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(data, 'text/html');
+                const newTable = doc.querySelector('.table-responsive');
+                const newPagination = doc.querySelector('#pagination');
+                
+                if (newTable && tableContainer) {
+                    tableContainer.innerHTML = newTable.innerHTML;
+                }
+                
+                if (newPagination) {
+                    const paginationContainer = document.querySelector('#pagination').parentElement;
+                    paginationContainer.innerHTML = newPagination.outerHTML;
+                    
+                    // Re-adicionar event listeners
+                    const newPaginationEl = document.getElementById('pagination');
+                    if (newPaginationEl) {
+                        newPaginationEl.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            const pageLink = e.target.closest('.page-link');
+                            if (pageLink && !pageLink.parentElement.classList.contains('disabled')) {
+                                const page = pageLink.getAttribute('data-page');
+                                if (page) {
+                                    loadPinePage(page);
+                                }
+                            }
+                        });
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao carregar página:', error);
+                if (tableContainer) {
+                    tableContainer.innerHTML = '<div class="alert alert-danger">Erro ao carregar dados da página.</div>';
+                }
+            });
+        }
     </script>
 </body>
 </html>

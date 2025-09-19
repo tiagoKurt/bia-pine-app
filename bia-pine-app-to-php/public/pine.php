@@ -2,75 +2,146 @@
 session_start();
 
 require __DIR__ . '/../config.php';
-
 require __DIR__ . '/../vendor/autoload.php';
 
 use App\Pine;
 
-$analysisResults = $_SESSION['analysisResults'] ?? null;
 $portalUrl = $_SESSION['portalUrl'] ?? '';
-$message = null;
-$messageType = 'error';
+$message = $_SESSION['message'] ?? null;
+$messageType = $_SESSION['messageType'] ?? 'error';
+
+unset($_SESSION['message'], $_SESSION['messageType']); // Limpa a mensagem após exibir
 
 const DIAS_PARA_DESATUALIZADO = 30;
 
+$pine = new Pine();
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
-    
+
     if ($action === 'analyze_portal') {
         $portalUrl = $_POST['portal_url'] ?? '';
         $_SESSION['portalUrl'] = $portalUrl;
-        
+
         if (empty($portalUrl) || !filter_var($portalUrl, FILTER_VALIDATE_URL)) {
-            $message = 'Por favor, informe uma URL válida para o portal CKAN.';
-            $analysisResults = null;
+            $_SESSION['message'] = 'Por favor, informe uma URL válida para o portal CKAN.';
+            $_SESSION['messageType'] = 'error';
         } else {
             try {
-                $pine = new Pine();
-                $analysisResults = $pine->analisarPortal($portalUrl, DIAS_PARA_DESATUALIZADO);
-                
-                $_SESSION['analysisResults'] = $analysisResults;
-                
-                if (empty($analysisResults['datasets'])) {
-                    $message = 'Nenhum dataset foi encontrado ou pôde ser processado no portal informado.';
-                    $messageType = 'warning';
-                }
-                
+                $pine->analisarESalvarPortal($portalUrl, DIAS_PARA_DESATUALIZADO);
+                $_SESSION['message'] = 'Análise concluída e dados salvos com sucesso!';
+                $_SESSION['messageType'] = 'success';
+
             } catch (Exception $e) {
-                $message = 'Ocorreu um erro ao analisar o portal: ' . $e->getMessage();
-                $analysisResults = null;
+                $_SESSION['message'] = 'Ocorreu um erro ao analisar o portal: ' . $e->getMessage();
+                $_SESSION['messageType'] = 'error';
             }
         }
+        // Redireciona para evitar reenvio do formulário
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
     }
     
-    if ($action === 'export_csv') {
-        if ($analysisResults && !empty($analysisResults['datasets'])) {
-            header('Content-Type: text/csv; charset=utf-8');
-            header('Content-Disposition: attachment; filename="analise_pine_' . date('Y-m-d') . '.csv"');
+    if ($action === 'load_page') {
+        $portalUrl = $_POST['portal_url'] ?? '';
+        $page = (int)($_POST['page'] ?? 1);
+        $itensPorPagina = 15;
+        
+        if (!empty($portalUrl)) {
+            $analysisResults = $pine->getDatasetsPaginados($portalUrl, $page, $itensPorPagina);
             
-            $output = fopen('php://output', 'w');
-
-            fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
-
-            fputcsv($output, ['ID', 'Nome do Dataset', 'Órgão', 'Última Atualização', 'Status', 'Dias Desde Atualização', 'Recursos', 'Link']);
-            
-            foreach ($analysisResults['datasets'] as $dataset) {
-                fputcsv($output, [
-                    $dataset['id'],
-                    $dataset['name'],
-                    $dataset['organization'],
-                    $dataset['last_updated'] ? date('d/m/Y H:i', strtotime($dataset['last_updated'])) : 'N/A',
-                    $dataset['status'] === 'updated' ? 'Atualizado' : 'Desatualizado',
-                    $dataset['days_since_update'] === PHP_INT_MAX ? 'N/A' : $dataset['days_since_update'],
-                    $dataset['resources_count'],
-                    $dataset['url']
-                ]);
+            // Retornar apenas a tabela e paginação
+            if ($analysisResults && !empty($analysisResults['datasets'])) {
+                echo '<div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Dataset</th>
+                                    <th>Órgão</th>
+                                    <th>Última Atualização</th>
+                                    <th>Status</th>
+                                    <th>Recursos</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>';
+                
+                foreach ($analysisResults['datasets'] as $dataset) {
+                    echo '<tr>
+                            <td>
+                                <div>
+                                    <strong>' . htmlspecialchars($dataset['name']) . '</strong>
+                                    <br>
+                                    <small class="text-muted">ID: ' . htmlspecialchars($dataset['dataset_id']) . '</small>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="text-muted">' . htmlspecialchars($dataset['organization']) . '</span>
+                            </td>
+                            <td>
+                                <div>
+                                    <strong>' . ($dataset['last_updated'] ? date('d/m/Y', strtotime($dataset['last_updated'])) : 'N/A') . '</strong>
+                                    <br>
+                                    <small class="text-muted">
+                                        ' . ($dataset['days_since_update'] !== PHP_INT_MAX ? $dataset['days_since_update'] . ' dias atrás' : 'Sem data') . '
+                                    </small>
+                                </div>
+                            </td>
+                            <td>';
+                    
+                    if ($dataset['status'] === 'Atualizado') {
+                        echo '<span class="badge bg-success"><i class="fas fa-check icon"></i> Atualizado</span>';
+                    } else {
+                        echo '<span class="badge bg-danger"><i class="fas fa-exclamation-triangle icon"></i> Desatualizado</span>';
+                    }
+                    
+                    echo '</td>
+                            <td><span class="badge bg-secondary">' . $dataset['resources_count'] . '</span></td>
+                            <td>
+                                <a href="' . htmlspecialchars($dataset['url']) . '" target="_blank" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-external-link-alt icon"></i> Ver
+                                </a>
+                            </td>
+                        </tr>';
+                }
+                
+                echo '</tbody>
+                    </table>
+                </div>';
+                
+                if (isset($analysisResults['total_paginas']) && $analysisResults['total_paginas'] > 1) {
+                    echo '<nav class="mt-4">
+                            <ul class="pagination justify-content-center" id="pagination">
+                                <li class="page-item ' . ($page <= 1 ? 'disabled' : '') . '">
+                                    <a class="page-link" href="#" data-page="' . ($page - 1) . '">Anterior</a>
+                                </li>';
+                    
+                    for ($i = 1; $i <= $analysisResults['total_paginas']; $i++) {
+                        echo '<li class="page-item ' . ($i === $page ? 'active' : '') . '">
+                                <a class="page-link" href="#" data-page="' . $i . '">' . $i . '</a>
+                              </li>';
+                    }
+                    
+                    echo '<li class="page-item ' . ($page >= $analysisResults['total_paginas'] ? 'disabled' : '') . '">
+                            <a class="page-link" href="#" data-page="' . ($page + 1) . '">Próximo</a>
+                          </li>
+                        </ul>
+                      </nav>';
+                }
             }
-            
-            fclose($output);
-            exit;
         }
+        exit;
     }
+}
+
+
+// Lógica de Paginação
+$paginaAtual = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$itensPorPagina = 15; // Você pode ajustar este valor
+
+$analysisResults = [];
+if (!empty($portalUrl)) {
+    $analysisResults = $pine->getDatasetsPaginados($portalUrl, $paginaAtual, $itensPorPagina);
 }
 
 ?>
@@ -84,6 +155,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        /* Seu CSS aqui (sem alterações) */
+        
         :root {
             --primary-color: #2563eb;
             --primary-dark: #1d4ed8;
@@ -407,89 +480,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
     <div class="app-container">
-        <header class="header">
-            <div class="container">
-                <h1><i class="fas fa-chart-bar icon"></i> Monitoramento Portal de Dados Abertos</h1>
-                <!-- <p>Sistema de Controle de Procedimentos Administrativos Correcionais</p> -->
-            </div>
-        </header>
-
         <div class="main-content">
             <div class="container">
                 <div class="row">
-                    <div class="col-lg-3">
-                        </div>
-
                     <div class="col-lg-9">
-                        <div class="content-card">
-                            <h2>
-                                <i class="fas fa-search icon"></i>
-                                Iniciar Análise PINE
-                            </h2>
+                        <div class="content-card mb-4">
+                            <h2><i class="fas fa-search icon"></i> Iniciar Análise PINE</h2>
                             <p class="text-muted mb-4">
                                 Digite a URL do portal CKAN para analisar a atualização dos datasets. O processo pode levar alguns minutos.
                             </p>
                             
                             <?php if ($message): ?>
-                                <div class="alert alert-<?= $messageType === 'error' ? 'danger' : 'warning' ?> alert-dismissible fade show" role="alert">
+                                <div class="alert alert-<?= $messageType === 'success' ? 'success' : 'danger' ?> alert-dismissible fade show" role="alert">
                                     <?= htmlspecialchars($message) ?>
                                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                                 </div>
                             <?php endif; ?>
                             
                             <form method="POST" id="analysis-form">
-                                <input type="hidden" name="action" value="analyze_portal">
-                                <div class="row">
-                                    <div class="col-md-8">
-                                        <label for="portal_url" class="form-label">
-                                            <i class="fas fa-link icon"></i> URL do Portal CKAN
-                                        </label>
-                                        <input type="url" class="form-control" id="portal_url" name="portal_url" 
-                                               placeholder="https://dadosabertos.go.gov.br" 
-                                               value="<?= htmlspecialchars($portalUrl) ?>" required>
-                                    </div>
-                                    <div class="col-md-4 d-flex align-items-end">
-                                        <button type="submit" id="submit-btn" class="btn btn-primary w-100">
-                                            <span id="btn-text"><i class="fas fa-play icon"></i> Iniciar Análise</span>
-                                            <span id="loading-spinner" class="d-none">
-                                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                                Analisando...
-                                            </span>
-                                        </button>
-                                    </div>
-                                </div>
-                            </form>
+                                </form>
                         </div>
 
-                        <?php if ($analysisResults && !empty($analysisResults['datasets'])): ?>
+                        <?php if (!empty($analysisResults['datasets'])): ?>
                             <div class="content-card">
                                 <div class="d-flex justify-content-between align-items-center mb-4">
                                     <h2>
                                         <i class="fas fa-list icon"></i>
-                                        Lista de Datasets (<?= $analysisResults['total_datasets'] ?>)
+                                        Lista de Datasets (<?= $analysisResults['total'] ?>)
                                     </h2>
                                     <div>
-                                        <form method="POST" class="d-inline">
-                                            <input type="hidden" name="action" value="export_csv">
-                                            <button type="submit" class="btn btn-success">
-                                                <i class="fas fa-download icon"></i> Exportar CSV
-                                            </button>
-                                        </form>
-                                    </div>
+                                        </div>
                                 </div>
 
                                 <div class="table-responsive">
                                     <table class="table table-hover">
                                         <thead>
-                                            <tr>
-                                                <th>Dataset</th>
-                                                <th>Órgão</th>
-                                                <th>Última Atualização</th>
-                                                <th>Status</th>
-                                                <th>Recursos</th>
-                                                <th>Ações</th>
-                                            </tr>
-                                        </thead>
+                                            </thead>
                                         <tbody>
                                             <?php foreach ($analysisResults['datasets'] as $dataset): ?>
                                                 <tr>
@@ -497,7 +523,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                         <div>
                                                             <strong><?= htmlspecialchars($dataset['name']) ?></strong>
                                                             <br>
-                                                            <small class="text-muted">ID: <?= htmlspecialchars($dataset['id']) ?></small>
+                                                            <small class="text-muted">ID: <?= htmlspecialchars($dataset['dataset_id']) ?></small>
                                                         </div>
                                                     </td>
                                                     <td>
@@ -513,15 +539,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                         </div>
                                                     </td>
                                                     <td>
-                                                        <?php if ($dataset['status'] === 'updated'): ?>
+                                                        <?php if ($dataset['status'] === 'Atualizado'): ?>
                                                             <span class="badge bg-success"><i class="fas fa-check icon"></i> Atualizado</span>
                                                         <?php else: ?>
                                                             <span class="badge bg-danger"><i class="fas fa-exclamation-triangle icon"></i> Desatualizado</span>
                                                         <?php endif; ?>
                                                     </td>
-                                                    <td>
-                                                        <span class="badge bg-secondary"><?= $dataset['resources_count'] ?></span>
-                                                    </td>
+                                                    <td><span class="badge bg-secondary"><?= $dataset['resources_count'] ?></span></td>
                                                     <td>
                                                         <a href="<?= htmlspecialchars($dataset['url']) ?>" target="_blank" class="btn btn-outline-primary btn-sm">
                                                             <i class="fas fa-external-link-alt icon"></i> Ver
@@ -532,6 +556,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         </tbody>
                                     </table>
                                 </div>
+
+                                <?php if ($analysisResults['total_paginas'] > 1): ?>
+                                    <nav class="mt-4">
+                                        <ul class="pagination justify-content-center">
+                                            <li class="page-item <?= $paginaAtual <= 1 ? 'disabled' : '' ?>">
+                                                <a class="page-link" href="?page=<?= $paginaAtual - 1 ?>">Anterior</a>
+                                            </li>
+
+                                            <?php for ($i = 1; $i <= $analysisResults['total_paginas']; $i++): ?>
+                                                <li class="page-item <?= $i === $paginaAtual ? 'active' : '' ?>">
+                                                    <a class="page-link" href="?page=<?= $i ?>"><?= $i ?></a>
+                                                </li>
+                                            <?php endfor; ?>
+                                            
+                                            <li class="page-item <?= $paginaAtual >= $analysisResults['total_paginas'] ? 'disabled' : '' ?>">
+                                                <a class="page-link" href="?page=<?= $paginaAtual + 1 ?>">Próximo</a>
+                                            </li>
+                                        </ul>
+                                    </nav>
+                                <?php endif; ?>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -540,18 +584,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Script para mostrar um feedback de carregamento no botão
-        document.getElementById('analysis-form').addEventListener('submit', function() {
-            const submitBtn = document.getElementById('submit-btn');
-            const btnText = document.getElementById('btn-text');
-            const loadingSpinner = document.getElementById('loading-spinner');
-
-            submitBtn.disabled = true;
-            btnText.classList.add('d-none');
-            loadingSpinner.classList.remove('d-none');
-        });
-    </script>
-</body>
+    </body>
 </html>
