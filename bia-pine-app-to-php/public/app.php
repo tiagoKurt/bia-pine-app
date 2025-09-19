@@ -165,25 +165,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BIA-PINE App - Ferramentas CKAN</title>
+    <title>Monitoramento Portal de Dados Abertos - CGE</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-color: #2563eb;
-            --primary-dark: #1d4ed8;
+            --primary-color: #3d6b35;
+            --primary-dark: #2d5a27;
             --secondary-color: #64748b;
-            --success-color: #10b981;
-            --danger-color: #ef4444;
-            --warning-color: #f59e0b;
-            --light-bg: #f8fafc;
+            --success-color: #3d6b35;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --light-bg: #f8f9fa;
             --card-bg: #ffffff;
-            --border-color: #e2e8f0;
-            --text-primary: #1e293b;
-            --text-secondary: #64748b;
-            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            --border-color: #dee2e6;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.15);
+            --green-gradient: linear-gradient(135deg, #3d6b35 0%, #2d5a27 100%);
         }
 
         * {
@@ -194,7 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #f5f5f5;
             min-height: 100vh;
             color: var(--text-primary);
             line-height: 1.6;
@@ -202,16 +203,87 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .app-container {
             min-height: 100vh;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
+            background: #f5f5f5;
         }
 
         .header {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            background: var(--green-gradient);
             color: white;
-            padding: 2rem 0;
+            padding: 1.5rem 0;
+            box-shadow: var(--shadow);
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .system-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .system-logo i {
+            font-size: 2rem;
+            color: white;
+        }
+
+        .system-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .system-subtitle {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin: 0;
+        }
+
+        .government-logos {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .cge-logo {
             text-align: center;
-            box-shadow: var(--shadow-lg);
+        }
+
+        .cge-logo .logo-text {
+            font-size: 0.8rem;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .gov-go-logo {
+            text-align: center;
+        }
+
+        .gov-go-text {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #ffd700;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        .logo-image {
+            max-height: 80px;
+            width: auto;
         }
 
         .header h1 {
@@ -228,7 +300,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .main-content {
-            padding: 3rem 0;
+            padding: 2rem 0;
+        }
+
+        .welcome-section {
+            margin-bottom: 2rem;
+        }
+
+        .welcome-banner {
+            background: var(--green-gradient);
+            color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+
+        .welcome-banner h2 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .welcome-banner p {
+            font-size: 1rem;
+            opacity: 0.9;
+            margin: 0;
+        }
+
+        .module-access h3 {
+            color: var(--text-primary);
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
         }
 
         .nav-tabs {
@@ -238,26 +342,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .nav-tabs .nav-link {
             border: 2px solid var(--primary-color);
-            background: transparent;
+            background: white;
             color: var(--primary-color);
-            border-radius: 12px;
-            margin-right: 1rem;
-            padding: 1rem 2rem;
+            border-radius: 8px;
+            margin-right: 0.5rem;
+            padding: 1rem 1.5rem;
             font-weight: 600;
             transition: all 0.3s ease;
+            position: relative;
         }
 
         .nav-tabs .nav-link:hover {
             background: var(--primary-color);
             color: white;
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-lg);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
         }
 
         .nav-tabs .nav-link.active {
             background: var(--primary-color);
             color: white;
             box-shadow: var(--shadow);
+        }
+
+        .nav-tabs .nav-link i {
+            margin-right: 0.5rem;
         }
 
         .tab-content {
@@ -453,11 +562,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-size: 0.875rem;
         }
 
+        .footer {
+            background: var(--green-gradient);
+            color: white;
+            padding: 1.5rem 0;
+            margin-top: 3rem;
+        }
+
+        .footer-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .footer-left {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .footer-right {
+            display: flex;
+            align-items: center;
+        }
+
+        .footer-info p {
+            margin: 0;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
         @media (max-width: 768px) {
-            .header h1 {
-                font-size: 2rem;
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
             }
-            
+
+            .system-title {
+                font-size: 1.2rem;
+            }
+
+            .system-subtitle {
+                font-size: 0.8rem;
+            }
+
             .tab-content {
                 padding: 1.5rem;
             }
@@ -465,7 +613,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .nav-tabs .nav-link {
                 margin-right: 0.5rem;
                 margin-bottom: 0.5rem;
-                padding: 0.75rem 1.5rem;
+                padding: 0.75rem 1rem;
+                font-size: 0.9rem;
+            }
+
+            .footer-content {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+
+            .welcome-banner h2 {
+                font-size: 1.5rem;
             }
         }
     </style>
@@ -475,8 +634,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <!-- Header -->
         <header class="header">
             <div class="container">
-                <h1><i class="fas fa-database icon"></i> BIA-PINE App</h1>
-                <p>Ferramentas inteligentes para gestão de dados CKAN</p>
+                <div class="header-content">
+                    <div class="header-left">
+                        <div class="system-logo">
+                            <i class="fas fa-chart-bar"></i>
+                            <div>
+                                <h1 class="system-title">Monitoramento Portal de Dados Abertos</h1>
+                                <!-- <p class="system-subtitle">Sistema de Controle de Procedimentos Administrativos Correcionais</p> -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="header-right">
+                        <div class="government-logos">
+                            <div class="gov-go-logo">
+                                <img src="assets/img/logo-cge-e-estado-goias.png" alt="CGE e Estado de Goiás" class="logo-image">
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </header>
 
@@ -491,21 +666,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 <?php endif; ?>
 
+                <!-- Welcome Section -->
+                <div class="welcome-section mb-4">
+                    <div class="welcome-banner">
+                        <h2>Bem-vindo ao Sistema de Monitoramento!</h2>
+                        <p>Monitore métricas, verifique e analise o desempenho dos portais de dados abertos.</p>
+                    </div>
+                </div>
+
+                <!-- Module Access -->
+                <div class="module-access mb-4">
+                    <h3>Você tem acesso aos seguintes módulos:</h3>
+                </div>
+
                 <!-- Navigation Tabs -->
                 <ul class="nav nav-tabs" id="mainTabs" role="tablist">
                     <li class="nav-item" role="presentation">
                         <button class="nav-link active" id="bia-tab" data-bs-toggle="tab" data-bs-target="#bia" type="button" role="tab">
-                            <i class="fas fa-file-word icon"></i> Gerar Dicionário
+                            <i class="fas fa-file-word icon"></i> BIA
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="pine-tab" data-bs-toggle="tab" data-bs-target="#pine" type="button" role="tab">
-                            <i class="fas fa-chart-line icon"></i> Análise PINE
+                            <i class="fas fa-chart-line icon"></i> PINE
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="cpf-tab" data-bs-toggle="tab" data-bs-target="#cpf" type="button" role="tab">
-                            <i class="fas fa-shield-alt icon"></i> Verificação de CPF
+                            <i class="fas fa-shield-alt icon"></i> CPF
                         </button>
                     </li>
                 </ul>
@@ -798,6 +986,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
         </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="container">
+                <div class="footer-content">
+                    <div class="footer-left">
+                        <div class="government-logos">
+                            <div class="gov-go-logo">
+                                <img src="assets/img/logo-cge-e-estado-goias.png" alt="CGE e Estado de Goiás" class="logo-image">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="footer-right">
+                    </div>
+                </div>
+            </div>
+        </footer>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

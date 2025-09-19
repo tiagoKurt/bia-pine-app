@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Análise PINE - BIA-PINE App</title>
+    <title>Análise PINE - Monitoramento Portal de Dados Abertos</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -409,8 +409,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="app-container">
         <header class="header">
             <div class="container">
-                <h1><i class="fas fa-database icon"></i> BIA-PINE App</h1>
-                <p>Ferramentas inteligentes para gestão de dados CKAN</p>
+                <h1><i class="fas fa-chart-bar icon"></i> Monitoramento Portal de Dados Abertos</h1>
+                <!-- <p>Sistema de Controle de Procedimentos Administrativos Correcionais</p> -->
             </div>
         </header>
 

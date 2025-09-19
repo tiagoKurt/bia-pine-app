@@ -100,7 +100,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'export_csv') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verificação de CPF - BIA-PINE App</title>
+    <title>Verificação de CPF - Monitoramento Portal de Dados Abertos</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -333,8 +333,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'export_csv') {
         <!-- Header -->
         <header class="header">
             <div class="container">
-                <h1><i class="fas fa-shield-alt icon"></i> Verificação de CPF</h1>
-                <p>Auditoria de segurança em portais CKAN</p>
+                <h1><i class="fas fa-chart-bar icon"></i> Monitoramento Portal de Dados Abertos</h1>
+                <!-- <p>Sistema de Controle de Procedimentos Administrativos Correcionais</p> -->
             </div>
         </header>
 
