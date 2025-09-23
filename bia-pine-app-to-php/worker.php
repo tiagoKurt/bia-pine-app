@@ -1,145 +1,200 @@
 <?php
-/**
- * Worker para executar análise CKAN em background
- * 
- * Este script deve ser executado pelo servidor para processar
- * análises pendentes em segundo plano
- */
+// worker.php (na raiz do seu projeto)
 
-// Configuração inicial
-set_time_limit(0); // Sem limite de tempo
-ignore_user_abort(true); // Continua mesmo se usuário fechar navegador
+// Define um tempo de execução ilimitado para este script
+@set_time_limit(0);
 
-require_once __DIR__ . '/vendor/autoload.php';
-require_once __DIR__ . '/config.php';
+// === LOGGING AGRESSIVO PARA DIAGNÓSTICO ===
+function writeLog($message, $level = 'INFO') {
+    $logFile = __DIR__ . '/logs/worker.log';
+    $timestamp = date('Y-m-d H:i:s');
+    $logEntry = "[$timestamp] [$level] $message" . PHP_EOL;
+    file_put_contents($logFile, $logEntry, FILE_APPEND | LOCK_EX);
+    echo $logEntry; // Também exibe no console
+}
+
+// Inicia logging imediatamente
+writeLog("=== WORKER INICIADO ===");
+writeLog("PHP Version: " . PHP_VERSION);
+writeLog("Working Directory: " . getcwd());
+writeLog("Script Path: " . __FILE__);
+
+try {
+    writeLog("Carregando autoloader...");
+    require_once __DIR__ . '/vendor/autoload.php';
+    writeLog("Autoloader carregado com sucesso");
+    
+    writeLog("Carregando configuração...");
+    require_once __DIR__ . '/config.php';
+    writeLog("Configuração carregada com sucesso");
+} catch (Exception $e) {
+    writeLog("ERRO FATAL ao carregar dependências: " . $e->getMessage(), 'ERROR');
+    exit(1);
+}
 
 use App\CkanScannerService;
 use Dotenv\Dotenv;
 
-// Função para log
-function workerLog($message) {
-    $timestamp = date('Y-m-d H:i:s');
-    $logMessage = "[{$timestamp}] Worker: {$message}\n";
-    error_log($logMessage);
-    
-    // Também salva em arquivo específico se possível
-    $logFile = __DIR__ . '/logs/worker.log';
-    if (is_dir(dirname($logFile))) {
-        file_put_contents($logFile, $logMessage, FILE_APPEND | LOCK_EX);
+// --- Bloco de Segurança: Garante que apenas um worker rode por vez ---
+writeLog("Verificando se worker já está em execução...");
+$pidFile = __DIR__ . '/cache/worker.pid';
+if (file_exists($pidFile)) {
+    $pid = (int) file_get_contents($pidFile);
+    writeLog("Arquivo PID encontrado: $pid");
+    // Verifica se o processo com o PID ainda está em execução
+    if (function_exists('posix_kill') && posix_kill($pid, 0)) {
+        writeLog("Worker já está em execução (PID: $pid). Saindo.", 'WARNING');
+        exit;
+    } else {
+        // Se posix_kill não estiver disponível ou processo não existir, remove o PID file
+        writeLog("Processo PID $pid não existe mais. Removendo arquivo PID.");
+        unlink($pidFile);
     }
+} else {
+    writeLog("Nenhum arquivo PID encontrado. Prosseguindo...");
 }
 
-workerLog("Worker iniciado");
+$currentPid = getmypid();
+writeLog("Criando arquivo PID: $currentPid");
+file_put_contents($pidFile, $currentPid);
+// -----------------------------------------------------------------
 
+$lockFile = __DIR__ . '/cache/scan.lock';
+$historyFile = __DIR__ . '/cache/scan-history.json';
+
+// Função para remover o PID file ao sair
+register_shutdown_function(function () use ($pidFile) {
+    if (file_exists($pidFile)) {
+        unlink($pidFile);
+    }
+});
+
+// Verifica se existe uma tarefa pendente
+writeLog("Verificando arquivo de lock: $lockFile");
+if (!file_exists($lockFile)) {
+    writeLog("Nenhuma tarefa pendente. Arquivo de lock não encontrado.", 'WARNING');
+    exit;
+}
+
+writeLog("Arquivo de lock encontrado. Lendo dados...");
+$lockData = json_decode(file_get_contents($lockFile), true);
+
+if (!$lockData) {
+    writeLog("ERRO: Não foi possível decodificar dados do arquivo de lock", 'ERROR');
+    exit;
+}
+
+writeLog("Dados do lock: " . json_encode($lockData, JSON_PRETTY_PRINT));
+
+// Se a tarefa não está pendente, sai
+if (($lockData['status'] ?? '') !== 'pending') {
+    writeLog("A tarefa não está pendente (status: {$lockData['status']}). Saindo.", 'WARNING');
+    exit;
+}
+
+writeLog("Tarefa pendente encontrada. Iniciando processamento...");
+
+// --- Início do Processo de Análise ---
 try {
-    // Carrega variáveis de ambiente
-    $dotenv = Dotenv::createImmutable(__DIR__);
-    $dotenv->load();
-    $dotenv->required(['CKAN_API_URL', 'DB_HOST', 'DB_DATABASE', 'DB_USERNAME']);
+    writeLog("=== INICIANDO ANÁLISE CKAN ===");
     
-    // Conexão com banco
-    $pdo = conectarBanco();
-    
-    $lockFile = __DIR__ . '/cache/scan.lock';
-    
-    // Verifica se existe tarefa pendente
-    if (!file_exists($lockFile)) {
-        workerLog("Nenhuma tarefa pendente encontrada");
-        exit;
-    }
-    
-    $lockData = json_decode(file_get_contents($lockFile), true);
-    
-    // Verifica se tarefa está pendente
-    if (!$lockData || $lockData['status'] !== 'pending') {
-        workerLog("Tarefa não está pendente: " . ($lockData['status'] ?? 'status indefinido'));
-        exit;
-    }
-    
-    workerLog("Tarefa pendente encontrada, iniciando processamento");
-    
-    // Atualiza status para 'running'
+    // Atualiza o status para "running"
+    writeLog("Atualizando status para 'running'...");
     $lockData['status'] = 'running';
     $lockData['lastUpdate'] = date('c');
     file_put_contents($lockFile, json_encode($lockData, JSON_PRETTY_PRINT));
+    writeLog("Status atualizado com sucesso");
+
+    // Carrega variáveis de ambiente
+    writeLog("Carregando variáveis de ambiente...");
+    $dotenv = Dotenv::createImmutable(__DIR__);
+    $dotenv->load();
+    writeLog("Variáveis de ambiente carregadas");
     
-    // Configuração do scanner
-    $ckanUrl = $_ENV['CKAN_API_URL'];
-    $ckanApiKey = $_ENV['CKAN_API_KEY'] ?? '';
-    $maxRetries = (int)($_ENV['MAX_RETRY_ATTEMPTS'] ?? 5);
+    // Conecta ao banco
+    writeLog("Conectando ao banco de dados...");
+    $pdo = conectarBanco();
+    writeLog("Conexão com banco estabelecida com sucesso");
+
+    // Inicializa o serviço de scanner
+    writeLog("Inicializando serviço de scanner...");
+    $ckanUrl = $_ENV['CKAN_API_URL'] ?? 'https://dadosabertos.go.gov.br';
+    $ckanKey = $_ENV['CKAN_API_KEY'] ?? '';
     $cacheDir = __DIR__ . '/cpf-scanner/' . ($_ENV['CACHE_DIR'] ?? 'cache');
+    $maxRetries = (int)($_ENV['MAX_RETRY_ATTEMPTS'] ?? 5);
     
-    // Inicializa o serviço
-    $scannerService = new CkanScannerService($ckanUrl, $ckanApiKey, $cacheDir, $pdo, $maxRetries);
+    writeLog("Configurações do scanner:");
+    writeLog("  - CKAN URL: $ckanUrl");
+    writeLog("  - Cache Dir: $cacheDir");
+    writeLog("  - Max Retries: $maxRetries");
     
-    // Define callback para atualizar progresso
-    $scannerService->setProgressCallback(function($progress) use ($lockFile) {
+    $scannerService = new CkanScannerService(
+        $ckanUrl,
+        $ckanKey,
+        $cacheDir,
+        $pdo,
+        $maxRetries
+    );
+    writeLog("Serviço de scanner inicializado com sucesso");
+
+    // Define a função de callback para atualizar o progresso em tempo real
+    $progressCallback = function ($progress) use ($lockFile) {
+        // Lê o estado atual para não sobrescrever
         $currentLockData = json_decode(file_get_contents($lockFile), true);
         $currentLockData['progress'] = $progress;
         $currentLockData['lastUpdate'] = date('c');
         file_put_contents($lockFile, json_encode($currentLockData, JSON_PRETTY_PRINT));
-    });
-    
-    workerLog("Iniciando análise CKAN");
-    
-    // Executa análise
+        echo "Progresso: " . ($progress['current_step'] ?? 'Processando...') . "\n";
+    };
+    $scannerService->setProgressCallback($progressCallback);
+
+    // Executa a análise!
+    writeLog("=== EXECUTANDO ANÁLISE ===");
     $results = $scannerService->executeScan();
+    writeLog("Análise executada com sucesso");
     
-    workerLog("Análise concluída com sucesso");
+    writeLog("Salvando resultados...");
     
-    // Atualiza status para 'completed'
-    $lockData = json_decode(file_get_contents($lockFile), true);
-    $lockData['status'] = 'completed';
-    $lockData['endTime'] = date('c');
-    $lockData['results'] = $results['data'];
-    $lockData['lastUpdate'] = date('c');
+    // Atualiza o lock file com o resultado final
+    $finalLockData = json_decode(file_get_contents($lockFile), true);
+    $finalLockData['status'] = 'completed';
+    $finalLockData['endTime'] = date('c');
+    $finalLockData['results'] = $results['data'];
+    $finalLockData['lastUpdate'] = date('c');
+    file_put_contents($lockFile, json_encode($finalLockData, JSON_PRETTY_PRINT));
     
-    // Progresso final
-    if (isset($results['data'])) {
-        $lockData['progress'] = array_merge($lockData['progress'] ?? [], $results['data']);
-        $lockData['progress']['current_step'] = 'Análise concluída com sucesso!';
-    }
-    
-    file_put_contents($lockFile, json_encode($lockData, JSON_PRETTY_PRINT));
-    
-    // Atualiza histórico de análises
-    $historyFile = __DIR__ . '/cache/scan-history.json';
-    $history = [];
-    if (file_exists($historyFile)) {
-        $history = json_decode(file_get_contents($historyFile), true) ?? [];
-    }
-    
+    // Atualiza o histórico
+    $history = file_exists($historyFile) ? json_decode(file_get_contents($historyFile), true) : ['totalScans' => 0];
     $history['lastCompletedScan'] = date('c');
     $history['totalScans'] = ($history['totalScans'] ?? 0) + 1;
     $history['lastResults'] = $results['data'];
-    
     file_put_contents($historyFile, json_encode($history, JSON_PRETTY_PRINT));
-    
-    workerLog("Status atualizado para 'completed' e histórico salvo");
-    
-    // Opcionalmente, remove o arquivo após algumas horas para não acumular
-    // Mas por agora mantemos para que o front-end possa verificar o resultado
-    
-} catch (Exception $e) {
-    workerLog("Erro fatal: " . $e->getMessage());
-    
-    // Atualiza status para 'failed'
-    if (isset($lockFile) && file_exists($lockFile)) {
-        $lockData = json_decode(file_get_contents($lockFile), true);
-        $lockData['status'] = 'failed';
-        $lockData['error'] = $e->getMessage();
-        $lockData['endTime'] = date('c');
-        $lockData['lastUpdate'] = date('c');
-        
-        if (isset($lockData['progress'])) {
-            $lockData['progress']['current_step'] = 'Erro: ' . $e->getMessage();
-        }
-        
-        file_put_contents($lockFile, json_encode($lockData, JSON_PRETTY_PRINT));
-    }
-    
-    exit(1);
-}
 
-workerLog("Worker finalizado");
+    echo "Análise concluída com sucesso.\n";
+    echo "Resultados: " . json_encode($results['data'], JSON_PRETTY_PRINT) . "\n";
+
+} catch (Exception $e) {
+    writeLog("ERRO DURANTE A EXECUÇÃO: " . $e->getMessage(), 'ERROR');
+    writeLog("Stack trace: " . $e->getTraceAsString(), 'ERROR');
+    
+    // Em caso de erro, atualiza o status para "failed"
+    writeLog("Atualizando status para 'failed'...");
+    $errorData = json_decode(file_get_contents($lockFile), true);
+    $errorData['status'] = 'failed';
+    $errorData['error'] = $e->getMessage();
+    $errorData['endTime'] = date('c');
+    $errorData['lastUpdate'] = date('c');
+    file_put_contents($lockFile, json_encode($errorData, JSON_PRETTY_PRINT));
+    writeLog("Status de erro atualizado");
+    
+    error_log("Erro no worker.php: " . $e->getMessage());
+} finally {
+    // Garante que o arquivo de PID seja removido
+    writeLog("Limpando arquivo PID...");
+    if (file_exists($pidFile)) {
+        unlink($pidFile);
+        writeLog("Arquivo PID removido");
+    }
+    writeLog("=== WORKER FINALIZADO ===");
+}
 ?>

@@ -50,56 +50,49 @@ $totalResources = 0;
 $estatisticas = [];
 
 try {
-    // Buscar verificações por fonte CKAN com mais detalhes
-    $sql = "SELECT v.*, 
-            JSON_EXTRACT(v.observacoes, '$.dataset_id') as dataset_id,
-            JSON_EXTRACT(v.observacoes, '$.resource_name') as resource_name,
-            JSON_EXTRACT(v.observacoes, '$.resource_url') as resource_url,
-            JSON_EXTRACT(v.observacoes, '$.resource_format') as resource_format
-            FROM verificacoes_cpf v 
-            WHERE v.fonte = 'ckan_scanner' 
-            ORDER BY v.data_verificacao DESC
-            LIMIT 100";
+    // Consulta CORRIGIDA para buscar CPFs agrupados pelo identificador do recurso
+    $sql = "
+        SELECT 
+            identificador_fonte,
+            COUNT(id) as cpf_count,
+            MAX(data_verificacao) as last_checked,
+            GROUP_CONCAT(cpf SEPARATOR ',') as cpfs,
+            ANY_VALUE(observacoes) as observacoes_json
+        FROM 
+            verificacoes_cpf
+        WHERE 
+            identificador_fonte IS NOT NULL 
+            AND observacoes LIKE '%ckan_scanner%' -- Busca pela fonte correta
+        GROUP BY 
+            identificador_fonte
+        ORDER BY 
+            last_checked DESC
+        LIMIT 100;
+    ";
     
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute();
-    $verificacoesCkan = $stmt->fetchAll();
-    
-    // Converter para formato compatível com a interface existente
-    if (!empty($verificacoesCkan)) {
-        // Agrupar por identificador_fonte para formar recursos
-        $recursos = [];
-        foreach ($verificacoesCkan as $verificacao) {
-            $identificador = $verificacao['identificador_fonte'] ?? 'unknown-' . $verificacao['id'];
-            
-            if (!isset($recursos[$identificador])) {
-                // Tentar extrair metadados do campo observacoes se for JSON
-                $metadados = [];
-                if ($verificacao['observacoes'] && is_string($verificacao['observacoes'])) {
-                    $decoded = json_decode($verificacao['observacoes'], true);
-                    if (json_last_error() === JSON_ERROR_NONE) {
-                        $metadados = $decoded;
-                    }
-                }
-                
-                $recursos[$identificador] = [
-                    'dataset_id' => $metadados['dataset_id'] ?? $verificacao['dataset_id'] ?? ('dataset-' . $verificacao['id']),
-                    'dataset_name' => $metadados['dataset_name'] ?? ('Dataset - ' . date('d/m/Y', strtotime($verificacao['data_verificacao']))),
-                    'resource_id' => $metadados['resource_id'] ?? ('resource-' . $verificacao['id']),
-                    'resource_name' => $metadados['resource_name'] ?? $verificacao['resource_name'] ?? 'Recurso encontrado',
-                    'resource_url' => $metadados['resource_url'] ?? $verificacao['resource_url'] ?? '#',
-                    'resource_format' => $metadados['resource_format'] ?? $verificacao['resource_format'] ?? 'unknown',
-                    'cpf_count' => 0,
-                    'cpfs' => [],
-                    'last_checked' => $verificacao['data_verificacao']
-                ];
+    $stmt = $pdo->query($sql);
+    $groupedFindings = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!empty($groupedFindings)) {
+        foreach ($groupedFindings as $finding) {
+            $metadados = json_decode($finding['observacoes_json'], true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                // Se o JSON for inválido, pula para o próximo para evitar erros
+                continue;
             }
-            
-            $recursos[$identificador]['cpfs'][] = formatarCPF($verificacao['cpf']);
-            $recursos[$identificador]['cpf_count']++;
+
+            $cpfFindings[] = [
+                'dataset_id' => $metadados['dataset_id'] ?? 'Não encontrado',
+                'dataset_name' => $metadados['dataset_name'] ?? 'Dataset Desconhecido',
+                'resource_id' => $metadados['resource_id'] ?? 'Não encontrado',
+                'resource_name' => $metadados['resource_name'] ?? 'Recurso Desconhecido',
+                'resource_url' => $metadados['resource_url'] ?? '#',
+                'resource_format' => $metadados['resource_format'] ?? 'N/A',
+                'cpf_count' => (int) $finding['cpf_count'],
+                'cpfs' => array_map('formatarCPF', explode(',', $finding['cpfs'])),
+                'last_checked' => $finding['last_checked']
+            ];
         }
-        
-        $cpfFindings = array_values($recursos);
     }
     
     // Buscar estatísticas gerais
@@ -126,7 +119,7 @@ try {
     $totalResources = 0;
     $estatisticas = ['total' => 0, 'validos' => 0, 'invalidos' => 0];
     $lastScanInfo = null;
-    error_log("Erro ao buscar dados CPF: " . $e->getMessage());
+    error_log("Erro ao buscar dados CPF em app.php: " . $e->getMessage());
 }
 
 

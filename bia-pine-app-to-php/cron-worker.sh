@@ -1,17 +1,12 @@
 #!/bin/bash
-# Script para executar worker CKAN via cron
-# 
-# Para usar este script, adicione uma linha similar a esta no crontab:
-# */1 * * * * /caminho/para/seu/projeto/cron-worker.sh
-# 
-# Isso executará o worker a cada minuto, verificando se há análises pendentes
 
-# Caminho para o projeto (ajuste conforme necessário)
-PROJECT_DIR="/caminho/para/seu/projeto/bia-pine-app-to-php"
+# Encontra o diretório onde o script está localizado
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-# Caminho para o PHP (ajuste se necessário)
-PHP_BIN="/usr/bin/php"
-
-# Executa o script de inicialização do worker
-cd "$PROJECT_DIR"
-$PHP_BIN start-worker.php >> logs/cron-worker.log 2>&1
+# Navega para o diretório do projeto e executa o worker PHP
+# O flock garante que apenas uma instância deste script de cron rode por vez,
+# prevenindo sobreposição caso a análise demore mais que o intervalo do cron.
+(
+  flock -n 9 || exit 1
+  /usr/bin/php "$DIR/worker.php"
+) 9>/tmp/bia_pine_worker.lock
