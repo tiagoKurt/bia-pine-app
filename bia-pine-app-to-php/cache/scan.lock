@@ -1,0 +1,12 @@
+{
+    "status": "pending",
+    "startTime": "2025-09-23T17:13:39+00:00",
+    "progress": {
+        "datasets_analisados": 0,
+        "recursos_analisados": 0,
+        "recursos_com_cpfs": 0,
+        "total_cpfs_salvos": 0,
+        "current_step": "Iniciando an\u00e1lise..."
+    },
+    "lastUpdate": "2025-09-23T17:13:39+00:00"
+}

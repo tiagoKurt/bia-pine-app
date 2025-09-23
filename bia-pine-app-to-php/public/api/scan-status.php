@@ -1,0 +1,105 @@
+<?php
+/**
+ * Endpoint para verificar status da análise CKAN
+ * 
+ * Retorna o status atual da análise em execução
+ */
+
+// Desabilita buffer de saída para evitar problemas
+if (ob_get_level()) {
+    ob_end_clean();
+}
+
+header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST');
+header('Access-Control-Allow-Headers: Content-Type');
+
+try {
+    $lockFile = __DIR__ . '/../../cache/scan.lock';
+
+    // Se não existe arquivo de lock, não há análise em andamento
+    if (!file_exists($lockFile)) {
+        echo json_encode([
+            'inProgress' => false,
+            'status' => 'idle',
+            'message' => 'Nenhuma análise em andamento'
+        ]);
+        exit;
+    }
+
+    // Lê os dados do arquivo de lock
+    $lockContent = file_get_contents($lockFile);
+    if (!$lockContent) {
+        throw new Exception('Não foi possível ler arquivo de status');
+    }
+
+    $statusData = json_decode($lockContent, true);
+    if (!$statusData) {
+        throw new Exception('Dados de status corrompidos');
+    }
+
+    // Verifica se a análise está em progresso
+    $inProgress = in_array($statusData['status'] ?? '', ['pending', 'running']);
+    
+    // Se a análise foi concluída há mais de 1 hora, considera como não em progresso
+    if (!$inProgress && isset($statusData['endTime'])) {
+        $endTime = strtotime($statusData['endTime']);
+        $oneHourAgo = time() - 3600;
+        
+        if ($endTime < $oneHourAgo) {
+            // Remove arquivo antigo
+            unlink($lockFile);
+            echo json_encode([
+                'inProgress' => false,
+                'status' => 'idle',
+                'message' => 'Nenhuma análise em andamento'
+            ]);
+            exit;
+        }
+    }
+
+    // Resposta com status atual
+    $response = [
+        'inProgress' => $inProgress,
+        'status' => $statusData['status'] ?? 'unknown',
+        'progress' => $statusData['progress'] ?? null,
+        'startTime' => $statusData['startTime'] ?? null,
+        'lastUpdate' => $statusData['lastUpdate'] ?? null
+    ];
+
+    // Adiciona informações específicas baseadas no status
+    switch ($statusData['status'] ?? '') {
+        case 'pending':
+            $response['message'] = 'Análise na fila, aguardando início...';
+            break;
+        case 'running':
+            $response['message'] = 'Análise em execução...';
+            break;
+        case 'completed':
+            $response['message'] = 'Análise concluída com sucesso!';
+            $response['endTime'] = $statusData['endTime'] ?? null;
+            $response['results'] = $statusData['results'] ?? null;
+            break;
+        case 'failed':
+            $response['message'] = 'Análise falhou';
+            $response['error'] = $statusData['error'] ?? 'Erro desconhecido';
+            $response['endTime'] = $statusData['endTime'] ?? null;
+            break;
+        default:
+            $response['message'] = 'Status desconhecido';
+    }
+
+    echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+} catch (Exception $e) {
+    error_log("Erro em scan-status.php: " . $e->getMessage());
+    
+    http_response_code(500);
+    echo json_encode([
+        'inProgress' => false,
+        'status' => 'error',
+        'message' => 'Erro ao verificar status: ' . $e->getMessage()
+    ]);
+}
+?>

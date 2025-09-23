@@ -3,75 +3,95 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use App\Bia;
 
+// Incluir funções de verificação de CPF
+require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../src/functions.php';
+
 $bia = new Bia();
 
-$cpfFindings = [
-    [
-        'dataset_id' => 'dataset-exemplo-1',
-        'dataset_name' => 'Dados de Cidadãos - 2024',
-        'resource_id' => 'resource-123',
-        'resource_name' => 'dados-cidadaos.csv',
-        'resource_url' => 'https://dadosabertos.go.gov.br/dataset/dataset-exemplo-1/resource/resource-123',
-        'resource_format' => 'csv',
-        'cpf_count' => 15,
-        'cpfs' => [
-            '12345678901',
-            '98765432100',
-            '11122233344',
-            '55566677788',
-            '99988877766',
-            '44433322211',
-            '77788899900',
-            '22233344455',
-            '66677788899',
-            '33344455566',
-            '88899900011',
-            '44455566677',
-            '11122233344',
-            '77788899900',
-            '55566677788'
-        ],
-        'last_checked' => '2024-01-15 14:30:00'
-    ],
-    [
-        'dataset_id' => 'dataset-exemplo-2',
-        'dataset_name' => 'Cadastro de Funcionários',
-        'resource_id' => 'resource-456',
-        'resource_name' => 'funcionarios.xlsx',
-        'resource_url' => 'https://dadosabertos.go.gov.br/dataset/dataset-exemplo-2/resource/resource-456',
-        'resource_format' => 'xlsx',
-        'cpf_count' => 8,
-        'cpfs' => [
-            '12345678901',
-            '98765432100',
-            '11122233344',
-            '55566677788',
-            '99988877766',
-            '44433322211',
-            '77788899900',
-            '22233344455'
-        ],
-        'last_checked' => '2024-01-15 14:32:00'
-    ],
-    [
-        'dataset_id' => 'dataset-exemplo-3',
-        'dataset_name' => 'Relatório de Beneficiários',
-        'resource_id' => 'resource-789',
-        'resource_name' => 'beneficiarios.pdf',
-        'resource_url' => 'https://dadosabertos.go.gov.br/dataset/dataset-exemplo-3/resource/resource-789',
-        'resource_format' => 'pdf',
-        'cpf_count' => 3,
-        'cpfs' => [
-            '12345678901',
-            '98765432100',
-            '11122233344'
-        ],
-        'last_checked' => '2024-01-15 14:35:00'
-    ]
-];
+// Variáveis para controle de estado
+$mensagem = '';
+$tipoMensagem = 'info';
+$cpfFindings = [];
+$totalCpfs = 0;
+$totalResources = 0;
+$verificacoes = [];
+$estatisticas = [];
 
-$totalCpfs = array_sum(array_column($cpfFindings, 'cpf_count'));
-$totalResources = count($cpfFindings);
+// Verificar se a conexão com o banco está funcionando
+$dbConnected = false;
+if ($pdo) {
+    $dbConnected = true;
+    
+    // Lógica de processamento do formulário de verificação individual
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['cpf_individual'])) {
+        $cpfInput = $_POST['cpf_individual'];
+        $cpfLimpo = limparCPF($cpfInput);
+        $observacoes = trim($_POST['observacoes'] ?? '');
+        
+        if (strlen($cpfLimpo) === 11) {
+            $isValid = validaCPF($cpfLimpo);
+            
+            if (salvarVerificacaoCPF($pdo, $cpfLimpo, $isValid, $observacoes ?: null, 'manual')) {
+                $status = $isValid ? "VÁLIDO" : "INVÁLIDO";
+                $mensagem = "CPF " . formatarCPF($cpfInput) . " verificado como {$status} e salvo com sucesso!";
+                $tipoMensagem = 'success';
+            } else {
+                $mensagem = "Erro ao salvar a verificação do CPF.";
+                $tipoMensagem = 'error';
+            }
+        } else {
+            $mensagem = "CPF inválido. Digite um CPF com 11 dígitos.";
+            $tipoMensagem = 'error';
+        }
+    }
+    
+    // Buscar dados reais do banco de dados
+    $verificacoes = buscarTodasVerificacoes($pdo, 50);
+    $estatisticas = obterEstatisticasVerificacoes($pdo);
+    
+    // Buscar verificações por fonte CKAN
+    $verificacoesCkan = buscarVerificacoesPorFonte($pdo, 'ckan_scanner', 20);
+    
+    // Converter para formato compatível com a interface existente
+    $cpfFindings = [];
+    if (!empty($verificacoesCkan)) {
+        // Agrupar por identificador_fonte para formar recursos
+        $recursos = [];
+        foreach ($verificacoesCkan as $verificacao) {
+            $identificador = $verificacao['identificador_fonte'] ?? 'unknown-' . $verificacao['id'];
+            if (!isset($recursos[$identificador])) {
+                $recursos[$identificador] = [
+                    'dataset_id' => 'ckan-dataset-' . $verificacao['id'],
+                    'dataset_name' => 'Dataset CKAN - ' . date('d/m/Y', strtotime($verificacao['data_verificacao'])),
+                    'resource_id' => 'resource-' . $verificacao['id'],
+                    'resource_name' => 'recurso-verificado.txt',
+                    'resource_url' => '#',
+                    'resource_format' => 'txt',
+                    'cpf_count' => 0,
+                    'cpfs' => [],
+                    'last_checked' => $verificacao['data_verificacao']
+                ];
+            }
+            $recursos[$identificador]['cpfs'][] = $verificacao['cpf'];
+            $recursos[$identificador]['cpf_count']++;
+        }
+        
+        $cpfFindings = array_values($recursos);
+    }
+    
+    $totalCpfs = $estatisticas['total'] ?? 0;
+    $totalResources = count($cpfFindings);
+} else {
+    // Se não houver conexão com banco, mostrar mensagem de erro
+    $cpfFindings = [];
+    $verificacoes = [];
+    $estatisticas = ['total' => 0, 'validos' => 0, 'invalidos' => 0];
+    $totalCpfs = 0;
+    $totalResources = 0;
+    $mensagem = "Erro de conexão com o banco de dados. Verifique as configurações.";
+    $tipoMensagem = 'error';
+}
 
 if (isset($_POST['action']) && $_POST['action'] === 'export_csv') {
     header('Content-Type: text/csv');
@@ -313,6 +333,163 @@ if (isset($_POST['action']) && $_POST['action'] === 'export_csv') {
             font-size: 0.875rem;
         }
 
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .mensagem {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .mensagem.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .mensagem.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .mensagem.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        .verification-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .verification-table th,
+        .verification-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .verification-table th {
+            background-color: var(--light-bg);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .verification-table tr:hover {
+            background-color: var(--light-bg);
+        }
+
+        .valido {
+            color: var(--success-color);
+            font-weight: bold;
+        }
+
+        .invalido {
+            color: var(--danger-color);
+            font-weight: bold;
+        }
+
+        .cpf-formatted {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+
+        .date-formatted {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        .tab-content {
+            margin-top: 2rem;
+        }
+
+        .nav-tabs .nav-link {
+            border-radius: 8px 8px 0 0;
+            border: 1px solid var(--border-color);
+            background: var(--light-bg);
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .nav-tabs .nav-link.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .nav-tabs .nav-link:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
         @media (max-width: 768px) {
             .header h1 {
                 font-size: 2rem;
@@ -371,129 +548,282 @@ if (isset($_POST['action']) && $_POST['action'] === 'export_csv') {
 
                     <!-- Content Area -->
                     <div class="col-lg-9">
-                        <?php if (empty($cpfFindings)): ?>
-                            <!-- Nenhum CPF encontrado -->
-                            <div class="stats-card success">
-                                <div class="d-flex align-items-center">
-                                    <i class="fas fa-check-circle icon me-3" style="font-size: 2rem;"></i>
-                                    <div>
-                                        <h4 class="mb-1">Nenhum CPF encontrado!</h4>
-                                        <p class="mb-0">O portal está em conformidade com as práticas de proteção de dados.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php else: ?>
-                            <!-- Resumo dos resultados -->
-                            <div class="stats-card">
-                                <div class="row">
-                                    <div class="col-md-4">
-                                        <div class="text-center">
-                                            <i class="fas fa-exclamation-triangle icon mb-2" style="font-size: 2rem;"></i>
-                                            <h3><?= $totalResources ?></h3>
-                                            <p class="mb-0">Recursos com CPFs</p>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="text-center">
-                                            <i class="fas fa-id-card icon mb-2" style="font-size: 2rem;"></i>
-                                            <h3><?= $totalCpfs ?></h3>
-                                            <p class="mb-0">Total de CPFs</p>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="text-center">
-                                            <i class="fas fa-clock icon mb-2" style="font-size: 2rem;"></i>
-                                            <h3><?= date('H:i', strtotime($cpfFindings[0]['last_checked'])) ?></h3>
-                                            <p class="mb-0">Última verificação</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Tabela de resultados -->
-                            <div class="content-card">
-                                <div class="d-flex justify-content-between align-items-center mb-4">
-                                    <h2>
-                                        <i class="fas fa-list icon"></i>
-                                        Recursos com CPFs Detectados
-                                    </h2>
-                                    <form method="POST" class="d-inline">
-                                        <input type="hidden" name="action" value="export_csv">
-                                        <button type="submit" class="btn btn-success">
-                                            <i class="fas fa-download icon"></i> Exportar CSV
-                                        </button>
-                                    </form>
-                                </div>
-
-                                <div class="table-responsive">
-                                    <table class="table table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>Dataset</th>
-                                                <th>Recurso</th>
-                                                <th>Formato</th>
-                                                <th>CPFs</th>
-                                                <th>Verificado</th>
-                                                <th>Ações</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($cpfFindings as $index => $finding): ?>
-                                                <tr>
-                                                    <td>
-                                                        <div>
-                                                            <strong><?= htmlspecialchars($finding['dataset_name']) ?></strong>
-                                                            <br>
-                                                            <small class="text-muted"><?= htmlspecialchars($finding['dataset_id']) ?></small>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <div>
-                                                            <strong><?= htmlspecialchars($finding['resource_name']) ?></strong>
-                                                            <br>
-                                                            <a href="<?= htmlspecialchars($finding['resource_url']) ?>" target="_blank" class="text-decoration-none">
-                                                                <small><i class="fas fa-external-link-alt"></i> Ver recurso</small>
-                                                            </a>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <span class="badge bg-secondary"><?= strtoupper($finding['resource_format']) ?></span>
-                                                    </td>
-                                                    <td>
-                                                        <span class="badge bg-danger"><?= $finding['cpf_count'] ?> CPFs</span>
-                                                    </td>
-                                                    <td>
-                                                        <small><?= date('d/m/Y H:i', strtotime($finding['last_checked'])) ?></small>
-                                                    </td>
-                                                    <td>
-                                                        <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#collapse<?= $index ?>" aria-expanded="false">
-                                                            <i class="fas fa-eye icon"></i> Ver CPFs
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td colspan="6" class="p-0">
-                                                        <div class="collapse" id="collapse<?= $index ?>">
-                                                            <div class="p-3 bg-light">
-                                                                <h6 class="mb-3">
-                                                                    <i class="fas fa-id-card icon"></i>
-                                                                    CPFs Encontrados (<?= $finding['cpf_count'] ?>)
-                                                                </h6>
-                                                                <div class="cpf-list">
-                                                                    <?php foreach ($finding['cpfs'] as $cpf): ?>
-                                                                        <span class="cpf-item"><?= $cpf ?></span>
-                                                                    <?php endforeach; ?>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
+                        <?php if ($mensagem): ?>
+                            <div class="mensagem <?php echo $tipoMensagem; ?>">
+                                <?php echo htmlspecialchars($mensagem); ?>
                             </div>
                         <?php endif; ?>
+
+                        <!-- Resumo dos resultados -->
+                        <div class="stats-card">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <i class="fas fa-exclamation-triangle icon mb-2" style="font-size: 2rem;"></i>
+                                        <h3><?= $totalResources ?></h3>
+                                        <p class="mb-0">Recursos com CPFs</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <i class="fas fa-id-card icon mb-2" style="font-size: 2rem;"></i>
+                                        <h3><?= $totalCpfs ?></h3>
+                                        <p class="mb-0">Total de CPFs</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <i class="fas fa-check-circle icon mb-2" style="font-size: 2rem;"></i>
+                                        <h3><?= $estatisticas['validos'] ?? 0 ?></h3>
+                                        <p class="mb-0">CPFs Válidos</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="text-center">
+                                        <i class="fas fa-clock icon mb-2" style="font-size: 2rem;"></i>
+                                        <h3><?= !empty($cpfFindings) ? date('H:i', strtotime($cpfFindings[0]['last_checked'])) : '--:--' ?></h3>
+                                        <p class="mb-0">Última verificação</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Botão de Análise CKAN -->
+                            <div class="row mt-4">
+                                <div class="col-12 text-center">
+                                    <button id="btnScanCkan" class="btn btn-warning btn-lg" <?= !$dbConnected ? 'disabled' : '' ?>>
+                                        <i class="fas fa-search icon"></i>
+                                        Executar Análise CKAN
+                                    </button>
+                                    <p class="mt-2 mb-0 text-white-50">
+                                        <small>Analisa todos os recursos do portal de dados abertos em busca de vazamentos de CPF</small>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Abas de Navegação -->
+                        <div class="content-card">
+                            <ul class="nav nav-tabs" id="cpfTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="verification-tab" data-bs-toggle="tab" data-bs-target="#verification" type="button" role="tab">
+                                        <i class="fas fa-shield-alt icon"></i> Verificação Individual
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab">
+                                        <i class="fas fa-history icon"></i> Histórico
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="findings-tab" data-bs-toggle="tab" data-bs-target="#findings" type="button" role="tab">
+                                        <i class="fas fa-search icon"></i> Descobertas CKAN
+                                    </button>
+                                </li>
+                            </ul>
+
+                            <div class="tab-content" id="cpfTabsContent">
+                                <!-- Aba de Verificação Individual -->
+                                <div class="tab-pane fade show active" id="verification" role="tabpanel">
+                                    <div class="mt-4">
+                                        <h3><i class="fas fa-user-check icon"></i> Verificar CPF Individual</h3>
+                                        <p class="text-muted">Digite um CPF para verificar sua validade e salvar no banco de dados.</p>
+                                        
+                                        <form method="POST" class="mt-4">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="form-group">
+                                                        <label for="cpf_individual">CPF:</label>
+                                                        <input 
+                                                            type="text" 
+                                                            id="cpf_individual" 
+                                                            name="cpf_individual" 
+                                                            placeholder="000.000.000-00" 
+                                                            maxlength="14"
+                                                            required
+                                                            pattern="[0-9.-]{11,14}"
+                                                            title="Digite um CPF válido (formato: 000.000.000-00)"
+                                                        >
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="form-group">
+                                                        <label for="observacoes">Observações (opcional):</label>
+                                                        <input 
+                                                            type="text" 
+                                                            id="observacoes" 
+                                                            name="observacoes" 
+                                                            placeholder="Adicione observações sobre esta verificação..."
+                                                            maxlength="500"
+                                                        >
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="fas fa-check icon"></i> Verificar e Salvar
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+
+                                <!-- Aba de Histórico -->
+                                <div class="tab-pane fade" id="history" role="tabpanel">
+                                    <div class="mt-4">
+                                        <h3><i class="fas fa-list icon"></i> Histórico de Verificações</h3>
+                                        <p class="text-muted">Últimas verificações realizadas no sistema.</p>
+                                        
+                                        <?php if (!empty($verificacoes)): ?>
+                                            <table class="verification-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>CPF</th>
+                                                        <th>Status</th>
+                                                        <th>Data da Verificação</th>
+                                                        <th>Observações</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <?php foreach ($verificacoes as $row): ?>
+                                                        <tr>
+                                                            <td class="cpf-formatted">
+                                                                <?php echo htmlspecialchars(formatarCPF($row['cpf'])); ?>
+                                                            </td>
+                                                            <td>
+                                                                <?php if ($row['e_valido']): ?>
+                                                                    <span class="valido">✓ Válido</span>
+                                                                <?php else: ?>
+                                                                    <span class="invalido">✗ Inválido</span>
+                                                                <?php endif; ?>
+                                                            </td>
+                                                            <td class="date-formatted">
+                                                                <?php echo htmlspecialchars(date('d/m/Y H:i:s', strtotime($row['data_verificacao']))); ?>
+                                                            </td>
+                                                            <td>
+                                                                <?php echo htmlspecialchars($row['observacoes'] ?? ''); ?>
+                                                            </td>
+                                                        </tr>
+                                                    <?php endforeach; ?>
+                                                </tbody>
+                                            </table>
+                                        <?php else: ?>
+                                            <div class="no-data">
+                                                Nenhuma verificação encontrada. Verifique um CPF para começar!
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+
+                                <!-- Aba de Descobertas CKAN -->
+                                <div class="tab-pane fade" id="findings" role="tabpanel">
+                                    <div class="mt-4">
+                                        <h3><i class="fas fa-search icon"></i> Descobertas do Scanner CKAN</h3>
+                                        <p class="text-muted">CPFs detectados automaticamente em portais de dados abertos.</p>
+                                        
+                                        <?php if (empty($cpfFindings)): ?>
+                                            <!-- Nenhum CPF encontrado ou análise não executada -->
+                                            <div class="stats-card success">
+                                                <div class="d-flex align-items-center">
+                                                    <i class="fas fa-info-circle icon me-3" style="font-size: 2rem;"></i>
+                                                    <div>
+                                                        <h4 class="mb-1">Nenhuma análise executada</h4>
+                                                        <p class="mb-0">Execute a análise CKAN para verificar vazamentos de CPF nos recursos do portal de dados abertos.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="text-center mt-4">
+                                                <button id="btnScanCkanTab" class="btn btn-warning btn-lg" <?= !$dbConnected ? 'disabled' : '' ?>>
+                                                    <i class="fas fa-search icon"></i>
+                                                    Executar Análise CKAN
+                                                </button>
+                                            </div>
+                                        <?php else: ?>
+                                            <!-- Tabela de resultados -->
+                                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                                <h4>
+                                                    <i class="fas fa-list icon"></i>
+                                                    Recursos com CPFs Detectados
+                                                </h4>
+                                                <form method="POST" class="d-inline">
+                                                    <input type="hidden" name="action" value="export_csv">
+                                                    <button type="submit" class="btn btn-success">
+                                                        <i class="fas fa-download icon"></i> Exportar CSV
+                                                    </button>
+                                                </form>
+                                            </div>
+
+                                            <div class="table-responsive">
+                                                <table class="table table-hover">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Dataset</th>
+                                                            <th>Recurso</th>
+                                                            <th>Formato</th>
+                                                            <th>CPFs</th>
+                                                            <th>Verificado</th>
+                                                            <th>Ações</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <?php foreach ($cpfFindings as $index => $finding): ?>
+                                                            <tr>
+                                                                <td>
+                                                                    <div>
+                                                                        <strong><?= htmlspecialchars($finding['dataset_name']) ?></strong>
+                                                                        <br>
+                                                                        <small class="text-muted"><?= htmlspecialchars($finding['dataset_id']) ?></small>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <div>
+                                                                        <strong><?= htmlspecialchars($finding['resource_name']) ?></strong>
+                                                                        <br>
+                                                                        <a href="<?= htmlspecialchars($finding['resource_url']) ?>" target="_blank" class="text-decoration-none">
+                                                                            <small><i class="fas fa-external-link-alt"></i> Ver recurso</small>
+                                                                        </a>
+                                                                    </div>
+                                                                </td>
+                                                                <td>
+                                                                    <span class="badge bg-secondary"><?= strtoupper($finding['resource_format']) ?></span>
+                                                                </td>
+                                                                <td>
+                                                                    <span class="badge bg-danger"><?= $finding['cpf_count'] ?> CPFs</span>
+                                                                </td>
+                                                                <td>
+                                                                    <small><?= date('d/m/Y H:i', strtotime($finding['last_checked'])) ?></small>
+                                                                </td>
+                                                                <td>
+                                                                    <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#collapse<?= $index ?>" aria-expanded="false">
+                                                                        <i class="fas fa-eye icon"></i> Ver CPFs
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                            <tr>
+                                                                <td colspan="6" class="p-0">
+                                                                    <div class="collapse" id="collapse<?= $index ?>">
+                                                                        <div class="p-3 bg-light">
+                                                                            <h6 class="mb-3">
+                                                                                <i class="fas fa-id-card icon"></i>
+                                                                                CPFs Encontrados (<?= $finding['cpf_count'] ?>)
+                                                                            </h6>
+                                                                            <div class="cpf-list">
+                                                                                <?php foreach ($finding['cpfs'] as $cpf): ?>
+                                                                                    <span class="cpf-item"><?= $cpf ?></span>
+                                                                                <?php endforeach; ?>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        <?php endforeach; ?>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -501,5 +831,160 @@ if (isset($_POST['action']) && $_POST['action'] === 'export_csv') {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Máscara para formatação do CPF
+        document.getElementById('cpf_individual').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length <= 11) {
+                value = value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+                e.target.value = value;
+            }
+        });
+
+        // Validação em tempo real
+        document.getElementById('cpf_individual').addEventListener('blur', function(e) {
+            const cpf = e.target.value.replace(/\D/g, '');
+            if (cpf.length === 11) {
+                console.log('CPF com 11 dígitos:', cpf);
+            }
+        });
+
+        // Scanner CKAN - Botão principal
+        document.getElementById('btnScanCkan').addEventListener('click', function() {
+            executeScanCkan();
+        });
+
+        // Scanner CKAN - Botão da aba
+        document.getElementById('btnScanCkanTab').addEventListener('click', function() {
+            executeScanCkan();
+        });
+
+        // Função para executar o scanner CKAN
+        function executeScanCkan() {
+            const btn1 = document.getElementById('btnScanCkan');
+            const btn2 = document.getElementById('btnScanCkanTab');
+            const originalText1 = btn1.innerHTML;
+            const originalText2 = btn2.innerHTML;
+            
+            // Desabilitar botões e mostrar loading
+            btn1.disabled = true;
+            btn2.disabled = true;
+            btn1.innerHTML = '<i class="fas fa-spinner fa-spin icon"></i> Analisando...';
+            btn2.innerHTML = '<i class="fas fa-spinner fa-spin icon"></i> Analisando...';
+            
+            // Mostrar modal de progresso
+            showProgressModal();
+            
+            // Executar scanner via AJAX
+            fetch('api/scan-ckan.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Sucesso - recarregar página para mostrar resultados
+                    showMessage('Análise CKAN concluída com sucesso! ' + data.data.recursos_encontrados + ' recursos analisados.', 'success');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    // Erro
+                    showMessage('Erro na análise CKAN: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                showMessage('Erro de conexão durante a análise CKAN', 'error');
+            })
+            .finally(() => {
+                // Reabilitar botões
+                btn1.disabled = false;
+                btn2.disabled = false;
+                btn1.innerHTML = originalText1;
+                btn2.innerHTML = originalText2;
+                hideProgressModal();
+            });
+        }
+
+        // Função para mostrar mensagem
+        function showMessage(message, type) {
+            const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `alert ${alertClass} alert-dismissible fade show`;
+            messageDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            // Inserir no topo da página
+            const container = document.querySelector('.main-content .container');
+            container.insertBefore(messageDiv, container.firstChild);
+            
+            // Auto-remover após 5 segundos
+            setTimeout(() => {
+                if (messageDiv.parentNode) {
+                    messageDiv.remove();
+                }
+            }, 5000);
+        }
+
+        // Modal de progresso
+        function showProgressModal() {
+            const modalHtml = `
+                <div class="modal fade" id="progressModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">
+                                    <i class="fas fa-search icon"></i> Análise CKAN em Andamento
+                                </h5>
+                            </div>
+                            <div class="modal-body text-center">
+                                <div class="spinner-border text-primary mb-3" role="status">
+                                    <span class="visually-hidden">Carregando...</span>
+                                </div>
+                                <p>Analisando recursos do portal de dados abertos...</p>
+                                <p class="text-muted"><small>Este processo pode levar alguns minutos dependendo do tamanho do portal.</small></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remover modal existente se houver
+            const existingModal = document.getElementById('progressModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Adicionar modal ao body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Mostrar modal
+            const modal = new bootstrap.Modal(document.getElementById('progressModal'));
+            modal.show();
+        }
+
+        function hideProgressModal() {
+            const modal = document.getElementById('progressModal');
+            if (modal) {
+                const bootstrapModal = bootstrap.Modal.getInstance(modal);
+                if (bootstrapModal) {
+                    bootstrapModal.hide();
+                }
+                modal.remove();
+            }
+        }
+
+        // Inicializar tooltips do Bootstrap
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    </script>
 </body>
 </html>

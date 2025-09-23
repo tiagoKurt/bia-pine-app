@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Parsing\Factory;
+namespace CpfScanner\Parsing\Factory;
 
-use App\Parsing\Contract\FileParserInterface;
-use App\Parsing\Parser\CsvParser;
-use App\Parsing\Parser\JsonParser;
-use App\Parsing\Parser\ExcelParser;
-use App\Parsing\Parser\PdfParser;
-use App\Parsing\Parser\TextParser;
+use CpfScanner\Parsing\Contract\FileParserInterface;
+use CpfScanner\Parsing\Parser\CsvParser;
+use CpfScanner\Parsing\Parser\JsonParser;
+use CpfScanner\Parsing\Parser\ExcelParser;
+use CpfScanner\Parsing\Parser\PdfParser;
+use CpfScanner\Parsing\Parser\TextParser;
 use InvalidArgumentException;
 
 class FileParserFactory

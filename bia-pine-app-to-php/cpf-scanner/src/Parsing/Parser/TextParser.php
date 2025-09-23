@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Parsing\Parser;
+namespace CpfScanner\Parsing\Parser;
 
-use App\Parsing\Contract\FileParserInterface;
+use CpfScanner\Parsing\Contract\FileParserInterface;
 
 class TextParser implements FileParserInterface
 {

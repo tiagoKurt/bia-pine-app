@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Ckan;
+namespace CpfScanner\Ckan;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;

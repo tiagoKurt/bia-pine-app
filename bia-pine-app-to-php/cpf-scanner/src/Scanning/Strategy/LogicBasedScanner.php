@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Scanning\Strategy;
+namespace CpfScanner\Scanning\Strategy;
 
-use App\Scanning\Contract\CpfScannerInterface;
+use CpfScanner\Scanning\Contract\CpfScannerInterface;
 
 class LogicBasedScanner implements CpfScannerInterface
 {

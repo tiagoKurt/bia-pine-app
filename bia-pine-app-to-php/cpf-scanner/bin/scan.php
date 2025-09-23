@@ -5,10 +5,10 @@ $projectRoot = dirname(__DIR__);
 
 require_once $projectRoot . '/vendor/autoload.php';
 
-use App\Ckan\CkanApiClient;
-use App\Parsing\Factory\FileParserFactory;
-use App\Scanning\Strategy\LogicBasedScanner;
-use App\Scanning\Strategy\AiBasedScanner;
+use CpfScanner\Ckan\CkanApiClient;
+use CpfScanner\Parsing\Factory\FileParserFactory;
+use CpfScanner\Scanning\Strategy\LogicBasedScanner;
+use CpfScanner\Scanning\Strategy\AiBasedScanner;
 use Dotenv\Dotenv;
 
 try {

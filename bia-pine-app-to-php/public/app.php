@@ -4,6 +4,13 @@ session_start();
 require __DIR__ . '/../config.php';
 require __DIR__ . '/../vendor/autoload.php';
 
+// Criar conexão com o banco de dados
+try {
+    $pdo = conectarBanco();
+} catch (Exception $e) {
+    die('Erro fatal de conexão com o banco de dados: ' . $e->getMessage());
+}
+
 use App\Bia;
 use App\Pine;
 
@@ -33,40 +40,94 @@ if (!empty($portalUrl)) {
 }
 
 
-$cpfFindings = [
-    [
-        'dataset_id' => 'dataset-exemplo-1',
-        'dataset_name' => 'Dados de Cidadãos - 2024',
-        'resource_id' => 'resource-123',
-        'resource_name' => 'dados-cidadaos.csv',
-        'resource_url' => 'https://dadosabertos.go.gov.br/dataset/dataset-exemplo-1/resource/resource-123',
-        'resource_format' => 'csv',
-        'cpf_count' => 15,
-        'cpfs' => [
-            '12345678901', '98765432100', '11122233344', '55566677788', '99988877766',
-            '44433322211', '77788899900', '22233344455', '66677788899', '33344455566',
-            '88899900011', '44455566677', '11122233344', '77788899900', '55566677788'
-        ],
-        'last_checked' => '2024-01-15 14:30:00'
-    ],
-    [
-        'dataset_id' => 'dataset-exemplo-2',
-        'dataset_name' => 'Cadastro de Funcionários',
-        'resource_id' => 'resource-456',
-        'resource_name' => 'funcionarios.xlsx',
-        'resource_url' => 'https://dadosabertos.go.gov.br/dataset/dataset-exemplo-2/resource/resource-456',
-        'resource_format' => 'xlsx',
-        'cpf_count' => 8,
-        'cpfs' => [
-            '12345678901', '98765432100', '11122233344', '55566677788',
-            '99988877766', '44433322211', '77788899900', '22233344455'
-        ],
-        'last_checked' => '2024-01-15 14:32:00'
-    ]
-];
+// Incluir funções de verificação de CPF
+require_once __DIR__ . '/../src/functions.php';
 
-$totalCpfs = array_sum(array_column($cpfFindings, 'cpf_count'));
-$totalResources = count($cpfFindings);
+// Buscar dados reais do banco de dados
+$cpfFindings = [];
+$totalCpfs = 0;
+$totalResources = 0;
+$estatisticas = [];
+
+try {
+    // Buscar verificações por fonte CKAN com mais detalhes
+    $sql = "SELECT v.*, 
+            JSON_EXTRACT(v.observacoes, '$.dataset_id') as dataset_id,
+            JSON_EXTRACT(v.observacoes, '$.resource_name') as resource_name,
+            JSON_EXTRACT(v.observacoes, '$.resource_url') as resource_url,
+            JSON_EXTRACT(v.observacoes, '$.resource_format') as resource_format
+            FROM verificacoes_cpf v 
+            WHERE v.fonte = 'ckan_scanner' 
+            ORDER BY v.data_verificacao DESC
+            LIMIT 100";
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute();
+    $verificacoesCkan = $stmt->fetchAll();
+    
+    // Converter para formato compatível com a interface existente
+    if (!empty($verificacoesCkan)) {
+        // Agrupar por identificador_fonte para formar recursos
+        $recursos = [];
+        foreach ($verificacoesCkan as $verificacao) {
+            $identificador = $verificacao['identificador_fonte'] ?? 'unknown-' . $verificacao['id'];
+            
+            if (!isset($recursos[$identificador])) {
+                // Tentar extrair metadados do campo observacoes se for JSON
+                $metadados = [];
+                if ($verificacao['observacoes'] && is_string($verificacao['observacoes'])) {
+                    $decoded = json_decode($verificacao['observacoes'], true);
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        $metadados = $decoded;
+                    }
+                }
+                
+                $recursos[$identificador] = [
+                    'dataset_id' => $metadados['dataset_id'] ?? $verificacao['dataset_id'] ?? ('dataset-' . $verificacao['id']),
+                    'dataset_name' => $metadados['dataset_name'] ?? ('Dataset - ' . date('d/m/Y', strtotime($verificacao['data_verificacao']))),
+                    'resource_id' => $metadados['resource_id'] ?? ('resource-' . $verificacao['id']),
+                    'resource_name' => $metadados['resource_name'] ?? $verificacao['resource_name'] ?? 'Recurso encontrado',
+                    'resource_url' => $metadados['resource_url'] ?? $verificacao['resource_url'] ?? '#',
+                    'resource_format' => $metadados['resource_format'] ?? $verificacao['resource_format'] ?? 'unknown',
+                    'cpf_count' => 0,
+                    'cpfs' => [],
+                    'last_checked' => $verificacao['data_verificacao']
+                ];
+            }
+            
+            $recursos[$identificador]['cpfs'][] = formatarCPF($verificacao['cpf']);
+            $recursos[$identificador]['cpf_count']++;
+        }
+        
+        $cpfFindings = array_values($recursos);
+    }
+    
+    // Buscar estatísticas gerais
+    $estatisticas = obterEstatisticasVerificacoes($pdo);
+    $totalCpfs = $estatisticas['total'] ?? 0;
+    $totalResources = count($cpfFindings);
+    
+    // Buscar dados do histórico de análises
+    $historyFile = __DIR__ . '/../cache/scan-history.json';
+    $lastScanInfo = null;
+    if (file_exists($historyFile)) {
+        $history = json_decode(file_get_contents($historyFile), true);
+        $lastScanInfo = [
+            'lastScan' => $history['lastCompletedScan'] ?? null,
+            'totalScans' => $history['totalScans'] ?? 0,
+            'lastResults' => $history['lastResults'] ?? null
+        ];
+    }
+    
+} catch (Exception $e) {
+    // Se houver erro, manter arrays vazios
+    $cpfFindings = [];
+    $totalCpfs = 0;
+    $totalResources = 0;
+    $estatisticas = ['total' => 0, 'validos' => 0, 'invalidos' => 0];
+    $lastScanInfo = null;
+    error_log("Erro ao buscar dados CPF: " . $e->getMessage());
+}
 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -933,38 +994,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </p>
 
                         <?php if (empty($cpfFindings)): ?>
-                            <!-- Nenhum CPF encontrado -->
-                            <div class="stats-card success">
+                            <!-- Nenhuma análise executada ou sem CPFs encontrados -->
+                            <div class="stats-card <?= $lastScanInfo ? 'success' : 'info' ?>">
                                 <div class="d-flex align-items-center">
-                                    <i class="fas fa-check-circle icon me-3" style="font-size: 2rem;"></i>
+                                    <i class="fas fa-<?= $lastScanInfo ? 'check-circle' : 'info-circle' ?> icon me-3" style="font-size: 2rem;"></i>
                                     <div>
-                                        <h4 class="mb-1">Nenhum CPF encontrado!</h4>
-                                        <p class="mb-0">O portal está em conformidade com as práticas de proteção de dados.</p>
+                                        <?php if ($lastScanInfo): ?>
+                                            <h4 class="mb-1">Análise realizada - Nenhum CPF encontrado</h4>
+                                            <p class="mb-2">A última análise foi executada em <?= date('d/m/Y H:i', strtotime($lastScanInfo['lastScan'])) ?> e não encontrou CPFs nos recursos analisados.</p>
+                                            <?php if ($lastScanInfo['lastResults']): ?>
+                                                <small class="text-light">
+                                                    <i class="fas fa-chart-bar"></i> 
+                                                    <?= $lastScanInfo['lastResults']['datasets_analisados'] ?? 0 ?> datasets, 
+                                                    <?= $lastScanInfo['lastResults']['recursos_analisados'] ?? 0 ?> recursos analisados
+                                                </small>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <h4 class="mb-1">Nenhuma análise executada</h4>
+                                            <p class="mb-0">Execute a análise CKAN para verificar vazamentos de CPF nos recursos do portal de dados abertos.</p>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             </div>
+                            
+                            <?php if ($lastScanInfo): ?>
+                                <!-- Mostrar quando próxima análise pode ser executada -->
+                                <?php 
+                                $lastScanTime = strtotime($lastScanInfo['lastScan']);
+                                $nextScanTime = $lastScanTime + (4 * 3600); // 4 horas
+                                $canScanNow = time() >= $nextScanTime;
+                                ?>
+                                
+                                <?php if ($canScanNow): ?>
+                                    <div class="text-center mt-4">
+                                        <button id="btnScanCkan" class="btn btn-warning btn-lg">
+                                            <i class="fas fa-search icon"></i>
+                                            Executar Nova Análise CKAN
+                                        </button>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="alert alert-info mt-4">
+                                        <i class="fas fa-clock icon"></i>
+                                        <strong>Próxima análise disponível em:</strong> <?= date('d/m/Y H:i', $nextScanTime) ?>
+                                        <br><small>Para evitar sobrecarga do servidor, análises só podem ser executadas a cada 4 horas.</small>
+                                    </div>
+                                <?php endif; ?>
+                            <?php else: ?>
+                                <div class="text-center mt-4">
+                                    <button id="btnScanCkan" class="btn btn-warning btn-lg">
+                                        <i class="fas fa-search icon"></i>
+                                        Executar Análise CKAN
+                                    </button>
+                                </div>
+                            <?php endif; ?>
                         <?php else: ?>
                             <!-- Resumo dos resultados -->
                             <div class="stats-card">
                                 <div class="row">
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="text-center">
                                             <i class="fas fa-exclamation-triangle icon mb-2" style="font-size: 2rem;"></i>
                                             <h3><?= $totalResources ?></h3>
                                             <p class="mb-0">Recursos com CPFs</p>
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <div class="text-center">
                                             <i class="fas fa-id-card icon mb-2" style="font-size: 2rem;"></i>
                                             <h3><?= $totalCpfs ?></h3>
                                             <p class="mb-0">Total de CPFs</p>
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
+                                        <div class="text-center">
+                                            <i class="fas fa-check-circle icon mb-2" style="font-size: 2rem;"></i>
+                                            <h3><?= $estatisticas['validos'] ?? 0 ?></h3>
+                                            <p class="mb-0">CPFs Válidos</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
                                         <div class="text-center">
                                             <i class="fas fa-clock icon mb-2" style="font-size: 2rem;"></i>
-                                            <h3><?= date('H:i', strtotime($cpfFindings[0]['last_checked'])) ?></h3>
+                                            <h3><?= !empty($cpfFindings) ? date('H:i', strtotime($cpfFindings[0]['last_checked'])) : '--:--' ?></h3>
                                             <p class="mb-0">Última verificação</p>
                                         </div>
                                     </div>
@@ -1219,6 +1330,356 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     tableContainer.innerHTML = '<div class="alert alert-danger">Erro ao carregar dados da página.</div>';
                 }
             });
+        }
+
+        // Scanner CKAN
+        document.addEventListener('DOMContentLoaded', function() {
+            const btnScanCkan = document.getElementById('btnScanCkan');
+            if (btnScanCkan) {
+                btnScanCkan.addEventListener('click', function() {
+                    executeScanCkan();
+                });
+            }
+        });
+
+        // Função para executar o scanner CKAN (versão assíncrona)
+        function executeScanCkan(force = false) {
+            const btn = document.getElementById('btnScanCkan');
+            if (!btn) return;
+            
+            const originalText = btn.innerHTML;
+            
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin icon"></i> Iniciando análise...';
+            
+            // Inicia a análise em background
+            const formData = new FormData();
+            if (force) {
+                formData.append('force', 'true');
+            }
+            
+            fetch('api/start-scan.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Análise iniciada com sucesso, começar polling
+                    showAsyncProgressModal();
+                    startPollingStatus();
+                } else {
+                    // Verificar se é erro de cooldown
+                    if (data.cooldownActive) {
+                        showMessage('⏱️ ' + data.message + ' Próxima análise em: ' + data.nextScanAllowed, 'warning');
+                    } else if (data.canForce) {
+                        // Mostrar opção de forçar análise
+                        showForceAnalysisDialog(data.message, data.timeout);
+                    } else {
+                        showMessage('Erro ao iniciar análise: ' + data.message, 'error');
+                    }
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao iniciar análise:', error);
+                showMessage('Erro de conexão ao iniciar análise.', 'error');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            });
+        }
+        
+        // Função para verificar status da análise
+        let pollingInterval;
+        function startPollingStatus() {
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+            }
+            
+            // Verifica status a cada 3 segundos
+            pollingInterval = setInterval(() => {
+                fetch('api/scan-status.php')
+                    .then(response => response.json())
+                    .then(statusData => {
+                        updateAsyncProgress(statusData);
+                        
+                        if (!statusData.inProgress) {
+                            // Análise terminou
+                            clearInterval(pollingInterval);
+                            hideAsyncProgressModal();
+                            
+                            const btn = document.getElementById('btnScanCkan');
+                            if (btn) {
+                                btn.disabled = false;
+                                btn.innerHTML = '<i class="fas fa-search icon"></i> Executar Análise CKAN';
+                            }
+                            
+                            if (statusData.status === 'completed') {
+                                const results = statusData.results || {};
+                                const message = `Análise concluída! ${results.recursos_analisados || 0} recursos verificados, ` +
+                                              `${results.recursos_com_cpfs || 0} continham CPFs. Total de ${results.total_cpfs_salvos || 0} CPFs salvos. A página será atualizada.`;
+                                
+                                showMessage(message, 'success');
+                                
+                                // Recarrega a página após sucesso
+                                setTimeout(() => {
+                                    window.location.href = window.location.pathname + '?tab=cpf';
+                                }, 3000);
+                            } else if (statusData.status === 'failed') {
+                                showMessage('Análise falhou: ' + (statusData.error || 'Erro desconhecido'), 'error');
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erro ao verificar status:', error);
+                        clearInterval(pollingInterval);
+                        hideAsyncProgressModal();
+                        
+                        const btn = document.getElementById('btnScanCkan');
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = '<i class="fas fa-search icon"></i> Executar Análise CKAN';
+                        }
+                        
+                        showMessage('Erro de conexão ao verificar status da análise.', 'error');
+                    });
+            }, 3000);
+        }
+
+        // Função para mostrar mensagem
+        function showMessage(message, type) {
+            let alertClass;
+            switch(type) {
+                case 'success':
+                    alertClass = 'alert-success';
+                    break;
+                case 'warning':
+                    alertClass = 'alert-warning';
+                    break;
+                case 'error':
+                default:
+                    alertClass = 'alert-danger';
+                    break;
+            }
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `alert ${alertClass} alert-dismissible fade show`;
+            messageDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            // Inserir no topo da página
+            const container = document.querySelector('.main-content .container');
+            container.insertBefore(messageDiv, container.firstChild);
+            
+            // Auto-remover após 8 segundos para mensagens de warning (mais tempo para ler)
+            const timeout = type === 'warning' ? 8000 : 5000;
+            setTimeout(() => {
+                if (messageDiv.parentNode) {
+                    messageDiv.remove();
+                }
+            }, timeout);
+        }
+
+        // Modal de progresso assíncrono
+        function showAsyncProgressModal() {
+            const modalHtml = `
+                <div class="modal fade" id="asyncProgressModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">
+                                    <i class="fas fa-search icon"></i> Análise CKAN em Andamento
+                                </h5>
+                            </div>
+                            <div class="modal-body">
+                                <div class="text-center mb-3">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Carregando...</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="progress mb-3">
+                                    <div id="async-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+                                         role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                    </div>
+                                </div>
+                                
+                                <div id="async-progress-text" class="text-center mb-2">
+                                    <strong>Iniciando análise...</strong>
+                                </div>
+                                
+                                <div class="row text-center">
+                                    <div class="col-3">
+                                        <small class="text-muted">Datasets</small><br>
+                                        <strong id="datasets-count">0</strong>
+                                    </div>
+                                    <div class="col-3">
+                                        <small class="text-muted">Recursos</small><br>
+                                        <strong id="recursos-count">0</strong>
+                                    </div>
+                                    <div class="col-3">
+                                        <small class="text-muted">Com CPFs</small><br>
+                                        <strong id="cpfs-recursos-count">0</strong>
+                                    </div>
+                                    <div class="col-3">
+                                        <small class="text-muted">CPFs Total</small><br>
+                                        <strong id="cpfs-total-count">0</strong>
+                                    </div>
+                                </div>
+                                
+                                <div class="text-center mt-3">
+                                    <small class="text-muted">Este processo roda em segundo plano. Você pode fechar esta janela.</small>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" onclick="hideAsyncProgressModal()">
+                                    <i class="fas fa-eye-slash"></i> Ocultar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remover modal existente se houver
+            const existingModal = document.getElementById('asyncProgressModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Adicionar modal ao body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Mostrar modal
+            const modal = new bootstrap.Modal(document.getElementById('asyncProgressModal'));
+            modal.show();
+        }
+
+        function updateAsyncProgress(statusData) {
+            const progressText = document.getElementById('async-progress-text');
+            const progressBar = document.getElementById('async-progress-bar');
+            const datasetsCount = document.getElementById('datasets-count');
+            const recursosCount = document.getElementById('recursos-count');
+            const cpfsRecursosCount = document.getElementById('cpfs-recursos-count');
+            const cpfsTotalCount = document.getElementById('cpfs-total-count');
+            
+            if (statusData.progress) {
+                const progress = statusData.progress;
+                
+                // Atualiza texto do status
+                if (progressText) {
+                    progressText.innerHTML = `<strong>${progress.current_step || 'Processando...'}</strong>`;
+                }
+                
+                // Atualiza contadores
+                if (datasetsCount) datasetsCount.textContent = progress.datasets_analisados || 0;
+                if (recursosCount) recursosCount.textContent = progress.recursos_analisados || 0;
+                if (cpfsRecursosCount) cpfsRecursosCount.textContent = progress.recursos_com_cpfs || 0;
+                if (cpfsTotalCount) cpfsTotalCount.textContent = progress.total_cpfs_salvos || 0;
+                
+                // Calcula porcentagem aproximada baseada no progresso
+                let percentage = 0;
+                if (progress.datasets_analisados > 0) {
+                    // Estimativa baseada nos recursos processados (assumindo média de 10 recursos por dataset)
+                    const estimatedTotal = progress.datasets_analisados * 10;
+                    percentage = Math.min(95, (progress.recursos_analisados / estimatedTotal) * 100);
+                }
+                
+                if (statusData.status === 'completed') {
+                    percentage = 100;
+                }
+                
+                if (progressBar) {
+                    progressBar.style.width = percentage + '%';
+                    progressBar.setAttribute('aria-valuenow', percentage);
+                }
+            }
+        }
+
+        function hideAsyncProgressModal() {
+            const modal = document.getElementById('asyncProgressModal');
+            if (modal) {
+                const bootstrapModal = bootstrap.Modal.getInstance(modal);
+                if (bootstrapModal) {
+                    bootstrapModal.hide();
+                }
+                setTimeout(() => {
+                    modal.remove();
+                }, 300);
+            }
+        }
+
+        // Função para mostrar diálogo de forçar análise
+        function showForceAnalysisDialog(message, timeout) {
+            const remainingMinutes = Math.ceil(timeout / 60);
+            
+            const dialogHtml = `
+                <div class="modal fade" id="forceAnalysisModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">
+                                    <i class="fas fa-exclamation-triangle text-warning"></i> Análise em Andamento
+                                </h5>
+                            </div>
+                            <div class="modal-body">
+                                <p>${message}</p>
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-info-circle"></i>
+                                    <strong>Atenção:</strong> Forçar uma nova análise irá interromper a análise atual e pode causar perda de dados.
+                                </div>
+                                <p>Você deseja:</p>
+                                <ul>
+                                    <li><strong>Aguardar</strong> a análise atual terminar (recomendado)</li>
+                                    <li><strong>Forçar</strong> uma nova análise (interrompe a atual)</li>
+                                </ul>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                    <i class="fas fa-clock"></i> Aguardar
+                                </button>
+                                <button type="button" class="btn btn-warning" onclick="forceNewAnalysis()">
+                                    <i class="fas fa-play"></i> Forçar Nova Análise
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remover modal existente se houver
+            const existingModal = document.getElementById('forceAnalysisModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Adicionar modal ao body
+            document.body.insertAdjacentHTML('beforeend', dialogHtml);
+            
+            // Mostrar modal
+            const modal = new bootstrap.Modal(document.getElementById('forceAnalysisModal'));
+            modal.show();
+        }
+
+        // Função para forçar nova análise
+        function forceNewAnalysis() {
+            // Fechar modal
+            const modal = document.getElementById('forceAnalysisModal');
+            if (modal) {
+                const bootstrapModal = bootstrap.Modal.getInstance(modal);
+                if (bootstrapModal) {
+                    bootstrapModal.hide();
+                }
+                setTimeout(() => {
+                    modal.remove();
+                }, 300);
+            }
+            
+            // Executar análise forçada
+            executeScanCkan(true);
         }
     </script>
 </body>
