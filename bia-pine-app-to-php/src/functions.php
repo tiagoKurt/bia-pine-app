@@ -478,13 +478,99 @@ function getLastCpfScanInfo(PDO $pdo): ?array {
     }
 }
 
-/**
- * Busca e agrupa os resultados de CPFs encontrados no banco de dados.
- * Esta função carrega os dados para exibição na aba CPF.
- * 
- * @param PDO $pdo A conexão com o banco de dados
- * @return array Um array estruturado com os resultados
- */
+function getCpfFindingsPaginado(\PDO $pdo, int $pagina = 1, int $itensPorPagina = 10): array
+{
+    $offset = ($pagina - 1) * $itensPorPagina;
+
+    try {
+        $totalStmt = $pdo->query("SELECT COUNT(DISTINCT identificador_fonte) as total FROM verificacoes_cpf WHERE identificador_fonte IS NOT NULL AND observacoes LIKE '%Fonte: ckan_scanner%'");
+        $totalResources = $totalStmt->fetchColumn() ?: 0;
+
+        $sql = "
+            SELECT 
+                vc.identificador_fonte,
+                COUNT(vc.id) as cpf_count,
+                MAX(vc.data_verificacao) as last_checked,
+                GROUP_CONCAT(vc.cpf SEPARATOR ',') as cpfs,
+                SUBSTRING_INDEX(GROUP_CONCAT(vc.observacoes ORDER BY vc.data_verificacao DESC SEPARATOR '|||'), '|||', 1) as observacoes_json,
+                d.name as dataset_name,
+                d.url as dataset_url,
+                d.organization as dataset_organization
+            FROM 
+                verificacoes_cpf vc
+            LEFT JOIN datasets d ON SUBSTRING_INDEX(vc.identificador_fonte, '|', 1) COLLATE utf8mb4_unicode_ci = d.dataset_id COLLATE utf8mb4_unicode_ci
+            WHERE 
+                vc.identificador_fonte IS NOT NULL 
+                AND vc.observacoes LIKE '%Fonte: ckan_scanner%'
+            GROUP BY 
+                vc.identificador_fonte
+            ORDER BY 
+                last_checked DESC
+            LIMIT :limit OFFSET :offset
+        ";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':limit', $itensPorPagina, \PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+        $stmt->execute();
+        $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $findings = [];
+
+        if ($results) {
+            foreach ($results as $result) {
+                $observacoes = $result['observacoes_json'];
+                $jsonStart = strpos($observacoes, '{');
+                $jsonEnd = strrpos($observacoes, '}');
+                
+                if ($jsonStart !== false && $jsonEnd !== false) {
+                    $jsonString = substr($observacoes, $jsonStart, $jsonEnd - $jsonStart + 1);
+                    $metadados = json_decode($jsonString, true);
+                } else {
+                    continue;
+                }
+                
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    continue;
+                }
+
+                $cpfs = explode(',', $result['cpfs']);
+                $cpfsFormatados = array_map('formatarCPF', $cpfs);
+
+                $findings[] = [
+                    'dataset_id' => $metadados['dataset_id'] ?? 'Não encontrado',
+                    'dataset_name' => $result['dataset_name'] ?? ($metadados['dataset_name'] ?? 'Dataset Desconhecido'),
+                    'dataset_url' => $result['dataset_url'] ?? '#',
+                    'dataset_organization' => $result['dataset_organization'] ?? 'Não informado',
+                    'resource_id' => $metadados['resource_id'] ?? 'Não encontrado',
+                    'resource_name' => $metadados['resource_name'] ?? 'Recurso Desconhecido',
+                    'resource_url' => $metadados['resource_url'] ?? '#',
+                    'resource_format' => $metadados['resource_format'] ?? 'N/A',
+                    'cpf_count' => (int) $result['cpf_count'],
+                    'cpfs' => $cpfsFormatados,
+                    'last_checked' => $result['last_checked']
+                ];
+            }
+        }
+
+        return [
+            'findings' => $findings,
+            'total_resources' => (int) $totalResources,
+            'total_paginas' => (int) ceil($totalResources / $itensPorPagina),
+            'pagina_atual' => $pagina,
+        ];
+
+    } catch (PDOException $e) {
+        error_log("Erro ao buscar dados de CPF paginados: " . $e->getMessage());
+        return [
+            'findings' => [],
+            'total_resources' => 0,
+            'total_paginas' => 1,
+            'pagina_atual' => $pagina,
+        ];
+    }
+}
+
 function getCpfFindings(PDO $pdo): array {
     $findings = [];
     try {

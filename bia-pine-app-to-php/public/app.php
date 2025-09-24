@@ -43,38 +43,31 @@ if (!empty($portalUrl)) {
 // Incluir funções de verificação de CPF
 require_once __DIR__ . '/../src/functions.php';
 
-// Buscar dados reais do banco de dados usando as novas funções
+$paginaCpfAtual = isset($_GET['page']) && isset($_GET['tab']) && $_GET['tab'] === 'cpf' ? (int)$_GET['page'] : 1;
+$itensPorPaginaCpf = 10;
+
+$cpfData = [];
 $cpfFindings = [];
-$totalCpfs = 0;
-$totalResources = 0;
 $estatisticas = [];
 $lastScanInfo = null;
 
 try {
-    // Usar as novas funções para carregar dados de CPF
-    $cpfFindings = getCpfFindings($pdo);
-    $lastScanInfo = getLastCpfScanInfo($pdo);
+    $cpfData = getCpfFindingsPaginado($pdo, $paginaCpfAtual, $itensPorPaginaCpf);
+    $cpfFindings = $cpfData['findings'] ?? [];
     
-    // Calcular estatísticas baseadas nos dados carregados
-    if (!empty($cpfFindings)) {
-        $totalResources = count($cpfFindings);
-        foreach ($cpfFindings as $finding) {
-            $totalCpfs += $finding['cpf_count'];
-        }
-    }
+    $lastScanInfo = getLastCpfScanInfo($pdo);
     
     // Buscar estatísticas gerais do banco
     $estatisticas = obterEstatisticasVerificacoes($pdo);
     
 } catch (Exception $e) {
-    // Se houver erro, manter arrays vazios
+    $cpfData = ['total_resources' => 0, 'total_paginas' => 1, 'pagina_atual' => 1];
     $cpfFindings = [];
-    $totalCpfs = 0;
-    $totalResources = 0;
     $estatisticas = ['total' => 0, 'validos' => 0, 'invalidos' => 0];
     $lastScanInfo = null;
     error_log("Erro ao buscar dados CPF em app.php: " . $e->getMessage());
 }
+
 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -998,26 +991,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <!-- Resumo dos resultados -->
                             <div class="stats-card">
                                 <div class="row">
-                                    <div class="col-md-4">
-                                        <div class="text-center">
-                                            <i class="fas fa-exclamation-triangle icon mb-2" style="font-size: 2rem;"></i>
-                                            <h3><?= $totalResources ?></h3>
-                                            <p class="mb-0">Recursos com CPFs</p>
-                                        </div>
+                                    <div class="col-md-4 text-center">
+                                        <i class="fas fa-exclamation-triangle icon mb-2" style="font-size: 2rem;"></i>
+                                        <h3><?= number_format($cpfData['total_resources'] ?? 0, 0, ',', '.') ?></h3>
+                                        <p class="mb-0">Recursos com CPFs</p>
                                     </div>
-                                    <div class="col-md-4">
-                                        <div class="text-center">
-                                            <i class="fas fa-check-circle icon mb-2" style="font-size: 2rem;"></i>
-                                            <h3><?= $estatisticas['validos'] ?? 0 ?></h3>
-                                            <p class="mb-0">CPFs Válidos</p>
-                                        </div>
+                                    <div class="col-md-4 text-center">
+                                        <i class="fas fa-file-alt icon mb-2" style="font-size: 2rem;"></i>
+                                        <h3><?= number_format($estatisticas['total'] ?? 0, 0, ',', '.') ?></h3>
+                                        <p class="mb-0">Total de CPFs</p>
                                     </div>
-                                    <div class="col-md-4">
-                                        <div class="text-center">
-                                            <i class="fas fa-clock icon mb-2" style="font-size: 2rem;"></i>
-                                            <h3><?= !empty($cpfFindings) ? date('H:i', strtotime($cpfFindings[0]['last_checked'])) : '--:--' ?></h3>
-                                            <p class="mb-0">Última verificação</p>
-                                        </div>
+                                    <!-- <div class="col-md-3 text-center">
+                                        <i class="fas fa-check-circle icon mb-2" style="font-size: 2rem;"></i>
+                                        <h3><?= number_format($estatisticas['validos'] ?? 0, 0, ',', '.') ?></h3>
+                                        <p class="mb-0">CPFs Válidos</p>
+                                    </div> -->
+                                    <div class="col-md-4 text-center">
+                                        <i class="fas fa-clock icon mb-2" style="font-size: 2rem;"></i>
+                                        <h3><?= $lastScanInfo ? date('H:i', strtotime($lastScanInfo['lastScan'])) : '--:--' ?></h3>
+                                        <p class="mb-0">Última verificação</p>
                                     </div>
                                 </div>
                             </div>
@@ -1115,6 +1107,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         </tbody>
                                     </table>
                                 </div>
+                                
+                                <?php if (isset($cpfData['total_paginas']) && $cpfData['total_paginas'] > 1): ?>
+                                    <nav class="mt-4" aria-label="Navegação da página de CPFs">
+                                        <ul class="pagination justify-content-center">
+                                            <li class="page-item <?= $paginaCpfAtual <= 1 ? 'disabled' : '' ?>">
+                                                <a class="page-link" href="?tab=cpf&page=<?= $paginaCpfAtual - 1 ?>">Anterior</a>
+                                            </li>
+                                            
+                                            <?php for ($i = 1; $i <= $cpfData['total_paginas']; $i++): ?>
+                                                <li class="page-item <?= $i === $paginaCpfAtual ? 'active' : '' ?>" aria-current="page">
+                                                    <a class="page-link" href="?tab=cpf&page=<?= $i ?>"><?= $i ?></a>
+                                                </li>
+                                            <?php endfor; ?>
+                                            
+                                            <li class="page-item <?= $paginaCpfAtual >= $cpfData['total_paginas'] ? 'disabled' : '' ?>">
+                                                <a class="page-link" href="?tab=cpf&page=<?= $paginaCpfAtual + 1 ?>">Próximo</a>
+                                            </li>
+                                        </ul>
+                                    </nav>
+                                <?php endif; ?>
                             </div>
                         <?php endif; ?>
                     </div>
