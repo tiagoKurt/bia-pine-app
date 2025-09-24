@@ -441,3 +441,122 @@ function obterEstatisticasPorFonte(PDO $pdo, string $fonte): array {
         ];
     }
 }
+
+/**
+ * Busca a data e os resultados da última verificação de CPF no banco de dados.
+ * 
+ * @param PDO $pdo A conexão com o banco de dados
+ * @return array|null Retorna um array com 'lastScan' e 'lastResults' ou null se não houver registros
+ */
+function getLastCpfScanInfo(PDO $pdo): ?array {
+    try {
+        // Busca a última verificação de CPF
+        $stmt = $pdo->query("SELECT MAX(data_verificacao) as lastScan FROM verificacoes_cpf");
+        $lastScan = $stmt->fetchColumn();
+
+        if (!$lastScan) {
+            return null;
+        }
+
+        // Busca informações do histórico de análises
+        $historyFile = __DIR__ . '/../cache/scan-history.json';
+        $lastResults = null;
+        
+        if (file_exists($historyFile)) {
+            $history = json_decode(file_get_contents($historyFile), true);
+            $lastResults = $history['lastResults'] ?? null;
+        }
+        
+        return [
+            'lastScan' => $lastScan,
+            'lastResults' => $lastResults
+        ];
+
+    } catch (PDOException $e) {
+        error_log("Erro ao buscar informações da última varredura: " . $e->getMessage());
+        return null;
+    }
+}
+
+/**
+ * Busca e agrupa os resultados de CPFs encontrados no banco de dados.
+ * Esta função carrega os dados para exibição na aba CPF.
+ * 
+ * @param PDO $pdo A conexão com o banco de dados
+ * @return array Um array estruturado com os resultados
+ */
+function getCpfFindings(PDO $pdo): array {
+    $findings = [];
+    try {
+        // Consulta para buscar CPFs agrupados pelo identificador do recurso
+        // Fazendo JOIN com a tabela datasets para obter nomes corretos e URLs
+        $sql = "
+            SELECT 
+                vc.identificador_fonte,
+                COUNT(vc.id) as cpf_count,
+                MAX(vc.data_verificacao) as last_checked,
+                GROUP_CONCAT(vc.cpf SEPARATOR ',') as cpfs,
+                SUBSTRING_INDEX(GROUP_CONCAT(vc.observacoes ORDER BY vc.data_verificacao DESC SEPARATOR '|||'), '|||', 1) as observacoes_json,
+                d.name as dataset_name,
+                d.url as dataset_url,
+                d.organization as dataset_organization
+            FROM 
+                verificacoes_cpf vc
+            LEFT JOIN datasets d ON SUBSTRING_INDEX(vc.identificador_fonte, '|', 1) COLLATE utf8mb4_unicode_ci = d.dataset_id COLLATE utf8mb4_unicode_ci
+            WHERE 
+                vc.identificador_fonte IS NOT NULL 
+                AND vc.observacoes LIKE '%Fonte: ckan_scanner%'
+            GROUP BY 
+                vc.identificador_fonte
+            ORDER BY 
+                last_checked DESC
+            LIMIT 100
+        ";
+        
+        $stmt = $pdo->query($sql);
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!$results) {
+            return [];
+        }
+
+        // Processa os resultados e organiza no formato esperado pela view
+        foreach ($results as $result) {
+            // Extrair JSON das observações
+            $observacoes = $result['observacoes_json'];
+            $jsonStart = strpos($observacoes, '{');
+            $jsonEnd = strrpos($observacoes, '}');
+            
+            if ($jsonStart !== false && $jsonEnd !== false) {
+                $jsonString = substr($observacoes, $jsonStart, $jsonEnd - $jsonStart + 1);
+                $metadados = json_decode($jsonString, true);
+            } else {
+                continue;
+            }
+            
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                continue;
+            }
+
+            $findings[] = [
+                'dataset_id' => $metadados['dataset_id'] ?? 'Não encontrado',
+                'dataset_name' => $result['dataset_name'] ?? ($metadados['dataset_name'] ?? 'Dataset Desconhecido'),
+                'dataset_url' => $result['dataset_url'] ?? '#',
+                'dataset_organization' => $result['dataset_organization'] ?? 'Não informado',
+                'resource_id' => $metadados['resource_id'] ?? 'Não encontrado',
+                'resource_name' => $metadados['resource_name'] ?? 'Recurso Desconhecido',
+                'resource_url' => $metadados['resource_url'] ?? '#',
+                'resource_format' => $metadados['resource_format'] ?? 'N/A',
+                'cpf_count' => (int) $result['cpf_count'],
+                'cpfs' => array_map('formatarCPF', explode(',', $result['cpfs'])),
+                'last_checked' => $result['last_checked']
+            ];
+        }
+
+        return $findings;
+
+    } catch (PDOException $e) {
+        error_log("Erro ao buscar dados de CPF: " . $e->getMessage());
+        return [];
+    }
+}

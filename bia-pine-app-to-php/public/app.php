@@ -43,74 +43,28 @@ if (!empty($portalUrl)) {
 // Incluir funções de verificação de CPF
 require_once __DIR__ . '/../src/functions.php';
 
-// Buscar dados reais do banco de dados
+// Buscar dados reais do banco de dados usando as novas funções
 $cpfFindings = [];
 $totalCpfs = 0;
 $totalResources = 0;
 $estatisticas = [];
+$lastScanInfo = null;
 
 try {
-    // Consulta CORRIGIDA para buscar CPFs agrupados pelo identificador do recurso
-    $sql = "
-        SELECT 
-            identificador_fonte,
-            COUNT(id) as cpf_count,
-            MAX(data_verificacao) as last_checked,
-            GROUP_CONCAT(cpf SEPARATOR ',') as cpfs,
-            ANY_VALUE(observacoes) as observacoes_json
-        FROM 
-            verificacoes_cpf
-        WHERE 
-            identificador_fonte IS NOT NULL 
-            AND observacoes LIKE '%ckan_scanner%' -- Busca pela fonte correta
-        GROUP BY 
-            identificador_fonte
-        ORDER BY 
-            last_checked DESC
-        LIMIT 100;
-    ";
+    // Usar as novas funções para carregar dados de CPF
+    $cpfFindings = getCpfFindings($pdo);
+    $lastScanInfo = getLastCpfScanInfo($pdo);
     
-    $stmt = $pdo->query($sql);
-    $groupedFindings = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    if (!empty($groupedFindings)) {
-        foreach ($groupedFindings as $finding) {
-            $metadados = json_decode($finding['observacoes_json'], true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                // Se o JSON for inválido, pula para o próximo para evitar erros
-                continue;
-            }
-
-            $cpfFindings[] = [
-                'dataset_id' => $metadados['dataset_id'] ?? 'Não encontrado',
-                'dataset_name' => $metadados['dataset_name'] ?? 'Dataset Desconhecido',
-                'resource_id' => $metadados['resource_id'] ?? 'Não encontrado',
-                'resource_name' => $metadados['resource_name'] ?? 'Recurso Desconhecido',
-                'resource_url' => $metadados['resource_url'] ?? '#',
-                'resource_format' => $metadados['resource_format'] ?? 'N/A',
-                'cpf_count' => (int) $finding['cpf_count'],
-                'cpfs' => array_map('formatarCPF', explode(',', $finding['cpfs'])),
-                'last_checked' => $finding['last_checked']
-            ];
+    // Calcular estatísticas baseadas nos dados carregados
+    if (!empty($cpfFindings)) {
+        $totalResources = count($cpfFindings);
+        foreach ($cpfFindings as $finding) {
+            $totalCpfs += $finding['cpf_count'];
         }
     }
     
-    // Buscar estatísticas gerais
+    // Buscar estatísticas gerais do banco
     $estatisticas = obterEstatisticasVerificacoes($pdo);
-    $totalCpfs = $estatisticas['total'] ?? 0;
-    $totalResources = count($cpfFindings);
-    
-    // Buscar dados do histórico de análises
-    $historyFile = __DIR__ . '/../cache/scan-history.json';
-    $lastScanInfo = null;
-    if (file_exists($historyFile)) {
-        $history = json_decode(file_get_contents($historyFile), true);
-        $lastScanInfo = [
-            'lastScan' => $history['lastCompletedScan'] ?? null,
-            'totalScans' => $history['totalScans'] ?? 0,
-            'lastResults' => $history['lastResults'] ?? null
-        ];
-    }
     
 } catch (Exception $e) {
     // Se houver erro, manter arrays vazios
@@ -1044,28 +998,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <!-- Resumo dos resultados -->
                             <div class="stats-card">
                                 <div class="row">
-                                    <div class="col-md-3">
+                                    <div class="col-md-4">
                                         <div class="text-center">
                                             <i class="fas fa-exclamation-triangle icon mb-2" style="font-size: 2rem;"></i>
                                             <h3><?= $totalResources ?></h3>
                                             <p class="mb-0">Recursos com CPFs</p>
                                         </div>
                                     </div>
-                                    <div class="col-md-3">
-                                        <div class="text-center">
-                                            <i class="fas fa-id-card icon mb-2" style="font-size: 2rem;"></i>
-                                            <h3><?= $totalCpfs ?></h3>
-                                            <p class="mb-0">Total de CPFs</p>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-4">
                                         <div class="text-center">
                                             <i class="fas fa-check-circle icon mb-2" style="font-size: 2rem;"></i>
                                             <h3><?= $estatisticas['validos'] ?? 0 ?></h3>
                                             <p class="mb-0">CPFs Válidos</p>
                                         </div>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-4">
                                         <div class="text-center">
                                             <i class="fas fa-clock icon mb-2" style="font-size: 2rem;"></i>
                                             <h3><?= !empty($cpfFindings) ? date('H:i', strtotime($cpfFindings[0]['last_checked'])) : '--:--' ?></h3>
@@ -1109,7 +1056,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                         <div>
                                                             <strong><?= htmlspecialchars($finding['dataset_name']) ?></strong>
                                                             <br>
-                                                            <small class="text-muted"><?= htmlspecialchars($finding['dataset_id']) ?></small>
+                                                             <small class="text-muted">dataset_id: <?= htmlspecialchars($finding['dataset_id']) ?></small>
+                                                            <?php if (!empty($finding['dataset_organization'])): ?>
+                                                                <br>
+                                                                <!-- <small class="text-info"><?= htmlspecialchars($finding['dataset_organization']) ?></small> -->
+                                                            <?php endif; ?>
                                                         </div>
                                                     </td>
                                                     <td>
@@ -1131,9 +1082,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                         <small><?= date('d/m/Y H:i', strtotime($finding['last_checked'])) ?></small>
                                                     </td>
                                                     <td>
-                                                        <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#collapse<?= $index ?>" aria-expanded="false">
-                                                            <i class="fas fa-eye icon"></i> Ver CPFs
-                                                        </button>
+                                                        <div class="btn-group" role="group">
+                                                            <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#collapse<?= $index ?>" aria-expanded="false">
+                                                                <i class="fas fa-eye icon"></i> Ver CPFs
+                                                            </button>
+                                                            <?php if (!empty($finding['dataset_url']) && $finding['dataset_url'] !== '#'): ?>
+                                                                <a href="<?= htmlspecialchars($finding['dataset_url']) ?>" target="_blank" class="btn btn-outline-success btn-sm">
+                                                                    <i class="fas fa-external-link-alt icon"></i> Dataset
+                                                                </a>
+                                                            <?php endif; ?>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                                 <tr>

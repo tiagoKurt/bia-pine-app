@@ -56,7 +56,9 @@ if (!defined('DB_PASSWORD')) {
 //     UNIQUE KEY `idx_cpf_unique` (`cpf`)
 //   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 // ALTER TABLE verificacoes_cpf ADD COLUMN identificador_fonte VARCHAR(255) NULL AFTER observacoes;
+// ALTER TABLE verificacoes_cpf ADD COLUMN name_dataset VARCHAR(255);
 // CREATE INDEX idx_identificador_fonte ON verificacoes_cpf (identificador_fonte);
+
 
 if (!defined('GOOGLE_CREDENTIALS_JSON')) {
     $credenciaisEnv = getenv('GOOGLE_CREDENTIALS_JSON');
