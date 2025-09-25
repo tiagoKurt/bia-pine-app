@@ -3,7 +3,7 @@
     "description": "Aplicativo PHP BIA/PINE convertido do Python",
     "type": "project",
     "require": {
-        "php": ">=8.3",
+        "php": ">=8.0",
         "guzzlehttp/guzzle": "^7.0",
         "phpoffice/phpword": "^1.0",
         "google/apiclient": "^2.0",
