@@ -1,6 +1,11 @@
 <?php
 session_start();
 
+// Headers para evitar cache
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+
 require __DIR__ . '/../config.php';
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -349,9 +354,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-bottom: 1rem;
         }
 
+        .nav-tabs-container {
+            margin-bottom: 2rem;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
         .nav-tabs {
             border: none;
-            margin-bottom: 2rem;
+            margin-bottom: 0;
+            display: flex;
+            flex-wrap: nowrap;
+            min-width: max-content;
         }
 
         .nav-tabs .nav-link {
@@ -381,6 +395,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .nav-tabs .nav-link i {
             margin-right: 0.5rem;
+        }
+
+        .nav-tabs .nav-link .tab-text {
+            white-space: nowrap;
+        }
+
+        .nav-tabs-container::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .nav-tabs-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        .nav-tabs-container::-webkit-scrollbar-thumb {
+            background: var(--primary-color);
+            border-radius: 3px;
+        }
+
+        .nav-tabs-container::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-dark);
         }
 
         .tab-content {
@@ -516,6 +552,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-radius: 12px;
             overflow: hidden;
             box-shadow: var(--shadow);
+            margin-bottom: 0;
+        }
+
+        .table-responsive {
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            background: white;
         }
 
         .table thead th {
@@ -606,40 +649,969 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-weight: 500;
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 576px) {
+            .header {
+                padding: 1rem 0;
+            }
+
             .header-content {
                 flex-direction: column;
-                gap: 1rem;
+                gap: 0.75rem;
+                text-align: center;
             }
 
             .system-title {
-                font-size: 1.2rem;
+                font-size: 1.1rem;
+                line-height: 1.2;
             }
 
             .system-subtitle {
-                font-size: 0.8rem;
+                font-size: 0.75rem;
+            }
+
+            .logo-image {
+                max-height: 60px;
+            }
+
+            .main-content {
+                padding: 1rem 0;
+            }
+
+            .welcome-banner {
+                padding: 1.5rem 1rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .welcome-banner h2 {
+                font-size: 1.3rem;
+                margin-bottom: 0.5rem;
+            }
+
+            .welcome-banner p {
+                font-size: 0.9rem;
             }
 
             .tab-content {
-                padding: 1.5rem;
+                padding: 1rem;
+                border-radius: 12px;
             }
-            
+
+            .tab-pane h2 {
+                font-size: 1.4rem;
+                margin-bottom: 1rem;
+            }
+
+            .nav-tabs-container {
+                margin-bottom: 1.5rem;
+            }
+
+            .nav-tabs {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                padding-bottom: 0.5rem;
+            }
+
             .nav-tabs .nav-link {
-                margin-right: 0.5rem;
-                margin-bottom: 0.5rem;
+                margin-right: 0.25rem;
+                margin-bottom: 0;
+                padding: 0.6rem 0.8rem;
+                font-size: 0.8rem;
+                border-radius: 6px;
+                flex: 0 0 auto;
+                min-width: 80px;
+                text-align: center;
+                white-space: nowrap;
+            }
+
+            .nav-tabs .nav-link .tab-text {
+                display: inline;
+            }
+
+            .form-control {
                 padding: 0.75rem 1rem;
                 font-size: 0.9rem;
             }
 
+            .btn-primary, .btn-success {
+                padding: 0.75rem 1.5rem;
+                font-size: 0.9rem;
+                width: 100%;
+                margin-top: 0.5rem;
+            }
+
+            .btn-outline-primary {
+                padding: 0.4rem 0.8rem;
+                font-size: 0.8rem;
+            }
+
+            .table-responsive {
+                font-size: 0.8rem;
+                border: 1px solid var(--border-color);
+            }
+
+            .table {
+                min-width: 600px;
+            }
+
+            .table thead th {
+                padding: 0.75rem 0.5rem;
+                font-size: 0.8rem;
+                white-space: nowrap;
+            }
+
+            .table tbody td {
+                padding: 0.75rem 0.5rem;
+                vertical-align: top;
+            }
+
+            .table tbody td strong {
+                font-size: 0.85rem;
+            }
+
+            .table tbody td small {
+                font-size: 0.75rem;
+            }
+
+            .table tbody td:nth-child(1) {
+                min-width: 200px;
+            }
+
+            .table tbody td:nth-child(2) {
+                min-width: 120px;
+            }
+
+            .table tbody td:nth-child(3) {
+                min-width: 100px;
+            }
+
+            .table tbody td:nth-child(4) {
+                min-width: 80px;
+            }
+
+            .table tbody td:nth-child(5) {
+                min-width: 60px;
+            }
+
+            .table tbody td:nth-child(6) {
+                min-width: 100px;
+            }
+
+            .badge {
+                font-size: 0.75rem;
+                padding: 0.4rem 0.8rem;
+            }
+
+            .stats-card {
+                padding: 1rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .stats-card h3 {
+                font-size: 1.5rem;
+            }
+
+            .stats-card h4 {
+                font-size: 1.1rem;
+            }
+
+            .cpf-item {
+                font-size: 0.75rem;
+                padding: 0.2rem 0.4rem;
+                margin: 0.15rem;
+            }
+
+            .footer {
+                padding: 1rem 0;
+            }
+
             .footer-content {
                 flex-direction: column;
-                gap: 1rem;
+                gap: 0.75rem;
                 text-align: center;
             }
 
+            .logo-image {
+                max-height: 50px;
+            }
+
+            .pagination {
+                font-size: 0.8rem;
+            }
+
+            .page-link {
+                padding: 0.5rem 0.75rem;
+            }
+
+            .alert {
+                padding: 1rem;
+                font-size: 0.9rem;
+            }
+
+            .description-text {
+                font-size: 0.9rem;
+                margin-bottom: 1rem;
+            }
+
+            .module-access h3 {
+                font-size: 1.1rem;
+                margin-bottom: 0.75rem;
+            }
+
+            .progress-container .card {
+                margin: 0;
+            }
+
+            .progress-container .card-body {
+                padding: 1rem;
+            }
+
+            .progress-container h5 {
+                font-size: 1rem;
+            }
+
+            .progress-container .card-text {
+                font-size: 0.85rem;
+            }
+        }
+
+        @media (min-width: 577px) and (max-width: 768px) {
+            .header-content {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .system-title {
+                font-size: 1.3rem;
+            }
+
+            .system-subtitle {
+                font-size: 0.85rem;
+            }
+
+            .logo-image {
+                max-height: 70px;
+            }
+
+            .tab-content {
+                padding: 1.75rem;
+            }
+
+            .nav-tabs-container {
+                margin-bottom: 1.75rem;
+            }
+
+            .nav-tabs .nav-link {
+                margin-right: 0.5rem;
+                margin-bottom: 0;
+                padding: 0.8rem 1.2rem;
+                font-size: 0.9rem;
+                flex: 0 0 auto;
+                min-width: 100px;
+            }
+
             .welcome-banner h2 {
+                font-size: 1.6rem;
+            }
+
+            .table-responsive {
+                font-size: 0.85rem;
+                border: 1px solid var(--border-color);
+            }
+
+            .table {
+                min-width: 700px;
+            }
+
+            .table thead th {
+                padding: 0.85rem 0.75rem;
+                font-size: 0.85rem;
+            }
+
+            .table tbody td {
+                padding: 0.85rem 0.75rem;
+            }
+
+            .btn-primary, .btn-success {
+                padding: 0.85rem 1.75rem;
+            }
+
+            .stats-card {
+                padding: 1.25rem;
+            }
+
+            .stats-card h3 {
+                font-size: 1.8rem;
+            }
+        }
+
+        @media (min-width: 769px) and (max-width: 992px) {
+            .header-content {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .system-title {
+                font-size: 1.4rem;
+            }
+
+            .tab-content {
+                padding: 2rem;
+            }
+
+            .nav-tabs .nav-link {
+                padding: 0.9rem 1.3rem;
+                font-size: 0.95rem;
+            }
+
+            .table-responsive {
+                font-size: 0.9rem;
+            }
+        }
+
+        @media (min-width: 993px) and (max-width: 1200px) {
+            .container {
+                max-width: 960px;
+            }
+
+            .tab-content {
+                padding: 2.25rem;
+            }
+        }
+
+        @media (min-width: 1201px) {
+            .container {
+                max-width: 1140px;
+            }
+
+            .tab-content {
+                padding: 2.5rem;
+            }
+        }
+
+        .table-responsive {
+            border-radius: 12px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .table-responsive::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .table-responsive::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: var(--primary-color);
+            border-radius: 4px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-dark);
+        }
+
+        @media (max-width: 576px) {
+            .modal-dialog {
+                margin: 0.5rem;
+                max-width: calc(100% - 1rem);
+            }
+
+            .modal-content {
+                border-radius: 12px;
+            }
+
+            .modal-header {
+                padding: 1rem;
+            }
+
+            .modal-body {
+                padding: 1rem;
+            }
+
+            .modal-footer {
+                padding: 1rem;
+            }
+
+            .modal-title {
+                font-size: 1.1rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .btn-group {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .btn-group .btn {
+                margin-bottom: 0.25rem;
+                border-radius: 6px !important;
+            }
+
+            .btn-group .btn:last-child {
+                margin-bottom: 0;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .stats-card .row {
+                margin: 0;
+            }
+
+            .stats-card .col-md-4 {
+                padding: 0.5rem;
+                margin-bottom: 1rem;
+            }
+
+            .stats-card .col-md-4:last-child {
+                margin-bottom: 0;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .pagination {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .page-item {
+                margin: 0.125rem;
+            }
+
+            .page-link {
+                padding: 0.4rem 0.6rem;
+                font-size: 0.8rem;
+                border-radius: 6px;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .row .col-md-8,
+            .row .col-md-4 {
+                margin-bottom: 1rem;
+            }
+
+            .row .col-md-4:last-child {
+                margin-bottom: 0;
+            }
+
+            .form-label {
+                font-size: 0.9rem;
+                margin-bottom: 0.4rem;
+            }
+
+            .form-text {
+                font-size: 0.8rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .collapse .p-3 {
+                padding: 0.75rem !important;
+            }
+
+            .collapse h6 {
+                font-size: 0.9rem;
+                margin-bottom: 0.75rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .icon {
+                font-size: 1em;
+            }
+
+            .system-logo i {
                 font-size: 1.5rem;
             }
+
+            .stats-card .icon {
+                font-size: 1.5rem;
+            }
+        }
+
+        .w-md-auto {
+            width: auto !important;
+        }
+
+        @media (max-width: 767.98px) {
+            .w-md-auto {
+                width: 100% !important;
+            }
+        }
+
+        .gap-2 {
+            gap: 0.5rem !important;
+        }
+
+        .gap-3 {
+            gap: 1rem !important;
+        }
+
+        .g-3 > * {
+            padding-right: calc(var(--bs-gutter-x) * 0.5);
+            padding-left: calc(var(--bs-gutter-x) * 0.5);
+            margin-top: var(--bs-gutter-y);
+        }
+
+        .g-3 {
+            --bs-gutter-x: 1rem;
+            --bs-gutter-y: 0;
+            display: flex;
+            flex-wrap: wrap;
+            margin-top: calc(-1 * var(--bs-gutter-y));
+            margin-right: calc(-0.5 * var(--bs-gutter-x));
+            margin-left: calc(-0.5 * var(--bs-gutter-x));
+        }
+
+        .g-2 {
+            --bs-gutter-x: 0.5rem;
+            --bs-gutter-y: 0;
+            display: flex;
+            flex-wrap: wrap;
+            margin-top: calc(-1 * var(--bs-gutter-y));
+            margin-right: calc(-0.5 * var(--bs-gutter-x));
+            margin-left: calc(-0.5 * var(--bs-gutter-x));
+        }
+
+        .g-2 > * {
+            padding-right: calc(var(--bs-gutter-x) * 0.5);
+            padding-left: calc(var(--bs-gutter-x) * 0.5);
+            margin-top: var(--bs-gutter-y);
+        }
+
+        @media (max-width: 576px) {
+            .container {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+
+            .btn-group-vertical .btn {
+                margin-bottom: 0.25rem;
+            }
+
+            .btn-group-vertical .btn:last-child {
+                margin-bottom: 0;
+            }
+
+            .mb-4 {
+                margin-bottom: 1.5rem !important;
+            }
+
+            .mt-4 {
+                margin-top: 1.5rem !important;
+            }
+
+            .card {
+                border-radius: 8px;
+            }
+
+            .card-body {
+                padding: 1rem;
+            }
+
+            .badge {
+                word-break: break-word;
+            }
+
+            a {
+                word-break: break-all;
+            }
+
+            p, li {
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+            }
+        }
+
+        @media (max-width: 576px) and (orientation: landscape) {
+            .header {
+                padding: 0.75rem 0;
+            }
+
+            .main-content {
+                padding: 0.75rem 0;
+            }
+
+            .welcome-banner {
+                padding: 1rem;
+            }
+
+            .tab-content {
+                padding: 0.75rem;
+            }
+
+            .modal-dialog {
+                margin: 0.25rem;
+            }
+        }
+
+        @media (max-width: 375px) {
+            .system-title {
+                font-size: 1rem;
+            }
+
+            .welcome-banner h2 {
+                font-size: 1.2rem;
+            }
+
+            .tab-pane h2 {
+                font-size: 1.2rem;
+            }
+
+            .nav-tabs .nav-link {
+                padding: 0.5rem 0.6rem;
+                font-size: 0.75rem;
+            }
+
+            .btn-primary, .btn-success {
+                padding: 0.6rem 1.25rem;
+                font-size: 0.85rem;
+            }
+        }
+
+        /* Estilos específicos para PINE */
+        .stats-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .input-group .input-group-text {
+            background: var(--light-bg);
+            border-color: var(--border-color);
+        }
+
+        .dropdown-menu {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .dropdown-item {
+            padding: 0.75rem 1rem;
+            transition: all 0.2s ease;
+        }
+
+        .dropdown-item:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-group .btn-check:checked + .btn {
+            transform: scale(1.05);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-group .btn {
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .btn-group .btn:hover {
+            transform: translateY(-1px);
+        }
+
+        #clear-search {
+            border-left: none;
+        }
+
+        #clear-search:hover {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        @media (max-width: 991.98px) {
+            #pine-filters .row .col-lg-4,
+            #pine-filters .row .col-lg-3,
+            #pine-filters .row .col-lg-2 {
+                margin-bottom: 1rem;
+            }
+            
+            #pine-filters .row .col-lg-2:last-child {
+                margin-bottom: 0;
+            }
+            
+            .btn-group .btn {
+                font-size: 0.875rem;
+                padding: 0.5rem 0.75rem;
+            }
+        }
+
+        @media (max-width: 767.98px) {
+            #pine-filters .card-body {
+                padding: 1rem;
+            }
+            
+            #pine-filters .row {
+                margin: 0;
+            }
+            
+            #pine-filters .row > [class*="col-"] {
+                padding-left: 0.5rem;
+                padding-right: 0.5rem;
+                margin-bottom: 1rem;
+            }
+            
+            #pine-filters .row > [class*="col-"]:last-child {
+                margin-bottom: 0;
+            }
+            
+            .btn-group {
+                flex-direction: column;
+                width: 100%;
+                gap: 0.25rem;
+            }
+            
+            .btn-group .btn {
+                border-radius: 0.375rem !important;
+                margin-bottom: 0;
+                width: 100%;
+                text-align: center;
+                padding: 0.75rem 1rem;
+                font-size: 0.9rem;
+            }
+            
+            .btn-group .btn:last-child {
+                margin-bottom: 0;
+            }
+            
+            .form-select, .form-control {
+                font-size: 0.9rem;
+                padding: 0.75rem 1rem;
+                border-radius: 0.5rem;
+            }
+            
+            .form-label {
+                font-size: 0.9rem;
+                margin-bottom: 0.5rem;
+                font-weight: 500;
+            }
+            
+            .input-group .input-group-text {
+                padding: 0.75rem 1rem;
+                border-radius: 0.5rem 0 0 0.5rem;
+            }
+            
+            .input-group .form-control {
+                border-radius: 0 0.5rem 0.5rem 0;
+            }
+            
+            .dropdown-toggle {
+                text-align: left;
+                padding: 0.75rem 1rem;
+                border-radius: 0.5rem;
+            }
+            
+            #pine-dashboard .row > [class*="col-"] {
+                margin-bottom: 1rem;
+            }
+            
+            #pine-dashboard .row > [class*="col-"]:last-child {
+                margin-bottom: 0;
+            }
+        }
+
+        .stats-card h3 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .stats-card p {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin: 0;
+        }
+
+        #pine-filters .card {
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow);
+        }
+
+        #pine-filters .card-title {
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .form-select {
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: var(--light-bg);
+        }
+
+        .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            background: white;
+        }
+
+        #datasets-table tbody tr {
+            transition: background-color 0.2s ease;
+        }
+
+        #datasets-table tbody tr:hover {
+            background-color: var(--light-bg);
+        }
+
+        .badge {
+            font-size: 0.875rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+
+        .badge.bg-success {
+            background: linear-gradient(135deg, var(--success-color) 0%, #059669 100%) !important;
+        }
+
+        .badge.bg-danger {
+            background: linear-gradient(135deg, var(--danger-color) 0%, #dc2626 100%) !important;
+        }
+
+        .badge.bg-secondary {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%) !important;
+        }
+
+        @media (max-width: 768px) {
+            .stats-card h3 {
+                font-size: 1.5rem;
+            }
+
+            .stats-card .icon {
+                font-size: 1.5rem !important;
+            }
+
+            #pine-filters .row .col-md-4,
+            #pine-filters .row .col-md-3,
+            #pine-filters .row .col-md-2 {
+                margin-bottom: 1rem;
+            }
+
+            #pine-filters .row .col-md-2:last-child {
+                margin-bottom: 0;
+            }
+            
+            #pine-dashboard .row {
+                margin: 0 -0.5rem;
+            }
+            
+            #pine-dashboard .row > [class*="col-"] {
+                padding-left: 0.5rem;
+                padding-right: 0.5rem;
+                margin-bottom: 1rem;
+            }
+            
+            #pine-dashboard .row > [class*="col-"]:last-child {
+                margin-bottom: 0;
+            }
+            
+            .stats-card {
+                padding: 1rem;
+                margin-bottom: 0;
+            }
+            
+            .stats-card .d-flex {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .stats-card .icon {
+                margin-bottom: 0.5rem !important;
+                margin-right: 0 !important;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .stats-card {
+                padding: 1rem;
+                margin-bottom: 1rem;
+            }
+
+            .stats-card h3 {
+                font-size: 1.25rem;
+            }
+
+            .stats-card p {
+                font-size: 0.8rem;
+            }
+
+            .stats-card .icon {
+                font-size: 1.25rem !important;
+            }
+
+            #pine-filters .card-body {
+                padding: 1rem;
+            }
+
+            #pine-filters .card-title {
+                font-size: 1.1rem;
+                margin-bottom: 0.75rem;
+            }
+
+            .form-select, .form-control {
+                padding: 0.75rem 1rem;
+                font-size: 0.9rem;
+            }
+
+            #datasets-table {
+                font-size: 0.8rem;
+            }
+
+            #datasets-table thead th {
+                padding: 0.75rem 0.5rem;
+                font-size: 0.8rem;
+            }
+
+            #datasets-table tbody td {
+                padding: 0.75rem 0.5rem;
+            }
+
+            .badge {
+                font-size: 0.75rem;
+                padding: 0.4rem 0.8rem;
+            }
+        }
+
+        /* Animações suaves */
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Loading states */
+        .loading-overlay {
+            position: relative;
+        }
+
+        .loading-overlay::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
         }
     </style>
 </head>
@@ -694,23 +1666,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <!-- Navigation Tabs -->
-                <ul class="nav nav-tabs" id="mainTabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link <?= isset($_GET['tab']) && $_GET['tab'] === 'bia' ? 'active' : (!isset($_GET['tab']) ? 'active' : '') ?>" id="bia-tab" data-bs-toggle="tab" data-bs-target="#bia" type="button" role="tab">
-                            <i class="fas fa-file-word icon"></i> BIA
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link <?= isset($_GET['tab']) && $_GET['tab'] === 'pine' ? 'active' : '' ?>" id="pine-tab" data-bs-toggle="tab" data-bs-target="#pine" type="button" role="tab">
-                            <i class="fas fa-chart-line icon"></i> PINE
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="cpf-tab" data-bs-toggle="tab" data-bs-target="#cpf" type="button" role="tab">
-                            <i class="fas fa-shield-alt icon"></i> CPF
-                        </button>
-                    </li>
-                </ul>
+                <div class="nav-tabs-container">
+                    <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link <?= isset($_GET['tab']) && $_GET['tab'] === 'bia' ? 'active' : (!isset($_GET['tab']) ? 'active' : '') ?>" id="bia-tab" data-bs-toggle="tab" data-bs-target="#bia" type="button" role="tab">
+                                <i class="fas fa-file-word icon"></i> 
+                                <span class="tab-text">BIA</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link <?= isset($_GET['tab']) && $_GET['tab'] === 'pine' ? 'active' : '' ?>" id="pine-tab" data-bs-toggle="tab" data-bs-target="#pine" type="button" role="tab">
+                                <i class="fas fa-chart-line icon"></i> 
+                                <span class="tab-text">PINE</span>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="cpf-tab" data-bs-toggle="tab" data-bs-target="#cpf" type="button" role="tab">
+                                <i class="fas fa-shield-alt icon"></i> 
+                                <span class="tab-text">CPF</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
 
                 <div class="tab-content" id="mainTabsContent">
                     <!-- BIA Tab -->
@@ -806,16 +1783,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="tab-pane fade" id="pine" role="tabpanel">
                         <h2>
                             <i class="fas fa-chart-line icon"></i>
-                            Iniciar Análise PINE
+                            Análise PINE - Monitoramento de Datasets
                         </h2>
                         <p class="description-text">
-                            Digite a URL do portal CKAN para analisar a atualização dos datasets. Os dados são salvos e exibidos abaixo.
+                            Digite a URL do portal CKAN para analisar a atualização dos datasets. Os dados são salvos e exibidos abaixo com filtros avançados.
                         </p>
                         
+                        <!-- Formulário de Análise -->
                         <form method="POST" id="analysis-form">
                             <input type="hidden" name="action" value="analyze_portal">
-                            <div class="row">
-                                <div class="col-md-8">
+                            <div class="row g-3">
+                                <div class="col-12 col-md-8">
                                     <label for="portal_url" class="form-label">
                                         <i class="fas fa-link icon"></i> URL do Portal CKAN
                                     </label>
@@ -823,7 +1801,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                            placeholder="https://dadosabertos.go.gov.br" 
                                            value="<?= htmlspecialchars($portalUrl) ?>" required>
                                 </div>
-                                <div class="col-md-4 d-flex align-items-end">
+                                <div class="col-12 col-md-4 d-flex align-items-end">
                                     <button type="submit" id="submit-btn" class="btn btn-primary w-100">
                                         <span id="btn-text"><i class="fas fa-play icon"></i> Iniciar Análise</span>
                                         <span id="loading-spinner" class="d-none">
@@ -835,25 +1813,150 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         </form>
                         
-                        <?php if ($analysisResults && !empty($analysisResults['datasets'])): ?>
-                            <div class="mt-4">
-                                <div class="d-flex justify-content-between align-items-center mb-4">
-                                    <h3>
+                        <!-- Dashboard de Estatísticas -->
+                        <div id="pine-dashboard" class="mt-4" style="display: none !important;">
+                            <div class="row g-3 mb-4">
+                                <div class="col-6 col-md-3">
+                                    <div class="stats-card">
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-database icon me-3" style="font-size: 2rem;"></i>
+                                            <div>
+                                                <h3 id="total-datasets" class="mb-0">0</h3>
+                                                <p class="mb-0">Total de Datasets</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="stats-card success">
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-check-circle icon me-3" style="font-size: 2rem;"></i>
+                                            <div>
+                                                <h3 id="datasets-atualizados" class="mb-0">0</h3>
+                                                <p class="mb-0">Atualizados</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="stats-card">
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-exclamation-triangle icon me-3" style="font-size: 2rem;"></i>
+                                            <div>
+                                                <h3 id="datasets-desatualizados" class="mb-0">0</h3>
+                                                <p class="mb-0">Desatualizados</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="stats-card" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);">
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-building icon me-3" style="font-size: 2rem;"></i>
+                                            <div>
+                                                <h3 id="total-orgaos" class="mb-0">0</h3>
+                                                <p class="mb-0">Órgãos</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Filtros e Busca -->
+                        <div id="pine-filters" class="mt-4" style="display: none !important;">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <i class="fas fa-filter icon"></i> Filtros e Busca
+                                    </h5>
+                                    <div class="row g-3">
+                                        <!-- Busca - sempre em coluna completa em mobile -->
+                                        <div class="col-12">
+                                            <label for="search-dataset" class="form-label">
+                                                <i class="fas fa-search icon"></i> Buscar Dataset
+                                            </label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">
+                                                    <i class="fas fa-search text-muted"></i>
+                                                </span>
+                                                <input type="text" class="form-control" id="search-dataset" 
+                                                       placeholder="Digite o nome ou ID do dataset...">
+                                                <button class="btn btn-outline-secondary" type="button" id="clear-search">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Filtros em linha em desktop, coluna em mobile -->
+                                        <div class="col-12 col-md-6 col-lg-4">
+                                            <label for="filter-organization" class="form-label">
+                                                <i class="fas fa-building icon"></i> Órgão
+                                            </label>
+                                            <div class="dropdown">
+                                                <button class="btn btn-outline-primary dropdown-toggle w-100 text-start" type="button" 
+                                                        id="organizationDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                                    <span id="organization-text">Todos os órgãos</span>
+                                                </button>
+                                                <ul class="dropdown-menu w-100" aria-labelledby="organizationDropdown">
+                                                    <li><a class="dropdown-item" href="#" data-value="">Todos os órgãos</a></li>
+                                                    <li><hr class="dropdown-divider"></li>
+                                                    <div id="organization-list"></div>
+                                                </ul>
+                                            </div>
+                                            <input type="hidden" id="filter-organization" value="">
+                                        </div>
+                                        
+                                        <div class="col-12 col-md-6 col-lg-4">
+                                            <label for="filter-status" class="form-label">
+                                                <i class="fas fa-flag icon"></i> Status
+                                            </label>
+                                            <div class="btn-group w-100" role="group" aria-label="Status filter">
+                                                <input type="radio" class="btn-check" name="status-filter" id="status-all" value="" checked>
+                                                <label class="btn btn-outline-secondary" for="status-all">
+                                                    <i class="fas fa-list"></i> Todos
+                                                </label>
+                                                
+                                                <input type="radio" class="btn-check" name="status-filter" id="status-updated" value="Atualizado">
+                                                <label class="btn btn-outline-success" for="status-updated">
+                                                    <i class="fas fa-check-circle"></i> Atualizado
+                                                </label>
+                                                
+                                                <input type="radio" class="btn-check" name="status-filter" id="status-outdated" value="Desatualizado">
+                                                <label class="btn btn-outline-danger" for="status-outdated">
+                                                    <i class="fas fa-exclamation-triangle"></i> Desatualizado
+                                                </label>
+                                            </div>
+                                            <input type="hidden" id="filter-status" value="">
+                                        </div>
+                                        
+                                        <!-- Botão limpar - sempre em coluna completa -->
+                                        <div class="col-12 col-lg-4 d-flex align-items-end">
+                                            <button type="button" class="btn btn-outline-secondary w-100" id="clear-filters">
+                                                <i class="fas fa-broom icon"></i> Limpar Filtros
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Lista de Datasets -->
+                        <div id="pine-datasets" class="mt-4" style="display: none !important;">
+                                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
+                                    <h3 class="mb-0">
                                         <i class="fas fa-list icon"></i>
-                                        Lista de Datasets (<?= $analysisResults['total'] ?>)
+                                    <span id="datasets-title">Lista de Datasets</span>
                                     </h3>
-                                    <div>
-                                        <form method="POST" class="d-inline">
-                                            <input type="hidden" name="action" value="export_pine_csv">
-                                            <button type="submit" class="btn btn-success">
+                                    <div class="w-100 w-md-auto">
+                                    <button type="button" class="btn btn-success w-100 w-md-auto" id="export-csv">
                                                 <i class="fas fa-download icon"></i> Exportar CSV
                                             </button>
-                                        </form>
                                     </div>
                                 </div>
 
                                 <div class="table-responsive">
-                                    <table class="table table-hover">
+                                <table class="table table-hover" id="datasets-table">
                                         <thead>
                                             <tr>
                                                 <th>Dataset</th>
@@ -864,64 +1967,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 <th>Ações</th>
                                             </tr>
                                         </thead>
-                                        <tbody>
-                                            <?php foreach ($analysisResults['datasets'] as $dataset): ?>
-                                                <tr>
-                                                    <td>
-                                                        <div>
-                                                            <strong><?= htmlspecialchars($dataset['name']) ?></strong><br>
-                                                            <small class="text-muted">ID: <?= htmlspecialchars($dataset['dataset_id']) ?></small>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <span class="text-muted"><?= htmlspecialchars($dataset['organization']) ?></span>
-                                                    </td>
-                                                    <td>
-                                                        <div>
-                                                            <strong><?= $dataset['last_updated'] ? date('d/m/Y', strtotime($dataset['last_updated'])) : 'N/A' ?></strong><br>
-                                                            <small class="text-muted">
-                                                                <?= $dataset['days_since_update'] !== PHP_INT_MAX ? $dataset['days_since_update'] . ' dias atrás' : 'Sem data' ?>
-                                                            </small>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <?php if ($dataset['status'] === 'Atualizado'): ?>
-                                                            <span class="badge bg-success"><i class="fas fa-check icon"></i> Atualizado</span>
-                                                        <?php else: ?>
-                                                            <span class="badge bg-danger"><i class="fas fa-exclamation-triangle icon"></i> Desatualizado</span>
-                                                        <?php endif; ?>
-                                                    </td>
-                                                    <td><span class="badge bg-secondary"><?= $dataset['resources_count'] ?></span></td>
-                                                    <td>
-                                                        <a href="<?= htmlspecialchars($dataset['url']) ?>" target="_blank" class="btn btn-outline-primary btn-sm">
-                                                            <i class="fas fa-external-link-alt icon"></i> Ver
-                                                        </a>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
+                                    <tbody id="datasets-tbody">
+                                        <!-- Dados carregados via AJAX -->
                                         </tbody>
                                     </table>
                                 </div>
 
-                                <?php if (isset($analysisResults['total_paginas']) && $analysisResults['total_paginas'] > 1): ?>
-                                    <nav class="mt-4">
-                                        <ul class="pagination justify-content-center" id="pagination">
-                                            <li class="page-item <?= $paginaAtual <= 1 ? 'disabled' : '' ?>">
-                                                <a class="page-link" href="#" data-page="<?= $paginaAtual - 1 ?>">Anterior</a>
-                                            </li>
-                                            <?php for ($i = 1; $i <= $analysisResults['total_paginas']; $i++): ?>
-                                                <li class="page-item <?= $i === $paginaAtual ? 'active' : '' ?>">
-                                                    <a class="page-link" href="#" data-page="<?= $i ?>"><?= $i ?></a>
-                                                </li>
-                                            <?php endfor; ?>
-                                            <li class="page-item <?= $paginaAtual >= $analysisResults['total_paginas'] ? 'disabled' : '' ?>">
-                                                <a class="page-link" href="#" data-page="<?= $paginaAtual + 1 ?>">Próximo</a>
-                                            </li>
-                                        </ul>
+                            <!-- Paginação -->
+                            <nav class="mt-4" id="pine-pagination">
+                                <!-- Paginação carregada via AJAX -->
                                     </nav>
-                                <?php endif; ?>
                             </div>
-                        <?php endif; ?>
+                        
+                        <!-- Loading -->
+                        <div id="pine-loading" class="text-center py-5" style="display: none !important;">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Carregando...</span>
+                            </div>
+                            <p class="mt-3">Carregando dados...</p>
+                        </div>
+                        
+                        <!-- Mensagem quando não há dados -->
+                        <div id="pine-no-data" class="text-center py-5" style="display: none !important;">
+                            <i class="fas fa-inbox icon" style="font-size: 3rem; color: #6c757d;"></i>
+                            <h4 class="mt-3">Nenhum dataset encontrado</h4>
+                            <p class="text-muted">Execute uma análise para visualizar os datasets do portal.</p>
+                        </div>
                     </div>
 
                     <div class="tab-pane fade" id="cpf" role="tabpanel">
@@ -999,7 +2070,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <div class="col-md-4 text-center">
                                         <i class="fas fa-file-alt icon mb-2" style="font-size: 2rem;"></i>
                                         <h3><?= number_format($estatisticas['total'] ?? 0, 0, ',', '.') ?></h3>
-                                        <p class="mb-0">Total de CPFs</p>
+                                        <p class="mb-0">Total de CPFs irregulares</p>
                                     </div>
                                     <!-- <div class="col-md-3 text-center">
                                         <i class="fas fa-check-circle icon mb-2" style="font-size: 2rem;"></i>
@@ -1016,17 +2087,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             <!-- Tabela de resultados -->
                             <div class="mt-4">
-                                <div class="d-flex justify-content-between align-items-center mb-4">
-                                    <h3>
+                                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
+                                    <h3 class="mb-0">
                                         <i class="fas fa-list icon"></i>
                                         Recursos com CPFs Detectados
                                     </h3>
-                                    <form method="POST" class="d-inline">
-                                        <input type="hidden" name="action" value="export_cpf_csv">
-                                        <button type="submit" class="btn btn-success">
-                                            <i class="fas fa-download icon"></i> Exportar CSV
-                                        </button>
-                                    </form>
+                                    <div class="w-100 w-md-auto">
+                                        <form method="POST" class="d-inline w-100">
+                                            <input type="hidden" name="action" value="export_cpf_csv">
+                                            <button type="submit" class="btn btn-success w-100 w-md-auto">
+                                                <i class="fas fa-download icon"></i> Exportar CSV
+                                            </button>
+                                        </form>
+                                    </div>
                                 </div>
 
                                 <div class="table-responsive">
@@ -1154,8 +2227,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Forçar reload do cache
+        console.log('PINE Script carregado - versão 1.1 - ' + new Date().toISOString());
+        
+        // Forçar reload da página se necessário
+        if (window.location.search.indexOf('reload=1') === -1 && window.location.search.indexOf('tab=pine') !== -1) {
+            console.log('Forçando reload para aplicar alterações');
+            // window.location.href = window.location.href + '&reload=1';
+        }
+    </script>
+    <script>
         // Script para carregamento no botão de análise PINE
-        document.getElementById('analysis-form').addEventListener('submit', function() {
+        document.getElementById('analysis-form').addEventListener('submit', function(e) {
             const submitBtn = document.getElementById('submit-btn');
             const btnText = document.getElementById('btn-text');
             const loadingSpinner = document.getElementById('loading-spinner');
@@ -1163,7 +2246,558 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             submitBtn.disabled = true;
             btnText.classList.add('d-none');
             loadingSpinner.classList.remove('d-none');
+            
+            // Atualizar URL atual para recarregar dados após análise
+            const portalUrl = document.getElementById('portal_url').value;
+            if (portalUrl) {
+                currentPortalUrl = portalUrl;
+            }
         });
+
+        // PINE - Funcionalidades avançadas
+        let currentPortalUrl = '';
+        let currentFilters = {
+            search: '',
+            organization: '',
+            status: '',
+            page: 1
+        };
+
+        // Carregar dados PINE quando a aba for ativada
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM carregado - configurando PINE');
+            
+            // Aguardar um pouco para garantir que todos os elementos estejam disponíveis
+            setTimeout(() => {
+                setupPineEventListeners();
+                checkForExistingPortalUrl();
+            }, 200);
+        });
+
+        function setupPineEventListeners() {
+            const pineTab = document.getElementById('pine-tab');
+            if (pineTab) {
+                console.log('PINE tab encontrada');
+                pineTab.addEventListener('shown.bs.tab', function() {
+                    console.log('PINE tab ativada');
+                    const portalUrl = document.getElementById('portal_url').value;
+                    if (portalUrl) {
+                        currentPortalUrl = portalUrl;
+                        loadPineData();
+                    }
+                });
+            } else {
+                console.log('PINE tab NÃO encontrada');
+            }
+
+            // Event listeners para filtros - com verificação de existência
+            const searchDataset = document.getElementById('search-dataset');
+            const clearSearchBtn = document.getElementById('clear-search');
+            const organizationDropdown = document.getElementById('organizationDropdown');
+            const organizationList = document.getElementById('organization-list');
+            const statusRadios = document.querySelectorAll('input[name="status-filter"]');
+            const clearFilters = document.getElementById('clear-filters');
+            const exportCsv = document.getElementById('export-csv');
+
+            if (searchDataset) {
+                searchDataset.addEventListener('input', debounce(applyFilters, 500));
+                console.log('Event listener para busca adicionado');
+            } else {
+                console.log('Campo de busca não encontrado');
+            }
+
+            if (clearSearchBtn) {
+                clearSearchBtn.addEventListener('click', function() {
+                    document.getElementById('search-dataset').value = '';
+                    applyFilters();
+                });
+                console.log('Event listener para limpar busca adicionado');
+            }
+
+            if (organizationList) {
+                organizationList.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const item = e.target.closest('.dropdown-item');
+                    if (item) {
+                        const value = item.getAttribute('data-value');
+                        const text = item.textContent;
+                        
+                        document.getElementById('filter-organization').value = value;
+                        document.getElementById('organization-text').textContent = text;
+                        
+                        applyFilters();
+                    }
+                });
+                console.log('Event listener para organização adicionado');
+            }
+
+            if (statusRadios.length > 0) {
+                statusRadios.forEach(radio => {
+                    radio.addEventListener('change', function() {
+                        document.getElementById('filter-status').value = this.value;
+                        applyFilters();
+                    });
+                });
+                console.log('Event listeners para status adicionados');
+            }
+
+            if (clearFilters) {
+                clearFilters.addEventListener('click', function() {
+                    clearFiltersFunction();
+                });
+                console.log('Event listener para limpar filtros adicionado');
+            } else {
+                console.log('Botão limpar filtros não encontrado');
+            }
+
+            if (exportCsv) {
+                exportCsv.addEventListener('click', exportFilteredData);
+                console.log('Event listener para exportar CSV adicionado');
+            } else {
+                console.log('Botão exportar CSV não encontrado');
+            }
+        }
+
+        function checkForExistingPortalUrl() {
+            const portalUrl = document.getElementById('portal_url').value;
+            if (portalUrl) {
+                console.log('URL de portal encontrada:', portalUrl);
+                currentPortalUrl = portalUrl;
+                // Aguardar um pouco para garantir que a página carregou completamente
+                setTimeout(() => {
+                    if (document.getElementById('pine').classList.contains('active')) {
+                        console.log('PINE está ativo, carregando dados');
+                        loadPineData();
+                    }
+                }, 100);
+            } else {
+                loadExistingPineData();
+            }
+        }
+
+        async function loadExistingPineData() {
+            console.log('=== INÍCIO loadExistingPineData ===');
+            
+            showPineLoading(true);
+            hidePineSections();
+
+            try {
+                console.log('📊 Carregando dados existentes...');
+                const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
+                const statsUrl = `${baseUrl}api/pine-stats.php?portal_url=any`;
+                console.log('URL da API:', statsUrl);
+                
+                const statsResponse = await fetch(statsUrl);
+                console.log('Status da resposta:', statsResponse.status);
+                
+                if (!statsResponse.ok) {
+                    throw new Error(`HTTP ${statsResponse.status}: ${statsResponse.statusText}`);
+                }
+                
+                const statsData = await statsResponse.json();
+                console.log('📊 Dados recebidos:', statsData);
+
+                if (statsData.success) {
+                    console.log('✅ Sucesso! Atualizando dashboard...');
+                    updatePineDashboard(statsData.stats);
+                    populateOrganizationFilter(statsData.organizations);
+
+                    if (statsData.portal_url) {
+                        currentPortalUrl = statsData.portal_url;
+                        document.getElementById('portal_url').value = statsData.portal_url;
+                    }
+                    
+                    showPineSections(['pine-dashboard', 'pine-filters']);
+                    console.log('✅ Dashboard e filtros exibidos');
+                    
+                    console.log('📋 Carregando datasets...');
+                    await loadPineDatasets();
+                } else {
+                    console.log('❌ API retornou success: false');
+                    console.log('Mensagem de erro:', statsData.message);
+                    showPineSection('pine-no-data');
+                }
+
+            } catch (error) {
+                console.error('❌ Erro ao carregar dados existentes:', error);
+                showPineSection('pine-no-data');
+            } finally {
+                showPineLoading(false);
+                console.log('=== FIM loadExistingPineData ===');
+            }
+        }
+
+        // Função para carregar dados PINE
+        async function loadPineData() {
+            console.log('=== INÍCIO loadPineData ===');
+            console.log('URL atual:', currentPortalUrl);
+            
+            // Verificar se os elementos existem
+            checkPineElements();
+            
+            if (!currentPortalUrl) {
+                console.log('❌ Nenhuma URL de portal definida');
+                return;
+            }
+
+            showPineLoading(true);
+            hidePineSections();
+
+            try {
+                console.log('📊 Carregando estatísticas...');
+                // Usar caminho absoluto para evitar problemas de roteamento
+                const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
+                const statsUrl = `${baseUrl}api/pine-stats.php?portal_url=${encodeURIComponent(currentPortalUrl)}`;
+                console.log('URL base:', baseUrl);
+                console.log('URL da API:', statsUrl);
+                
+                const statsResponse = await fetch(statsUrl);
+                console.log('Status da resposta:', statsResponse.status);
+                console.log('Headers da resposta:', statsResponse.headers);
+                
+                if (!statsResponse.ok) {
+                    throw new Error(`HTTP ${statsResponse.status}: ${statsResponse.statusText}`);
+                }
+                
+                const statsData = await statsResponse.json();
+                console.log('📊 Dados recebidos:', statsData);
+
+                if (statsData.success) {
+                    console.log('✅ Sucesso! Atualizando dashboard...');
+                    updatePineDashboard(statsData.stats);
+                    populateOrganizationFilter(statsData.organizations);
+                    
+                    // Mostrar dashboard e filtros
+                    showPineSections(['pine-dashboard', 'pine-filters']);
+                    console.log('✅ Dashboard e filtros exibidos');
+                    
+                    // Verificar se realmente foram exibidos
+                    setTimeout(() => {
+                        checkPineElements();
+                    }, 100);
+                } else {
+                    console.log('❌ API retornou success: false');
+                    console.log('Mensagem de erro:', statsData.message);
+                    showPineSection('pine-no-data');
+                }
+
+                // Carregar datasets
+                console.log('📋 Carregando datasets...');
+                await loadPineDatasets();
+
+            } catch (error) {
+                console.error('❌ Erro ao carregar dados PINE:', error);
+                console.error('Tipo do erro:', typeof error);
+                console.error('Stack trace:', error.stack);
+                showPineSection('pine-no-data');
+            } finally {
+                showPineLoading(false);
+                console.log('=== FIM loadPineData ===');
+            }
+        }
+
+        // Função para carregar datasets com filtros
+        async function loadPineDatasets() {
+            const portalUrl = currentPortalUrl || 'any';
+
+            const params = new URLSearchParams({
+                portal_url: portalUrl,
+                page: currentFilters.page,
+                per_page: 15,
+                ...currentFilters
+            });
+
+            try {
+                const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
+                const response = await fetch(`${baseUrl}api/pine-filtered.php?${params}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    updatePineDatasetsTable(data.datasets);
+                    updatePinePagination(data);
+                    updateDatasetsTitle(data.total);
+                    showPineSection('pine-datasets');
+                } else {
+                    showPineSection('pine-no-data');
+                }
+            } catch (error) {
+                console.error('Erro ao carregar datasets:', error);
+                showPineSection('pine-no-data');
+            }
+        }
+
+        // Atualizar dashboard
+        function updatePineDashboard(stats) {
+            document.getElementById('total-datasets').textContent = stats.total_datasets || 0;
+            document.getElementById('datasets-atualizados').textContent = stats.datasets_atualizados || 0;
+            document.getElementById('datasets-desatualizados').textContent = stats.datasets_desatualizados || 0;
+            document.getElementById('total-orgaos').textContent = stats.total_orgaos || 0;
+        }
+
+        // Popular filtro de organizações
+        function populateOrganizationFilter(organizations) {
+            const organizationList = document.getElementById('organization-list');
+            if (!organizationList) return;
+            
+            organizationList.innerHTML = '';
+            
+            organizations.forEach(org => {
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.className = 'dropdown-item';
+                a.setAttribute('data-value', org);
+                a.textContent = org;
+                li.appendChild(a);
+                organizationList.appendChild(li);
+            });
+            
+            console.log(`✅ ${organizations.length} organizações carregadas no dropdown`);
+        }
+
+        // Atualizar tabela de datasets
+        function updatePineDatasetsTable(datasets) {
+            const tbody = document.getElementById('datasets-tbody');
+            tbody.innerHTML = '';
+
+            datasets.forEach(dataset => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <div>
+                            <strong>${escapeHtml(dataset.name)}</strong><br>
+                            <small class="text-muted">ID: ${escapeHtml(dataset.dataset_id)}</small>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="text-muted">${escapeHtml(dataset.organization)}</span>
+                    </td>
+                    <td>
+                        <div>
+                            <strong>${dataset.last_updated ? formatDate(dataset.last_updated) : 'N/A'}</strong><br>
+                            <small class="text-muted">
+                                ${dataset.days_since_update !== 2147483647 ? dataset.days_since_update + ' dias atrás' : 'Sem data'}
+                            </small>
+                        </div>
+                    </td>
+                    <td>
+                        ${dataset.status === 'Atualizado' 
+                            ? '<span class="badge bg-success"><i class="fas fa-check icon"></i> Atualizado</span>'
+                            : '<span class="badge bg-danger"><i class="fas fa-exclamation-triangle icon"></i> Desatualizado</span>'
+                        }
+                    </td>
+                    <td><span class="badge bg-secondary">${dataset.resources_count}</span></td>
+                    <td>
+                        <a href="${escapeHtml(dataset.url)}" target="_blank" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-external-link-alt icon"></i> Ver
+                        </a>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Atualizar paginação
+        function updatePinePagination(data) {
+            const pagination = document.getElementById('pine-pagination');
+            const totalPages = data.total_pages;
+            const currentPage = data.page;
+
+            if (totalPages <= 1) {
+                pagination.innerHTML = '';
+                return;
+            }
+
+            let paginationHtml = '<ul class="pagination justify-content-center">';
+            
+            // Botão anterior
+            paginationHtml += `<li class="page-item ${currentPage <= 1 ? 'disabled' : ''}">
+                <a class="page-link" href="#" data-page="${currentPage - 1}">Anterior</a>
+            </li>`;
+
+            // Páginas
+            for (let i = 1; i <= totalPages; i++) {
+                paginationHtml += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+                    <a class="page-link" href="#" data-page="${i}">${i}</a>
+                </li>`;
+            }
+
+            // Botão próximo
+            paginationHtml += `<li class="page-item ${currentPage >= totalPages ? 'disabled' : ''}">
+                <a class="page-link" href="#" data-page="${currentPage + 1}">Próximo</a>
+            </li>`;
+
+            paginationHtml += '</ul>';
+            pagination.innerHTML = paginationHtml;
+
+            // Event listeners para paginação
+            pagination.addEventListener('click', function(e) {
+                e.preventDefault();
+                const pageLink = e.target.closest('.page-link');
+                if (pageLink && !pageLink.parentElement.classList.contains('disabled')) {
+                    const page = parseInt(pageLink.getAttribute('data-page'));
+                    if (page && page !== currentPage) {
+                        currentFilters.page = page;
+                        loadPineDatasets();
+                    }
+                }
+            });
+        }
+
+        // Atualizar título da lista
+        function updateDatasetsTitle(total) {
+            document.getElementById('datasets-title').textContent = `Lista de Datasets (${total})`;
+        }
+
+        // Aplicar filtros
+        function applyFilters() {
+            currentFilters.search = document.getElementById('search-dataset').value;
+            currentFilters.organization = document.getElementById('filter-organization').value;
+            currentFilters.status = document.getElementById('filter-status').value;
+            currentFilters.page = 1; // Reset para primeira página
+
+            console.log('🔍 Aplicando filtros:', currentFilters);
+            loadPineDatasets();
+        }
+
+        // Limpar filtros
+        function clearFiltersFunction() {
+            console.log('🧹 Limpando filtros...');
+            
+            document.getElementById('search-dataset').value = '';
+            
+            document.getElementById('filter-organization').value = '';
+            document.getElementById('organization-text').textContent = 'Todos os órgãos';
+            
+            document.getElementById('status-all').checked = true;
+            document.getElementById('filter-status').value = '';
+            
+            currentFilters = {
+                search: '',
+                organization: '',
+                status: '',
+                page: 1
+            };
+
+            console.log('✅ Filtros limpos, recarregando datasets...');
+            loadPineDatasets();
+        }
+
+        // Exportar dados filtrados
+        function exportFilteredData() {
+            if (!currentPortalUrl) return;
+
+            const params = new URLSearchParams({
+                portal_url: currentPortalUrl,
+                ...currentFilters,
+                export: 'csv'
+            });
+
+            const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
+            window.open(`${baseUrl}api/pine-filtered.php?${params}`, '_blank');
+        }
+
+        // Funções auxiliares
+        function showPineLoading(show) {
+            document.getElementById('pine-loading').style.display = show ? 'block' : 'none';
+        }
+
+        function showPineSection(sectionId) {
+            console.log('Mostrando seção:', sectionId);
+            const element = document.getElementById(sectionId);
+            if (element) {
+                // Forçar exibição com !important
+                element.style.setProperty('display', 'block', 'important');
+                element.style.setProperty('visibility', 'visible', 'important');
+                element.style.setProperty('opacity', '1', 'important');
+                console.log('✅ Seção exibida:', sectionId);
+                console.log('   - display:', element.style.display);
+                console.log('   - visibility:', element.style.visibility);
+                console.log('   - opacity:', element.style.opacity);
+            } else {
+                console.log('❌ Elemento não encontrado:', sectionId);
+            }
+        }
+
+        function showPineSections(sectionIds) {
+            console.log('Mostrando múltiplas seções:', sectionIds);
+            sectionIds.forEach(sectionId => {
+                showPineSection(sectionId);
+            });
+        }
+
+        // Função para verificar se os elementos existem
+        function checkPineElements() {
+            console.log('=== VERIFICANDO ELEMENTOS PINE ===');
+            const elements = [
+                'pine-dashboard',
+                'pine-filters', 
+                'pine-datasets',
+                'pine-loading',
+                'pine-no-data'
+            ];
+            
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    console.log(`✅ ${id}: encontrado, display = ${element.style.display}`);
+                } else {
+                    console.log(`❌ ${id}: NÃO encontrado`);
+                }
+            });
+            console.log('=== FIM VERIFICAÇÃO ===');
+        }
+
+        // Função de teste para forçar exibição
+        function forceShowPineElements() {
+            console.log('=== FORÇANDO EXIBIÇÃO DOS ELEMENTOS ===');
+            const elements = ['pine-dashboard', 'pine-filters'];
+            
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.style.setProperty('display', 'block', 'important');
+                    element.style.visibility = 'visible';
+                    element.style.opacity = '1';
+                    element.classList.add('fade-in');
+                    console.log(`✅ ${id} forçado a aparecer`);
+                } else {
+                    console.log(`❌ ${id} não encontrado`);
+                }
+            });
+        }
+
+        // Expor função globalmente para teste
+        window.forceShowPineElements = forceShowPineElements;
+
+        function hidePineSections() {
+            const sections = ['pine-dashboard', 'pine-filters', 'pine-datasets', 'pine-no-data'];
+            sections.forEach(id => {
+                document.getElementById(id).style.display = 'none';
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('pt-BR');
+        }
+
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
 
         // Script para carregamento no botão de geração de dicionário BIA
         document.getElementById('dicionario-form').addEventListener('submit', function() {
@@ -1450,7 +3084,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function showAsyncProgressModal() {
             const modalHtml = `
                 <div class="modal fade" id="asyncProgressModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-                    <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-dialog modal-dialog-centered modal-lg">
                         <div class="modal-content">
                             <div class="modal-header">
                                 <h5 class="modal-title">
@@ -1474,20 +3108,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <strong>Iniciando análise...</strong>
                                 </div>
                                 
-                                <div class="row text-center">
-                                    <div class="col-3">
+                                <div class="row text-center g-2">
+                                    <div class="col-6 col-md-3">
                                         <small class="text-muted">Datasets</small><br>
                                         <strong id="datasets-count">0</strong>
                                     </div>
-                                    <div class="col-3">
+                                    <div class="col-6 col-md-3">
                                         <small class="text-muted">Recursos</small><br>
                                         <strong id="recursos-count">0</strong>
                                     </div>
-                                    <div class="col-3">
+                                    <div class="col-6 col-md-3">
                                         <small class="text-muted">Com CPFs</small><br>
                                         <strong id="cpfs-recursos-count">0</strong>
                                     </div>
-                                    <div class="col-3">
+                                    <div class="col-6 col-md-3">
                                         <small class="text-muted">CPFs Total</small><br>
                                         <strong id="cpfs-total-count">0</strong>
                                     </div>
@@ -1498,7 +3132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                             </div>
                             <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" onclick="hideAsyncProgressModal()">
+                                <button type="button" class="btn btn-secondary w-100 w-md-auto" onclick="hideAsyncProgressModal()">
                                     <i class="fas fa-eye-slash"></i> Ocultar
                                 </button>
                             </div>
@@ -1581,7 +3215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             const dialogHtml = `
                 <div class="modal fade" id="forceAnalysisModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-                    <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-dialog modal-dialog-centered modal-lg">
                         <div class="modal-content">
                             <div class="modal-header">
                                 <h5 class="modal-title">
@@ -1600,11 +3234,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <li><strong>Forçar</strong> uma nova análise (interrompe a atual)</li>
                                 </ul>
                             </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <div class="modal-footer d-flex flex-column flex-md-row gap-2">
+                                <button type="button" class="btn btn-secondary w-100 w-md-auto" data-bs-dismiss="modal">
                                     <i class="fas fa-clock"></i> Aguardar
                                 </button>
-                                <button type="button" class="btn btn-warning" onclick="forceNewAnalysis()">
+                                <button type="button" class="btn btn-warning w-100 w-md-auto" onclick="forceNewAnalysis()">
                                     <i class="fas fa-play"></i> Forçar Nova Análise
                                 </button>
                             </div>
