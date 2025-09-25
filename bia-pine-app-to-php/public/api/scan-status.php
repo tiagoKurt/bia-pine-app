@@ -1,11 +1,4 @@
 <?php
-/**
- * Endpoint para verificar status da análise CKAN
- * 
- * Retorna o status atual da análise em execução
- */
-
-// Desabilita buffer de saída para evitar problemas
 if (ob_get_level()) {
     ob_end_clean();
 }
@@ -18,7 +11,6 @@ header('Access-Control-Allow-Headers: Content-Type');
 try {
     $lockFile = __DIR__ . '/../../cache/scan.lock';
 
-    // Se não existe arquivo de lock, não há análise em andamento
     if (!file_exists($lockFile)) {
         echo json_encode([
             'inProgress' => false,
@@ -28,7 +20,6 @@ try {
         exit;
     }
 
-    // Lê os dados do arquivo de lock
     $lockContent = file_get_contents($lockFile);
     if (!$lockContent) {
         throw new Exception('Não foi possível ler arquivo de status');
@@ -39,16 +30,13 @@ try {
         throw new Exception('Dados de status corrompidos');
     }
 
-    // Verifica se a análise está em progresso
     $inProgress = in_array($statusData['status'] ?? '', ['pending', 'running']);
     
-    // Se a análise foi concluída há mais de 1 hora, considera como não em progresso
     if (!$inProgress && isset($statusData['endTime'])) {
         $endTime = strtotime($statusData['endTime']);
         $oneHourAgo = time() - 3600;
         
         if ($endTime < $oneHourAgo) {
-            // Remove arquivo antigo
             unlink($lockFile);
             echo json_encode([
                 'inProgress' => false,
@@ -59,7 +47,6 @@ try {
         }
     }
 
-    // Resposta com status atual
     $response = [
         'inProgress' => $inProgress,
         'status' => $statusData['status'] ?? 'unknown',
@@ -68,7 +55,6 @@ try {
         'lastUpdate' => $statusData['lastUpdate'] ?? null
     ];
 
-    // Adiciona informações específicas baseadas no status
     switch ($statusData['status'] ?? '') {
         case 'pending':
             $response['message'] = 'Análise na fila, aguardando início...';
@@ -93,8 +79,6 @@ try {
     echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
 } catch (Exception $e) {
-    error_log("Erro em scan-status.php: " . $e->getMessage());
-    
     http_response_code(500);
     echo json_encode([
         'inProgress' => false,

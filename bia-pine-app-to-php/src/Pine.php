@@ -38,7 +38,6 @@ class Pine
             $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
         } catch (PDOException $e) {
-            // Em uma aplicação real, você deveria logar este erro de forma segura.
             throw new RuntimeException('Erro de conexão com o banco de dados. Verifique as credenciais no arquivo de configuração.');
         }
     }
@@ -96,7 +95,7 @@ class Pine
                 ];
 
             } catch (RuntimeException $e) {
-                error_log("Erro ao processar o dataset '{$datasetId}': " . $e->getMessage());
+                // Erro silencioso para continuar processamento
             }
         }
         
@@ -153,7 +152,7 @@ class Pine
     
     private function limparDadosAntigosDoPortal(string $portalUrl): void
     {
-        $sql = "DELETE FROM datasets WHERE portal_url = ?";
+        $sql = "DELETE FROM mpda_datasets WHERE portal_url = ?";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([$portalUrl]);
     }
@@ -161,7 +160,7 @@ class Pine
 
     private function salvarDatasetsEmLote(array $datasets): void
     {
-        $sql = "INSERT INTO datasets (dataset_id, name, organization, last_updated, status, days_since_update, resources_count, url, portal_url) VALUES ";
+        $sql = "INSERT INTO mpda_datasets (dataset_id, name, organization, last_updated, status, days_since_update, resources_count, url, portal_url) VALUES ";
         
         $placeholders = [];
         $values = [];
@@ -186,7 +185,6 @@ class Pine
             $stmt = $this->db->prepare($sql);
             $stmt->execute($values);
         } catch(PDOException $e) {
-            error_log("Erro ao salvar datasets em lote: " . $e->getMessage());
             throw new RuntimeException("Falha ao salvar os dados no banco.");
         }
     }
@@ -195,13 +193,13 @@ class Pine
     {
         $offset = ($pagina - 1) * $porPagina;
 
-        $totalStmt = $this->db->prepare("SELECT COUNT(id) FROM datasets WHERE portal_url = ?");
+        $totalStmt = $this->db->prepare("SELECT COUNT(id) FROM mpda_datasets WHERE portal_url = ?");
         $totalStmt->execute([$portalUrl]);
         $totalRegistros = (int) $totalStmt->fetchColumn();
 
         // Pega os dados paginados
         $dataStmt = $this->db->prepare(
-            "SELECT * FROM datasets WHERE portal_url = ? ORDER BY last_updated DESC LIMIT ? OFFSET ?"
+            "SELECT * FROM mpda_datasets WHERE portal_url = ? ORDER BY last_updated DESC LIMIT ? OFFSET ?"
         );
         $dataStmt->bindValue(1, $portalUrl, PDO::PARAM_STR);
         $dataStmt->bindValue(2, $porPagina, PDO::PARAM_INT);

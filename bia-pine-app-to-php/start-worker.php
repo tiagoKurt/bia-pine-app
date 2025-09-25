@@ -1,11 +1,4 @@
 <?php
-/**
- * Script para iniciar worker em background
- * 
- * Este script pode ser usado para iniciar o worker manualmente
- * ou chamado por um cron job
- */
-
 $workerPath = __DIR__ . '/worker.php';
 
 if (!file_exists($workerPath)) {
@@ -13,7 +6,6 @@ if (!file_exists($workerPath)) {
     exit(1);
 }
 
-// Verifica se já existe uma análise pendente
 $lockFile = __DIR__ . '/cache/scan.lock';
 if (!file_exists($lockFile)) {
     echo "Nenhuma análise pendente encontrada.\n";
@@ -28,12 +20,9 @@ if (!$lockData || $lockData['status'] !== 'pending') {
 
 echo "Iniciando worker para análise pendente...\n";
 
-// Executa worker
 if (PHP_OS_FAMILY === 'Windows') {
-    // Windows
     exec("start /B php \"{$workerPath}\"");
 } else {
-    // Unix/Linux
     exec("nohup php \"{$workerPath}\" > /dev/null 2>&1 &");
 }
 

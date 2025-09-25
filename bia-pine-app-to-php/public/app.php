@@ -7,7 +7,7 @@ header("Pragma: no-cache");
 header("Expires: 0");
 
 require __DIR__ . '/../config.php';
-require __DIR__ . '/../vendor/autoload.php';
+// require __DIR__ . '/../vendor/autoload.php';
 
 // Criar conexão com o banco de dados
 try {
@@ -1889,7 +1889,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         </div>
                                         
                                         <!-- Filtros em linha em desktop, coluna em mobile -->
-                                        <div class="col-12 col-md-6 col-lg-4">
+                                        <div class="col-12 col-md-6 col-lg-4 mt-4">
                                             <label for="filter-organization" class="form-label">
                                                 <i class="fas fa-building icon"></i> Órgão
                                             </label>
@@ -1907,7 +1907,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             <input type="hidden" id="filter-organization" value="">
                                         </div>
                                         
-                                        <div class="col-12 col-md-6 col-lg-4">
+                                        <div class="col-12 col-md-6 col-lg-4 mt-4">
                                             <label for="filter-status" class="form-label">
                                                 <i class="fas fa-flag icon"></i> Status
                                             </label>
@@ -1931,7 +1931,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         </div>
                                         
                                         <!-- Botão limpar - sempre em coluna completa -->
-                                        <div class="col-12 col-lg-4 d-flex align-items-end">
+                                        <div class="col-12 col-lg-4 d-flex align-items-end ">
                                             <button type="button" class="btn btn-outline-secondary w-100" id="clear-filters">
                                                 <i class="fas fa-broom icon"></i> Limpar Filtros
                                             </button>

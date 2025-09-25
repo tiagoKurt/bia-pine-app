@@ -9,9 +9,6 @@ use CpfScanner\Integration\CpfVerificationService;
 use PDO;
 use Exception;
 
-/**
- * Serviço para análise CKAN de forma modular
- */
 class CkanScannerService
 {
     private $ckanClient;
@@ -32,17 +29,11 @@ class CkanScannerService
         }
     }
     
-    /**
-     * Define callback para atualização de progresso
-     */
     public function setProgressCallback(callable $callback)
     {
         $this->progressCallback = $callback;
     }
     
-    /**
-     * Atualiza progresso se callback definido
-     */
     private function updateProgress($data)
     {
         if ($this->progressCallback) {
@@ -50,9 +41,6 @@ class CkanScannerService
         }
     }
     
-    /**
-     * Executa análise completa
-     */
     public function executeScan()
     {
         try {
@@ -64,7 +52,6 @@ class CkanScannerService
                 'total_cpfs_salvos' => 0
             ]);
 
-            // Busca todos os datasets
             $this->updateProgress([
                 'current_step' => 'Buscando lista de datasets...',
                 'datasets_analisados' => 0,
@@ -101,7 +88,6 @@ class CkanScannerService
             $resourcesWithCpfs = 0;
             $datasetsAnalisados = 0;
 
-            // Processa cada dataset
             foreach ($datasetIds as $index => $datasetId) {
                 $datasetsAnalisados++;
                 
@@ -119,7 +105,6 @@ class CkanScannerService
                         continue;
                     }
 
-                    // Processa recursos do dataset
                     foreach ($datasetDetails['resources'] as $resource) {
                         $processedResources++;
                         
@@ -138,7 +123,6 @@ class CkanScannerService
                         }
                     }
                 } catch (Exception $e) {
-                    error_log("Erro ao processar dataset {$datasetId}: " . $e->getMessage());
                     continue;
                 }
             }
@@ -211,12 +195,9 @@ class CkanScannerService
                     'resource_format' => strtolower($resource['format'] ?? 'unknown'),
                 ];
 
-                // Processa e salva CPFs
                 $stats = $this->verificationService->processarCPFsEncontrados($foundCpfs, 'ckan_scanner', $metadados);
                 unlink($filePath);
                 
-                // Log para debug
-                error_log("CPFs encontrados no recurso {$resource['name']}: " . count($foundCpfs) . " CPFs, {$stats['salvos_com_sucesso']} salvos");
                 
                 return $stats['salvos_com_sucesso'];
             }
@@ -228,14 +209,10 @@ class CkanScannerService
             if ($filePath && file_exists($filePath)) {
                 unlink($filePath);
             }
-            error_log("Erro ao processar recurso '{$resource['name']}': " . $e->getMessage());
             return 0;
         }
     }
     
-    /**
-     * Limpa arquivos temporários
-     */
     public function cleanup()
     {
         if (is_dir($this->tempDir)) {
@@ -247,9 +224,6 @@ class CkanScannerService
         }
     }
     
-    /**
-     * Destructor para garantir limpeza
-     */
     public function __destruct()
     {
         $this->cleanup();

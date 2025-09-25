@@ -10,6 +10,26 @@ if (file_exists(__DIR__ . '/.env') && class_exists('Dotenv\Dotenv')) {
     $dotenv->load();
 }
 
+// HOMOLOG
+// if (!defined('DB_CONNECTION')) {
+//     define('DB_CONNECTION', 'mysql');
+// }
+// if (!defined('DB_HOST')) {
+//     define('DB_HOST', 'mysqlhom01.intra.goias.gov.br');
+// }
+// if (!defined('DB_PORT')) {
+//     define('DB_PORT', '3306');
+// }
+// if (!defined('DB_DATABASE')) {
+//     define('DB_DATABASE', 'app_controladoria');
+// }
+// if (!defined('DB_USERNAME')) {
+//     define('DB_USERNAME', 'user_controla');
+// }
+// if (!defined('DB_PASSWORD')) {
+//     define('DB_PASSWORD', 'VEUFwSpVmh778gUVWhae'); 
+// }
+// LOCALHOST
 if (!defined('DB_CONNECTION')) {
     define('DB_CONNECTION', 'mysql');
 }
@@ -20,7 +40,7 @@ if (!defined('DB_PORT')) {
     define('DB_PORT', '3306');
 }
 if (!defined('DB_DATABASE')) {
-    define('DB_DATABASE', 'analise_ckan');
+    define('DB_DATABASE', 'app_controladoria');
 }
 if (!defined('DB_USERNAME')) {
     define('DB_USERNAME', 'root');
@@ -33,7 +53,7 @@ if (!defined('DB_PASSWORD')) {
 
 // USE analise_ckan;
 
-// CREATE TABLE IF NOT EXISTS datasets (
+// CREATE TABLE IF NOT EXISTS mpda_datasets (
 //     id INT AUTO_INCREMENT PRIMARY KEY,
 //     dataset_id VARCHAR(255) NOT NULL UNIQUE,
 //     name VARCHAR(255) NOT NULL,
@@ -46,7 +66,7 @@ if (!defined('DB_PASSWORD')) {
 //     portal_url VARCHAR(2083)
 // );
 
-// CREATE TABLE `verificacoes_cpf` (
+// CREATE TABLE `mpda_verificacoes_cpf` (
 //     `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
 //     `cpf` VARCHAR(11) NOT NULL,
 //     `e_valido` BOOLEAN NOT NULL,
@@ -55,9 +75,9 @@ if (!defined('DB_PASSWORD')) {
 //     PRIMARY KEY (`id`),
 //     UNIQUE KEY `idx_cpf_unique` (`cpf`)
 //   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-// ALTER TABLE verificacoes_cpf ADD COLUMN identificador_fonte VARCHAR(255) NULL AFTER observacoes;
-// ALTER TABLE verificacoes_cpf ADD COLUMN name_dataset VARCHAR(255);
-// CREATE INDEX idx_identificador_fonte ON verificacoes_cpf (identificador_fonte);
+// ALTER TABLE mpda_verificacoes_cpf ADD COLUMN identificador_fonte VARCHAR(255) NULL AFTER observacoes;
+// ALTER TABLE mpda_verificacoes_cpf ADD COLUMN name_dataset VARCHAR(255);
+// CREATE INDEX idx_identificador_fonte ON mpda_verificacoes_cpf (identificador_fonte);
 
 
 if (!defined('GOOGLE_CREDENTIALS_JSON')) {

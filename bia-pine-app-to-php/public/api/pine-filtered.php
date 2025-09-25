@@ -28,7 +28,7 @@ try {
         // Buscar URL de qualquer portal existente
         $urlStmt = $pdo->prepare("
             SELECT portal_url 
-            FROM datasets 
+            FROM mpda_datasets 
             GROUP BY portal_url
             ORDER BY COUNT(*) DESC
             LIMIT 1
@@ -67,12 +67,12 @@ try {
     
     $whereClause = implode(' AND ', $whereConditions);
     
-    $countSql = "SELECT COUNT(*) FROM datasets WHERE $whereClause";
+    $countSql = "SELECT COUNT(*) FROM mpda_datasets WHERE $whereClause";
     $countStmt = $pdo->prepare($countSql);
     $countStmt->execute($params);
     $totalRecords = (int) $countStmt->fetchColumn();
     
-    $dataSql = "SELECT * FROM datasets WHERE $whereClause ORDER BY last_updated DESC LIMIT ? OFFSET ?";
+    $dataSql = "SELECT * FROM mpda_datasets WHERE $whereClause ORDER BY last_updated DESC LIMIT ? OFFSET ?";
     $dataStmt = $pdo->prepare($dataSql);
     $dataParams = array_merge($params, [$perPage, $offset]);
     $dataStmt->execute($dataParams);

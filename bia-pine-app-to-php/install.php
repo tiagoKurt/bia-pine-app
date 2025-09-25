@@ -64,8 +64,8 @@ try {
     exit(1);
 }
 
-// Criar tabela verificacoes_cpf
-echo "3. Criando tabela verificacoes_cpf...\n";
+// Criar tabela mpda_verificacoes_cpf
+echo "3. Criando tabela mpda_verificacoes_cpf...\n";
 
 try {
     $sqlFile = __DIR__ . '/database/schema.sql';
@@ -76,7 +76,7 @@ try {
     $sql = file_get_contents($sqlFile);
     $pdo->exec($sql);
     
-    echo "✅ Tabela verificacoes_cpf criada com sucesso.\n";
+    echo "✅ Tabela mpda_verificacoes_cpf criada com sucesso.\n";
     
 } catch (Exception $e) {
     echo "❌ ERRO ao criar tabela:\n";
@@ -88,7 +88,7 @@ try {
 echo "4. Verificando estrutura da tabela...\n";
 
 try {
-    $stmt = $pdo->query("DESCRIBE verificacoes_cpf");
+    $stmt = $pdo->query("DESCRIBE mpda_verificacoes_cpf");
     $colunas = $stmt->fetchAll();
     
     $colunas_esperadas = ['id', 'cpf', 'e_valido', 'data_verificacao', 'observacoes'];
@@ -167,7 +167,7 @@ try {
     }
     
     // Limpar registro de teste
-    $pdo->prepare("DELETE FROM verificacoes_cpf WHERE cpf = ?")->execute([$cpf_teste]);
+    $pdo->prepare("DELETE FROM mpda_verificacoes_cpf WHERE cpf = ?")->execute([$cpf_teste]);
     
     echo "✅ Operações de banco de dados testadas com sucesso.\n";
     

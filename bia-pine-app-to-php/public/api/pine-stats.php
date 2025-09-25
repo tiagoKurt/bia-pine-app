@@ -1,7 +1,6 @@
 <?php
 session_start();
 
-
 require __DIR__ . '/../../config.php';
 require __DIR__ . '/../../vendor/autoload.php';
 
@@ -32,7 +31,7 @@ try {
                 SUM(CASE WHEN status = 'Desatualizado' THEN 1 ELSE 0 END) as datasets_desatualizados,
                 COUNT(DISTINCT organization) as total_orgaos,
                 portal_url
-            FROM datasets 
+            FROM mpda_datasets 
             GROUP BY portal_url
             ORDER BY total_datasets DESC
             LIMIT 1
@@ -49,7 +48,7 @@ try {
         
         $orgsStmt = $pdo->prepare("
             SELECT DISTINCT organization 
-            FROM datasets 
+            FROM mpda_datasets 
             WHERE portal_url = ? AND organization IS NOT NULL AND organization != ''
             ORDER BY organization
         ");
@@ -62,7 +61,7 @@ try {
                 SUM(CASE WHEN status = 'Atualizado' THEN 1 ELSE 0 END) as datasets_atualizados,
                 SUM(CASE WHEN status = 'Desatualizado' THEN 1 ELSE 0 END) as datasets_desatualizados,
                 COUNT(DISTINCT organization) as total_orgaos
-            FROM datasets 
+            FROM mpda_datasets 
             WHERE portal_url = ?
         ");
         $statsStmt->execute([$portalUrl]);
@@ -70,7 +69,7 @@ try {
         
         $orgsStmt = $pdo->prepare("
             SELECT DISTINCT organization 
-            FROM datasets 
+            FROM mpda_datasets 
             WHERE portal_url = ? AND organization IS NOT NULL AND organization != ''
             ORDER BY organization
         ");

@@ -23,7 +23,6 @@ class Bia
         $template->setValue('titulo_documento', $titulo);
         $template->setValue('descricao_base', $descricao);
 
-        error_log('Variáveis no template: ' . json_encode($template->getVariables(), JSON_UNESCAPED_UNICODE));
 
         if (!empty($colunas)) {
             try {
@@ -35,7 +34,6 @@ class Bia
                     ];
                 }, $colunas));
             } catch (\Exception $e) {
-                error_log('Tentando com placeholder âncora "row": ' . $e->getMessage());
                 $template->cloneRowAndSetValues('row', array_map(function($r) {
                     return [
                         'coluna'     => $r['coluna'],

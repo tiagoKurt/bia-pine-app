@@ -1,11 +1,4 @@
 <?php
-/**
- * Funções de validação e manipulação de CPF
- * 
- * Este arquivo contém todas as funções relacionadas à validação de CPF
- * e operações de banco de dados para o sistema de verificação.
- */
-
 require_once __DIR__ . '/../config.php';
 
 /**
@@ -15,20 +8,16 @@ require_once __DIR__ . '/../config.php';
  * @return bool True se o CPF for válido, false caso contrário
  */
 function validaCPF(string $cpf): bool {
-    // 1. Limpa o CPF, removendo caracteres não numéricos
     $cpf = preg_replace('/[^0-9]/is', '', $cpf);
 
-    // 2. Verifica se o CPF possui 11 dígitos
     if (strlen($cpf) != 11) {
         return false;
     }
 
-    // 3. Verifica se todos os dígitos são iguais (sequências inválidas)
     if (preg_match('/(\d)\1{10}/', $cpf)) {
         return false;
     }
 
-    // 4. Calcula os dígitos verificadores para validar o CPF
     for ($t = 9; $t < 11; $t++) {
         for ($d = 0, $c = 0; $c < $t; $c++) {
             $d += $cpf[$c] * (($t + 1) - $c);
@@ -52,7 +41,7 @@ function formatarCPF(string $cpf): string {
     $cpf = preg_replace('/[^0-9]/is', '', $cpf);
     
     if (strlen($cpf) != 11) {
-        return $cpf; // Retorna sem formatação se não tiver 11 dígitos
+        return $cpf;
     }
     
     return substr($cpf, 0, 3) . '.' . 
@@ -83,7 +72,7 @@ function limparCPF(string $cpf): string {
  * @return bool True em caso de sucesso, false em caso de falha
  */
 function salvarVerificacaoCPF(PDO $pdo, string $cpf, bool $e_valido, ?string $observacoes = null, ?string $fonte = null, ?string $identificador_fonte = null): bool {
-    $sql = "INSERT INTO verificacoes_cpf (cpf, e_valido, observacoes, fonte, identificador_fonte) VALUES (:cpf, :e_valido, :observacoes, :fonte, :identificador_fonte)
+    $sql = "INSERT INTO mpda_verificacoes_cpf (cpf, e_valido, observacoes, fonte, identificador_fonte) VALUES (:cpf, :e_valido, :observacoes, :fonte, :identificador_fonte)
             ON DUPLICATE KEY UPDATE 
                 e_valido = VALUES(e_valido), 
                 data_verificacao = CURRENT_TIMESTAMP,
@@ -115,7 +104,7 @@ function salvarVerificacaoCPF(PDO $pdo, string $cpf, bool $e_valido, ?string $ob
  * @return bool True se a transação for bem-sucedida, false caso contrário
  */
 function salvarVerificacoesEmLote(PDO $pdo, array $verificacoes): bool {
-    $sql = "INSERT INTO verificacoes_cpf (cpf, e_valido, observacoes, fonte, identificador_fonte) VALUES (?, ?, ?, ?, ?)
+    $sql = "INSERT INTO mpda_verificacoes_cpf (cpf, e_valido, observacoes, fonte, identificador_fonte) VALUES (?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE 
                 e_valido = VALUES(e_valido), 
                 data_verificacao = CURRENT_TIMESTAMP,
@@ -156,7 +145,7 @@ function salvarVerificacoesEmLote(PDO $pdo, array $verificacoes): bool {
  */
 function buscarTodasVerificacoes(PDO $pdo, ?int $limite = null, int $offset = 0): array {
     $sql = "SELECT id, cpf, e_valido, data_verificacao, observacoes 
-            FROM verificacoes_cpf 
+            FROM mpda_verificacoes_cpf 
             ORDER BY data_verificacao DESC";
     
     if ($limite !== null) {
@@ -188,7 +177,7 @@ function buscarTodasVerificacoes(PDO $pdo, ?int $limite = null, int $offset = 0)
  */
 function buscarVerificacaoPorCPF(PDO $pdo, string $cpf): ?array {
     $sql = "SELECT id, cpf, e_valido, data_verificacao, observacoes 
-            FROM verificacoes_cpf 
+            FROM mpda_verificacoes_cpf 
             WHERE cpf = :cpf";
     
     try {
@@ -214,23 +203,20 @@ function buscarVerificacaoPorCPF(PDO $pdo, string $cpf): ?array {
  */
 function buscarVerificacoesComFiltros(PDO $pdo, array $filtros = [], ?int $limite = null, int $offset = 0): array {
     $sql = "SELECT id, cpf, e_valido, data_verificacao, observacoes 
-            FROM verificacoes_cpf 
+            FROM mpda_verificacoes_cpf 
             WHERE 1=1";
     $params = [];
     
-    // Filtro por status de validação
     if (isset($filtros['e_valido']) && is_bool($filtros['e_valido'])) {
         $sql .= " AND e_valido = :e_valido";
         $params[':e_valido'] = $filtros['e_valido'];
     }
     
-    // Filtro por data de início
     if (isset($filtros['data_inicio']) && !empty($filtros['data_inicio'])) {
         $sql .= " AND data_verificacao >= :data_inicio";
         $params[':data_inicio'] = $filtros['data_inicio'];
     }
     
-    // Filtro por data de fim
     if (isset($filtros['data_fim']) && !empty($filtros['data_fim'])) {
         $sql .= " AND data_verificacao <= :data_fim";
         $params[':data_fim'] = $filtros['data_fim'];
@@ -270,10 +256,9 @@ function buscarVerificacoesComFiltros(PDO $pdo, array $filtros = [], ?int $limit
  * @return int Número total de verificações
  */
 function contarVerificacoes(PDO $pdo, array $filtros = []): int {
-    $sql = "SELECT COUNT(*) as total FROM verificacoes_cpf WHERE 1=1";
+    $sql = "SELECT COUNT(*) as total FROM mpda_verificacoes_cpf WHERE 1=1";
     $params = [];
     
-    // Aplicar os mesmos filtros da função buscarVerificacoesComFiltros
     if (isset($filtros['e_valido']) && is_bool($filtros['e_valido'])) {
         $sql .= " AND e_valido = :e_valido";
         $params[':e_valido'] = $filtros['e_valido'];
@@ -314,7 +299,7 @@ function contarVerificacoes(PDO $pdo, array $filtros = []): int {
  * @return bool True se removida com sucesso, false caso contrário
  */
 function removerVerificacao(PDO $pdo, int $id): bool {
-    $sql = "DELETE FROM verificacoes_cpf WHERE id = :id";
+    $sql = "DELETE FROM mpda_verificacoes_cpf WHERE id = :id";
     
     try {
         $stmt = $pdo->prepare($sql);
@@ -340,7 +325,7 @@ function obterEstatisticasVerificacoes(PDO $pdo): array {
                 SUM(CASE WHEN e_valido = 0 THEN 1 ELSE 0 END) as invalidos,
                 MIN(data_verificacao) as primeira_verificacao,
                 MAX(data_verificacao) as ultima_verificacao
-            FROM verificacoes_cpf";
+            FROM mpda_verificacoes_cpf";
     
     try {
         $stmt = $pdo->query($sql);
@@ -378,7 +363,7 @@ function obterEstatisticasVerificacoes(PDO $pdo): array {
  */
 function buscarVerificacoesPorFonte(PDO $pdo, string $fonte, int $limite = 100): array {
     $sql = "SELECT id, cpf, e_valido, data_verificacao, observacoes, fonte, identificador_fonte 
-            FROM verificacoes_cpf 
+            FROM mpda_verificacoes_cpf 
             WHERE fonte = :fonte
             ORDER BY data_verificacao DESC
             LIMIT :limite";
@@ -410,7 +395,7 @@ function obterEstatisticasPorFonte(PDO $pdo, string $fonte): array {
                 SUM(CASE WHEN e_valido = 0 THEN 1 ELSE 0 END) as invalidos,
                 MIN(data_verificacao) as primeira_verificacao,
                 MAX(data_verificacao) as ultima_verificacao
-            FROM verificacoes_cpf 
+            FROM mpda_verificacoes_cpf 
             WHERE fonte = :fonte";
     
     try {
@@ -451,7 +436,7 @@ function obterEstatisticasPorFonte(PDO $pdo, string $fonte): array {
 function getLastCpfScanInfo(PDO $pdo): ?array {
     try {
         // Busca a última verificação de CPF
-        $stmt = $pdo->query("SELECT MAX(data_verificacao) as lastScan FROM verificacoes_cpf");
+        $stmt = $pdo->query("SELECT MAX(data_verificacao) as lastScan FROM mpda_verificacoes_cpf");
         $lastScan = $stmt->fetchColumn();
 
         if (!$lastScan) {
@@ -483,7 +468,7 @@ function getCpfFindingsPaginado(\PDO $pdo, int $pagina = 1, int $itensPorPagina 
     $offset = ($pagina - 1) * $itensPorPagina;
 
     try {
-        $totalStmt = $pdo->query("SELECT COUNT(DISTINCT identificador_fonte) as total FROM verificacoes_cpf WHERE identificador_fonte IS NOT NULL AND observacoes LIKE '%Fonte: ckan_scanner%'");
+        $totalStmt = $pdo->query("SELECT COUNT(DISTINCT identificador_fonte) as total FROM mpda_verificacoes_cpf WHERE identificador_fonte IS NOT NULL AND observacoes LIKE '%Fonte: ckan_scanner%'");
         $totalResources = $totalStmt->fetchColumn() ?: 0;
 
         $sql = "
@@ -497,8 +482,8 @@ function getCpfFindingsPaginado(\PDO $pdo, int $pagina = 1, int $itensPorPagina 
                 d.url as dataset_url,
                 d.organization as dataset_organization
             FROM 
-                verificacoes_cpf vc
-            LEFT JOIN datasets d ON SUBSTRING_INDEX(vc.identificador_fonte, '|', 1) COLLATE utf8mb4_unicode_ci = d.dataset_id COLLATE utf8mb4_unicode_ci
+                mpda_verificacoes_cpf vc
+            LEFT JOIN mpda_datasets d ON SUBSTRING_INDEX(vc.identificador_fonte, '|', 1) COLLATE utf8mb4_unicode_ci = d.dataset_id COLLATE utf8mb4_unicode_ci
             WHERE 
                 vc.identificador_fonte IS NOT NULL 
                 AND vc.observacoes LIKE '%Fonte: ckan_scanner%'
@@ -587,8 +572,8 @@ function getCpfFindings(PDO $pdo): array {
                 d.url as dataset_url,
                 d.organization as dataset_organization
             FROM 
-                verificacoes_cpf vc
-            LEFT JOIN datasets d ON SUBSTRING_INDEX(vc.identificador_fonte, '|', 1) COLLATE utf8mb4_unicode_ci = d.dataset_id COLLATE utf8mb4_unicode_ci
+                mpda_verificacoes_cpf vc
+            LEFT JOIN mpda_datasets d ON SUBSTRING_INDEX(vc.identificador_fonte, '|', 1) COLLATE utf8mb4_unicode_ci = d.dataset_id COLLATE utf8mb4_unicode_ci
             WHERE 
                 vc.identificador_fonte IS NOT NULL 
                 AND vc.observacoes LIKE '%Fonte: ckan_scanner%'
@@ -606,9 +591,7 @@ function getCpfFindings(PDO $pdo): array {
             return [];
         }
 
-        // Processa os resultados e organiza no formato esperado pela view
         foreach ($results as $result) {
-            // Extrair JSON das observações
             $observacoes = $result['observacoes_json'];
             $jsonStart = strpos($observacoes, '{');
             $jsonEnd = strrpos($observacoes, '}');

@@ -1,15 +1,7 @@
 <?php
-/**
- * Monitor do Worker em Tempo Real
- * 
- * Este script monitora o status do worker e exibe informações
- * em tempo real sobre o progresso da análise
- */
-
 echo "=== MONITOR DO WORKER ===\n";
 echo "Pressione Ctrl+C para sair\n\n";
 
-// Função para limpar a tela
 function clearScreen() {
     if (PHP_OS_FAMILY === 'Windows') {
         system('cls');
@@ -18,7 +10,6 @@ function clearScreen() {
     }
 }
 
-// Função para formatar tempo
 function formatTime($timestamp) {
     if (!$timestamp) return 'N/A';
     
@@ -34,8 +25,6 @@ function formatTime($timestamp) {
         return floor($diff / 3600) . 'h atrás';
     }
 }
-
-// Função para exibir status
 function displayStatus() {
     $lockFile = __DIR__ . '/cache/scan.lock';
     $pidFile = __DIR__ . '/cache/worker.pid';
@@ -45,7 +34,6 @@ function displayStatus() {
     echo "│                    MONITOR DO WORKER                       │\n";
     echo "├─────────────────────────────────────────────────────────────┤\n";
     
-    // Status do arquivo de lock
     if (file_exists($lockFile)) {
         $lockData = json_decode(file_get_contents($lockFile), true);
         if ($lockData) {
@@ -82,7 +70,6 @@ function displayStatus() {
         echo "│ Status: " . str_pad("Nenhuma análise ativa", 40) . " │\n";
     }
     
-    // Status do processo
     echo "├─────────────────────────────────────────────────────────────┤\n";
     echo "│                    PROCESSO                                 │\n";
     echo "├─────────────────────────────────────────────────────────────┤\n";
@@ -104,7 +91,6 @@ function displayStatus() {
         echo "│ Status: " . str_pad("Nenhum processo ativo", 40) . " │\n";
     }
     
-    // Logs recentes
     echo "├─────────────────────────────────────────────────────────────┤\n";
     echo "│                    LOGS RECENTES                            │\n";
     echo "├─────────────────────────────────────────────────────────────┤\n";
@@ -112,7 +98,7 @@ function displayStatus() {
     if (file_exists($logFile)) {
         $logContent = file_get_contents($logFile);
         $logLines = explode("\n", $logContent);
-        $recentLines = array_slice($logLines, -5); // Últimas 5 linhas
+        $recentLines = array_slice($logLines, -5);
         
         foreach ($recentLines as $line) {
             if (trim($line)) {
@@ -128,12 +114,10 @@ function displayStatus() {
     echo "Atualizado em: " . date('Y-m-d H:i:s') . "\n";
 }
 
-// Loop principal de monitoramento
 $running = true;
 $lastUpdate = 0;
 
-// Configurar handler para Ctrl+C
-if (function_exists('pcntl_signal')) {
+if (function_exists('pcntl_signal') && defined('SIGINT')) {
     pcntl_signal(SIGINT, function() use (&$running) {
         echo "\n\nMonitor interrompido pelo usuário.\n";
         $running = false;
@@ -144,15 +128,12 @@ while ($running) {
     clearScreen();
     displayStatus();
     
-    // Verificar se deve sair
     if (!$running) {
         break;
     }
     
-    // Aguardar 5 segundos antes da próxima atualização
     sleep(5);
     
-    // Processar sinais (se disponível)
     if (function_exists('pcntl_signal_dispatch')) {
         pcntl_signal_dispatch();
     }

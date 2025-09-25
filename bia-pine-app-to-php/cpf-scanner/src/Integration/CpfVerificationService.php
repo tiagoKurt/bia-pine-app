@@ -73,7 +73,7 @@ class CpfVerificationService
             $observacoesCompletas = ($observacoes ? $observacoes . ' | ' : '') . "Fonte: {$fonte}";
         }
 
-        $sql = "INSERT INTO verificacoes_cpf (cpf, e_valido, observacoes) VALUES (:cpf, :e_valido, :observacoes)
+        $sql = "INSERT INTO mpda_verificacoes_cpf (cpf, e_valido, observacoes) VALUES (:cpf, :e_valido, :observacoes)
                 ON DUPLICATE KEY UPDATE 
                     e_valido = VALUES(e_valido), 
                     data_verificacao = CURRENT_TIMESTAMP,
@@ -108,7 +108,7 @@ class CpfVerificationService
 
         // Base da query SQL. ON DUPLICATE KEY UPDATE garante que, se um CPF já existe,
         // ele será atualizado com a nova informação de validade e data.
-        $sql = "INSERT INTO verificacoes_cpf (cpf, e_valido, observacoes, identificador_fonte) VALUES ";
+        $sql = "INSERT INTO mpda_verificacoes_cpf (cpf, e_valido, observacoes, identificador_fonte) VALUES ";
         
         $placeholders = [];
         $bindings = [];
@@ -210,7 +210,7 @@ class CpfVerificationService
     public function buscarPorFonte(string $fonte, int $limite = 100): array
     {
         $sql = "SELECT id, cpf, e_valido, data_verificacao, observacoes 
-                FROM verificacoes_cpf 
+                FROM mpda_verificacoes_cpf 
                 WHERE observacoes LIKE :fonte_pattern
                 ORDER BY data_verificacao DESC
                 LIMIT :limite";
@@ -242,7 +242,7 @@ class CpfVerificationService
                     SUM(CASE WHEN e_valido = 0 THEN 1 ELSE 0 END) as invalidos,
                     MIN(data_verificacao) as primeira_verificacao,
                     MAX(data_verificacao) as ultima_verificacao
-                FROM verificacoes_cpf 
+                FROM mpda_verificacoes_cpf 
                 WHERE observacoes LIKE :fonte_pattern";
         
         try {
@@ -287,7 +287,7 @@ class CpfVerificationService
         $cpfLimpo = preg_replace('/[^0-9]/is', '', $cpf);
         
         $sql = "SELECT id, cpf, e_valido, data_verificacao, observacoes 
-                FROM verificacoes_cpf 
+                FROM mpda_verificacoes_cpf 
                 WHERE cpf = :cpf";
         
         try {
