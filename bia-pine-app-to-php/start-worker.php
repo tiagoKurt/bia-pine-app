@@ -21,8 +21,10 @@ if (!$lockData || $lockData['status'] !== 'pending') {
 echo "Iniciando worker para análise pendente...\n";
 
 if (PHP_OS_FAMILY === 'Windows') {
-    exec("start /B php \"{$workerPath}\"");
+    // Windows - usar start /B para executar em background
+    exec("start /B php \"{$workerPath}\" > NUL 2>&1");
 } else {
+    // Linux/Unix - usar nohup para executar em background
     exec("nohup php \"{$workerPath}\" > /dev/null 2>&1 &");
 }
 

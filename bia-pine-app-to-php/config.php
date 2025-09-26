@@ -29,6 +29,7 @@ if (file_exists(__DIR__ . '/.env') && class_exists('Dotenv\Dotenv')) {
 // if (!defined('DB_PASSWORD')) {
 //     define('DB_PASSWORD', 'VEUFwSpVmh778gUVWhae'); 
 // }
+
 // LOCALHOST
 if (!defined('DB_CONNECTION')) {
     define('DB_CONNECTION', 'mysql');

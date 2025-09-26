@@ -99,10 +99,17 @@ try {
         'status' => 'pending'
     ]);
 
-    if (function_exists('exec') && stripos(PHP_OS, 'WIN') === false) {
-        $workerPath = dirname(__DIR__, 2) . '/worker.php';
-        if (file_exists($workerPath)) {
-            exec("php $workerPath > /dev/null 2>&1 &");
+    // Iniciar o worker usando start-worker.php
+    if (function_exists('exec')) {
+        $startWorkerPath = dirname(__DIR__, 2) . '/start-worker.php';
+        if (file_exists($startWorkerPath)) {
+            if (stripos(PHP_OS, 'WIN') !== false) {
+                // Windows
+                exec("php \"$startWorkerPath\" > NUL 2>&1");
+            } else {
+                // Linux/Unix
+                exec("php \"$startWorkerPath\" > /dev/null 2>&1 &");
+            }
         }
     }
 
