@@ -47,7 +47,9 @@ try {
     if (file_exists($lockFile)) {
         $lockData = json_decode(file_get_contents($lockFile), true);
         
-        if (isset($lockData['status']) && in_array($lockData['status'], ['pending', 'running'])) {
+        if (isset($lockData['status']) && in_array($lockData['status'], ['completed', 'failed'])) {
+            unlink($lockFile);
+        } elseif (isset($lockData['status']) && in_array($lockData['status'], ['pending', 'running'])) {
             $lastUpdate = isset($lockData['lastUpdate']) ? strtotime($lockData['lastUpdate']) : 0;
             $currentTime = time();
             $timeoutMinutes = 30;
@@ -87,10 +89,45 @@ try {
         'lastUpdate' => date('c')
     ];
 
-    $success = file_put_contents($lockFile, json_encode($lockData, JSON_PRETTY_PRINT));
+    $jsonData = json_encode($lockData, JSON_PRETTY_PRINT);
+    if ($jsonData === false) {
+        throw new Exception('Erro ao serializar dados de status');
+    }
+    
+    $success = file_put_contents($lockFile, $jsonData);
     
     if (!$success) {
         throw new Exception('Não foi possível criar arquivo de controle da análise');
+    }
+    
+    if (!file_exists($lockFile) || filesize($lockFile) === 0) {
+        throw new Exception('Arquivo de controle não foi criado corretamente');
+    }
+
+    $workerPath = dirname(__DIR__, 2) . '/worker.php';
+    if (file_exists($workerPath)) {
+        $startWorkerPath = dirname(__DIR__, 2) . '/start-worker.php';
+        if (file_exists($startWorkerPath)) {
+            if (PHP_OS_FAMILY === 'Windows') {
+                $command = "start /B php \"$startWorkerPath\" > nul 2>&1";
+                pclose(popen($command, 'r'));
+            } else {
+                $command = "php \"$startWorkerPath\" > /dev/null 2>&1 &";
+                exec($command);
+            }
+            error_log("Worker iniciado em background via start-worker.php");
+        } else {
+            if (PHP_OS_FAMILY === 'Windows') {
+                $command = "start /B php \"$workerPath\" > nul 2>&1";
+                pclose(popen($command, 'r'));
+            } else {
+                $command = "php \"$workerPath\" > /dev/null 2>&1 &";
+                exec($command);
+            }
+            error_log("Worker iniciado em background diretamente");
+        }
+    } else {
+        error_log("Worker não encontrado em: " . $workerPath);
     }
 
     echo json_encode([
@@ -98,20 +135,6 @@ try {
         'message' => 'Análise iniciada em segundo plano.',
         'status' => 'pending'
     ]);
-
-    // Iniciar o worker usando start-worker.php
-    if (function_exists('exec')) {
-        $startWorkerPath = dirname(__DIR__, 2) . '/start-worker.php';
-        if (file_exists($startWorkerPath)) {
-            if (stripos(PHP_OS, 'WIN') !== false) {
-                // Windows
-                exec("php \"$startWorkerPath\" > NUL 2>&1");
-            } else {
-                // Linux/Unix
-                exec("php \"$startWorkerPath\" > /dev/null 2>&1 &");
-            }
-        }
-    }
 
 } catch (Exception $e) {
     http_response_code(500);

@@ -556,6 +556,220 @@ function getCpfFindingsPaginado(\PDO $pdo, int $pagina = 1, int $itensPorPagina 
     }
 }
 
+/**
+ * Busca dados de CPF da nova tabela otimizada mpda_recursos_com_cpf
+ */
+function getCpfFindingsFromNewTable(PDO $pdo): array {
+    $findings = [];
+    try {
+        // Consulta para buscar dados da nova tabela otimizada
+        $sql = "
+            SELECT 
+                r.identificador_recurso,
+                r.identificador_dataset,
+                r.cpfs_encontrados,
+                r.quantidade_cpfs,
+                r.metadados_recurso,
+                r.data_verificacao,
+                d.name as dataset_name,
+                d.url as dataset_url,
+                d.organization as dataset_organization
+            FROM 
+                mpda_recursos_com_cpf r
+            LEFT JOIN mpda_datasets d ON r.identificador_dataset COLLATE utf8mb4_unicode_ci = d.dataset_id COLLATE utf8mb4_unicode_ci
+            ORDER BY 
+                r.data_verificacao DESC
+            LIMIT 100
+        ";
+        
+        $stmt = $pdo->query($sql);
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!$results) {
+            return [];
+        }
+
+        foreach ($results as $result) {
+            $metadados = json_decode($result['metadados_recurso'], true);
+            $cpfs = json_decode($result['cpfs_encontrados'], true);
+            
+            if (json_last_error() !== JSON_ERROR_NONE || !is_array($cpfs)) {
+                continue;
+            }
+
+            $findings[] = [
+                'dataset_id' => $result['identificador_dataset'],
+                'dataset_name' => $result['dataset_name'] ?? ($metadados['dataset_name'] ?? 'Dataset Desconhecido'),
+                'dataset_url' => $result['dataset_url'] ?? '#',
+                'dataset_organization' => $result['dataset_organization'] ?? 'Não informado',
+                'resource_id' => $result['identificador_recurso'],
+                'resource_name' => $metadados['resource_name'] ?? 'Recurso Desconhecido',
+                'resource_url' => $metadados['resource_url'] ?? '#',
+                'resource_format' => $metadados['resource_format'] ?? 'N/A',
+                'cpf_count' => (int) $result['quantidade_cpfs'],
+                'cpfs' => array_map('formatarCPF', $cpfs),
+                'last_checked' => $result['data_verificacao']
+            ];
+        }
+
+        return $findings;
+
+    } catch (PDOException $e) {
+        error_log("Erro ao buscar dados de CPF da nova tabela: " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Busca dados de CPF paginados da nova tabela otimizada
+ */
+function getCpfFindingsPaginadoFromNewTable(PDO $pdo, int $pagina = 1, int $itensPorPagina = 10): array {
+    $offset = ($pagina - 1) * $itensPorPagina;
+
+    try {
+        $totalStmt = $pdo->query("SELECT COUNT(*) as total FROM mpda_recursos_com_cpf");
+        $totalResources = $totalStmt->fetchColumn() ?: 0;
+
+        $sql = "
+            SELECT 
+                r.identificador_recurso,
+                r.identificador_dataset,
+                r.cpfs_encontrados,
+                r.quantidade_cpfs,
+                r.metadados_recurso,
+                r.data_verificacao,
+                d.name as dataset_name,
+                d.url as dataset_url,
+                d.organization as dataset_organization
+            FROM 
+                mpda_recursos_com_cpf r
+            LEFT JOIN mpda_datasets d ON r.identificador_dataset COLLATE utf8mb4_unicode_ci = d.dataset_id COLLATE utf8mb4_unicode_ci
+            ORDER BY 
+                r.data_verificacao DESC
+            LIMIT :limit OFFSET :offset
+        ";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':limit', $itensPorPagina, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $findings = [];
+
+        if ($results) {
+            foreach ($results as $result) {
+                $metadados = json_decode($result['metadados_recurso'], true);
+                $cpfs = json_decode($result['cpfs_encontrados'], true);
+                
+                if (json_last_error() !== JSON_ERROR_NONE || !is_array($cpfs)) {
+                    continue;
+                }
+
+                $findings[] = [
+                    'dataset_id' => $result['identificador_dataset'],
+                    'dataset_name' => $result['dataset_name'] ?? ($metadados['dataset_name'] ?? 'Dataset Desconhecido'),
+                    'dataset_url' => $result['dataset_url'] ?? '#',
+                    'dataset_organization' => $result['dataset_organization'] ?? 'Não informado',
+                    'resource_id' => $result['identificador_recurso'],
+                    'resource_name' => $metadados['resource_name'] ?? 'Recurso Desconhecido',
+                    'resource_url' => $metadados['resource_url'] ?? '#',
+                    'resource_format' => $metadados['resource_format'] ?? 'N/A',
+                    'cpf_count' => (int) $result['quantidade_cpfs'],
+                    'cpfs' => array_map('formatarCPF', $cpfs),
+                    'last_checked' => $result['data_verificacao']
+                ];
+            }
+        }
+
+        return [
+            'findings' => $findings,
+            'total_resources' => (int) $totalResources,
+            'total_paginas' => (int) ceil($totalResources / $itensPorPagina),
+            'pagina_atual' => $pagina,
+        ];
+
+    } catch (PDOException $e) {
+        error_log("Erro ao buscar dados de CPF paginados da nova tabela: " . $e->getMessage());
+        return [
+            'findings' => [],
+            'total_resources' => 0,
+            'total_paginas' => 1,
+            'pagina_atual' => $pagina,
+        ];
+    }
+}
+
+/**
+ * Obtém estatísticas da nova tabela otimizada
+ */
+function obterEstatisticasVerificacoesFromNewTable(PDO $pdo): array {
+    try {
+        $sql = "SELECT 
+                    COUNT(*) as total_recursos,
+                    SUM(quantidade_cpfs) as total_cpfs,
+                    MIN(data_verificacao) as primeira_verificacao,
+                    MAX(data_verificacao) as ultima_verificacao
+                FROM mpda_recursos_com_cpf";
+        
+        $stmt = $pdo->query($sql);
+        $resultado = $stmt->fetch();
+        
+        return [
+            'total' => (int) $resultado['total_cpfs'],
+            'validos' => 0, // Não temos validação na nova tabela
+            'invalidos' => (int) $resultado['total_cpfs'],
+            'percentual_validos' => 0,
+            'primeira_verificacao' => $resultado['primeira_verificacao'],
+            'ultima_verificacao' => $resultado['ultima_verificacao'],
+            'total_recursos' => (int) $resultado['total_recursos']
+        ];
+    } catch (PDOException $e) {
+        error_log("Erro ao obter estatísticas da nova tabela: " . $e->getMessage());
+        return [
+            'total' => 0,
+            'validos' => 0,
+            'invalidos' => 0,
+            'percentual_validos' => 0,
+            'primeira_verificacao' => null,
+            'ultima_verificacao' => null,
+            'total_recursos' => 0
+        ];
+    }
+}
+
+/**
+ * Busca informações da última análise da nova tabela
+ */
+function getLastCpfScanInfoFromNewTable(PDO $pdo): ?array {
+    try {
+        $stmt = $pdo->query("SELECT MAX(data_verificacao) as lastScan FROM mpda_recursos_com_cpf");
+        $lastScan = $stmt->fetchColumn();
+
+        if (!$lastScan) {
+            return null;
+        }
+
+        // Busca informações do histórico de análises
+        $historyFile = __DIR__ . '/../cache/scan-history.json';
+        $lastResults = null;
+        
+        if (file_exists($historyFile)) {
+            $history = json_decode(file_get_contents($historyFile), true);
+            $lastResults = $history['lastResults'] ?? null;
+        }
+        
+        return [
+            'lastScan' => $lastScan,
+            'lastResults' => $lastResults
+        ];
+
+    } catch (PDOException $e) {
+        error_log("Erro ao buscar informações da última varredura da nova tabela: " . $e->getMessage());
+        return null;
+    }
+}
+
 function getCpfFindings(PDO $pdo): array {
     $findings = [];
     try {

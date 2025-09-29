@@ -11,31 +11,11 @@ if (file_exists(__DIR__ . '/.env') && class_exists('Dotenv\Dotenv')) {
 }
 
 // HOMOLOG
-// if (!defined('DB_CONNECTION')) {
-//     define('DB_CONNECTION', 'mysql');
-// }
-// if (!defined('DB_HOST')) {
-//     define('DB_HOST', 'mysqlhom01.intra.goias.gov.br');
-// }
-// if (!defined('DB_PORT')) {
-//     define('DB_PORT', '3306');
-// }
-// if (!defined('DB_DATABASE')) {
-//     define('DB_DATABASE', 'app_controladoria');
-// }
-// if (!defined('DB_USERNAME')) {
-//     define('DB_USERNAME', 'user_controla');
-// }
-// if (!defined('DB_PASSWORD')) {
-//     define('DB_PASSWORD', 'VEUFwSpVmh778gUVWhae'); 
-// }
-
-// LOCALHOST
 if (!defined('DB_CONNECTION')) {
     define('DB_CONNECTION', 'mysql');
 }
 if (!defined('DB_HOST')) {
-    define('DB_HOST', '127.0.0.1');
+    define('DB_HOST', 'mysqlhom01.intra.goias.gov.br');
 }
 if (!defined('DB_PORT')) {
     define('DB_PORT', '3306');
@@ -44,11 +24,31 @@ if (!defined('DB_DATABASE')) {
     define('DB_DATABASE', 'app_controladoria');
 }
 if (!defined('DB_USERNAME')) {
-    define('DB_USERNAME', 'root');
+    define('DB_USERNAME', 'user_controla');
 }
 if (!defined('DB_PASSWORD')) {
-    define('DB_PASSWORD', ''); 
+    define('DB_PASSWORD', 'VEUFwSpVmh778gUVWhae'); 
 }
+
+// LOCALHOST
+// if (!defined('DB_CONNECTION')) {
+//     define('DB_CONNECTION', 'mysql');
+// }
+// if (!defined('DB_HOST')) {
+//     define('DB_HOST', '127.0.0.1');
+// }
+// if (!defined('DB_PORT')) {
+//     define('DB_PORT', '3306');
+// }
+// if (!defined('DB_DATABASE')) {
+//     define('DB_DATABASE', 'app_controladoria');
+// }
+// if (!defined('DB_USERNAME')) {
+//     define('DB_USERNAME', 'root');
+// }
+// if (!defined('DB_PASSWORD')) {
+//     define('DB_PASSWORD', ''); 
+// }
 
 // CREATE DATABASE IF NOT EXISTS analise_ckan;
 
@@ -80,6 +80,18 @@ if (!defined('DB_PASSWORD')) {
 // ALTER TABLE mpda_verificacoes_cpf ADD COLUMN name_dataset VARCHAR(255);
 // CREATE INDEX idx_identificador_fonte ON mpda_verificacoes_cpf (identificador_fonte);
 
+// CREATE TABLE `mpda_recursos_com_cpf` (
+//     `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+//     `identificador_recurso` VARCHAR(255) NOT NULL,
+//     `identificador_dataset` VARCHAR(255) NOT NULL,
+//     `cpfs_encontrados` JSON NOT NULL,
+//     `quantidade_cpfs` INT UNSIGNED NOT NULL,
+//     `metadados_recurso` JSON NOT NULL,
+//     `data_verificacao` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+//     PRIMARY KEY (`id`),
+//     UNIQUE KEY `idx_recurso_unique` (`identificador_recurso`),
+//     KEY `idx_dataset` (`identificador_dataset`)
+//   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 if (!defined('GOOGLE_CREDENTIALS_JSON')) {
     $credenciaisEnv = getenv('GOOGLE_CREDENTIALS_JSON');

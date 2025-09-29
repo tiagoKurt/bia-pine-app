@@ -20,13 +20,13 @@ if (!$lockData || $lockData['status'] !== 'pending') {
 
 echo "Iniciando worker para análise pendente...\n";
 
-if (PHP_OS_FAMILY === 'Windows') {
-    // Windows - usar start /B para executar em background
-    exec("start /B php \"{$workerPath}\" > NUL 2>&1");
-} else {
-    // Linux/Unix - usar nohup para executar em background
-    exec("nohup php \"{$workerPath}\" > /dev/null 2>&1 &");
+try {
+    $GLOBALS['FORCE_ANALYSIS'] = true;
+    
+    include $workerPath;
+    echo "Worker executado com sucesso.\n";
+} catch (Exception $e) {
+    echo "Erro ao executar worker: " . $e->getMessage() . "\n";
+    exit(1);
 }
-
-echo "Worker iniciado em background.\n";
 ?>

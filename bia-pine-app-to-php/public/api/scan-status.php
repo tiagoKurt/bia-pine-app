@@ -21,13 +21,25 @@ try {
     }
 
     $lockContent = file_get_contents($lockFile);
-    if (!$lockContent) {
-        throw new Exception('Não foi possível ler arquivo de status');
+    if ($lockContent === false || empty(trim($lockContent))) {
+        unlink($lockFile);
+        echo json_encode([
+            'inProgress' => false,
+            'status' => 'idle',
+            'message' => 'Nenhuma análise em andamento'
+        ]);
+        exit;
     }
 
     $statusData = json_decode($lockContent, true);
     if (!$statusData) {
-        throw new Exception('Dados de status corrompidos');
+        unlink($lockFile);
+        echo json_encode([
+            'inProgress' => false,
+            'status' => 'idle',
+            'message' => 'Dados de status corrompidos - arquivo removido'
+        ]);
+        exit;
     }
 
     $inProgress = in_array($statusData['status'] ?? '', ['pending', 'running']);
