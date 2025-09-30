@@ -16,6 +16,14 @@ class CpfVerificationService
     }
 
     /**
+     * Retorna a instância PDO para uso externo
+     */
+    public function getPdo(): PDO
+    {
+        return $this->pdo;
+    }
+
+    /**
      * Valida um CPF usando o algoritmo oficial brasileiro.
      * Esta função pode ser mantida para validação interna, se necessário.
      */
@@ -54,17 +62,20 @@ class CpfVerificationService
             INSERT INTO mpda_recursos_com_cpf (
                 identificador_recurso, 
                 identificador_dataset, 
+                orgao,
                 cpfs_encontrados, 
                 quantidade_cpfs, 
                 metadados_recurso
             ) VALUES (
                 :resource_id, 
                 :dataset_id, 
+                :orgao,
                 :cpfs, 
                 :count, 
                 :metadata
             )
             ON DUPLICATE KEY UPDATE
+                orgao = VALUES(orgao),
                 cpfs_encontrados = VALUES(cpfs_encontrados),
                 quantidade_cpfs = VALUES(quantidade_cpfs),
                 metadados_recurso = VALUES(metadados_recurso),
@@ -76,6 +87,7 @@ class CpfVerificationService
             $stmt->execute([
                 ':resource_id' => $metadados['resource_id'],
                 ':dataset_id' => $metadados['dataset_id'],
+                ':orgao' => $metadados['org_name'] ?? 'Não informado',
                 ':cpfs' => json_encode($cpfsEncontrados),
                 ':count' => count($cpfsEncontrados),
                 ':metadata' => json_encode($metadados, JSON_UNESCAPED_UNICODE)

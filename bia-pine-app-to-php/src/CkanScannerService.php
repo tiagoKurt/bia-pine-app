@@ -175,6 +175,34 @@ class CkanScannerService
     }
 
     /**
+     * Executa análise otimizada usando o novo scanner com paralelismo
+     */
+    public function executarAnaliseOtimizada(): array
+    {
+        try {
+            // Usa o OptimizedCkanScanner para processamento paralelo
+            $optimizedScanner = new \App\OptimizedCkanScanner($this->verificationService->getPdo());
+            
+            // Define callback de progresso
+            $optimizedScanner->setProgressCallback(function($data) {
+                $this->updateProgress($data);
+            });
+
+            // Executa a varredura otimizada
+            $resultado = $optimizedScanner->executarVarreduraOtimizada();
+            
+            return $resultado;
+            
+        } catch (Exception $e) {
+            error_log("Erro na análise otimizada: " . $e->getMessage());
+            return [
+                'status' => 'error',
+                'message' => 'Erro durante a análise otimizada: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
      * Varre o CKAN, obtém a lista de TODOS os recursos e salva em um arquivo de fila.
      */
     private function _discoverAllResources(string $queueFile, string $lockFile): void
@@ -186,6 +214,16 @@ class CkanScannerService
             $datasetDetails = $this->ckanClient->getDatasetDetails($datasetId);
             if (empty($datasetDetails['resources'])) continue;
 
+            $orgInfo = $datasetDetails['organization'] ?? null;
+            $orgName = "Não informado";
+            
+            if ($orgInfo) {
+                $orgName = $orgInfo['title'] ?? 
+                          $orgInfo['name'] ?? 
+                          $orgInfo['display_name'] ?? 
+                          "Não informado";
+            }
+
             foreach ($datasetDetails['resources'] as $resource) {
                 if (!empty($resource['url']) && FileParserFactory::isFormatSupported($resource['format'] ?? '')) {
                      $recursosParaProcessar[] = [
@@ -193,7 +231,8 @@ class CkanScannerService
                         'resource_id' => $resource['id'],
                         'name' => $resource['name'],
                         'url' => $resource['url'],
-                        'format' => $resource['format']
+                        'format' => $resource['format'],
+                        'org_name' => $orgName
                     ];
                 }
             }
@@ -322,6 +361,7 @@ class CkanScannerService
                         'resource_name' => $recurso['name'],
                         'resource_url' => $recurso['url'],
                         'resource_format' => strtolower($recurso['format'] ?? 'unknown'),
+                        'org_name' => $recurso['org_name'] ?? 'Não informado',
                     ];
 
                     $this->verificationService->salvarResultadoRecurso($foundCpfs, $metadados);
@@ -437,6 +477,7 @@ class CkanScannerService
                         'resource_name' => $recurso['name'],
                         'resource_url' => $recurso['url'],
                         'resource_format' => strtolower($recurso['format'] ?? 'unknown'),
+                        'org_name' => $recurso['org_name'] ?? 'Não informado',
                     ];
 
                     $this->verificationService->salvarResultadoRecurso($foundCpfs, $metadados);

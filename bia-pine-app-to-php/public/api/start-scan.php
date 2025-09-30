@@ -108,6 +108,7 @@ try {
     if (file_exists($workerPath)) {
         $startWorkerPath = dirname(__DIR__, 2) . '/start-worker.php';
         if (file_exists($startWorkerPath)) {
+            // Usa o start-worker.php que tem melhor controle
             if (PHP_OS_FAMILY === 'Windows') {
                 $command = "start /B php \"$startWorkerPath\" > nul 2>&1";
                 pclose(popen($command, 'r'));
@@ -115,8 +116,8 @@ try {
                 $command = "php \"$startWorkerPath\" > /dev/null 2>&1 &";
                 exec($command);
             }
-            error_log("Worker iniciado em background via start-worker.php");
         } else {
+            // Fallback para execução direta do worker
             if (PHP_OS_FAMILY === 'Windows') {
                 $command = "start /B php \"$workerPath\" > nul 2>&1";
                 pclose(popen($command, 'r'));
@@ -124,7 +125,6 @@ try {
                 $command = "php \"$workerPath\" > /dev/null 2>&1 &";
                 exec($command);
             }
-            error_log("Worker iniciado em background diretamente");
         }
     } else {
         error_log("Worker não encontrado em: " . $workerPath);

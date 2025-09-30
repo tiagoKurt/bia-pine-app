@@ -112,7 +112,7 @@ try {
 
     $pdo = conectarBanco();
     $scanner = new CkanScannerService(
-        $_ENV['CKAN_API_URL'],
+        $_ENV['CKAN_API_URL'] ?? 'https://dadosabertos.go.gov.br',
         $_ENV['CKAN_API_KEY'] ?? '',
         $cacheDir . '/ckan_api',
         $pdo
@@ -134,7 +134,9 @@ try {
         file_put_contents($lockFile, json_encode($currentLock, JSON_PRETTY_PRINT));
     });
     
+    // Atualiza o status para 'running' imediatamente
     $status['status'] = 'running';
+    $status['lastUpdate'] = date('c');
     file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
     
     $maxIterations = 3000; // Limite de segurança para evitar loop infinito

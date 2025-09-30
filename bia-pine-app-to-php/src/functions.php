@@ -567,6 +567,7 @@ function getCpfFindingsFromNewTable(PDO $pdo): array {
             SELECT 
                 r.identificador_recurso,
                 r.identificador_dataset,
+                r.orgao,
                 r.cpfs_encontrados,
                 r.quantidade_cpfs,
                 r.metadados_recurso,
@@ -601,7 +602,7 @@ function getCpfFindingsFromNewTable(PDO $pdo): array {
                 'dataset_id' => $result['identificador_dataset'],
                 'dataset_name' => $result['dataset_name'] ?? ($metadados['dataset_name'] ?? 'Dataset Desconhecido'),
                 'dataset_url' => $result['dataset_url'] ?? '#',
-                'dataset_organization' => $result['dataset_organization'] ?? 'Não informado',
+                'dataset_organization' => $result['orgao'] ?? ($result['dataset_organization'] ?? 'Não informado'),
                 'resource_id' => $result['identificador_recurso'],
                 'resource_name' => $metadados['resource_name'] ?? 'Recurso Desconhecido',
                 'resource_url' => $metadados['resource_url'] ?? '#',
@@ -634,6 +635,7 @@ function getCpfFindingsPaginadoFromNewTable(PDO $pdo, int $pagina = 1, int $iten
             SELECT 
                 r.identificador_recurso,
                 r.identificador_dataset,
+                r.orgao,
                 r.cpfs_encontrados,
                 r.quantidade_cpfs,
                 r.metadados_recurso,
@@ -670,7 +672,7 @@ function getCpfFindingsPaginadoFromNewTable(PDO $pdo, int $pagina = 1, int $iten
                     'dataset_id' => $result['identificador_dataset'],
                     'dataset_name' => $result['dataset_name'] ?? ($metadados['dataset_name'] ?? 'Dataset Desconhecido'),
                     'dataset_url' => $result['dataset_url'] ?? '#',
-                    'dataset_organization' => $result['dataset_organization'] ?? 'Não informado',
+                    'dataset_organization' => $result['orgao'] ?? 'Não informado', // Prioriza o campo orgao da tabela mpda_recursos_com_cpf
                     'resource_id' => $result['identificador_recurso'],
                     'resource_name' => $metadados['resource_name'] ?? 'Recurso Desconhecido',
                     'resource_url' => $metadados['resource_url'] ?? '#',

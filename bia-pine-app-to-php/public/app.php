@@ -2019,7 +2019,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             Auditoria de segurança em portais CKAN para detectar vazamentos de CPF em datasets públicos.
                         </p>
 
-                        <?php if (!$lastScanInfo && empty($cpfFindings)): ?>
+                        <?php if (empty($cpfFindings) && ($cpfData['total_resources'] ?? 0) == 0): ?>
                             <!-- Nenhuma análise executada -->
                             <div class="stats-card info">
                                 <div class="d-flex align-items-center">
@@ -2030,7 +2030,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     </div>
                                 </div>
                             </div>
-                        <?php elseif ($lastScanInfo && empty($cpfFindings)): ?>
+                        <?php elseif ($lastScanInfo && empty($cpfFindings) && ($cpfData['total_resources'] ?? 0) == 0): ?>
                             <!-- Análise executada mas sem CPFs encontrados -->
                             <div class="stats-card success">
                                 <div class="d-flex align-items-center">
@@ -2045,6 +2045,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 <?= $lastScanInfo['lastResults']['recursos_analisados'] ?? 0 ?> recursos analisados
                                             </small>
                                         <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php elseif (!empty($cpfFindings) || ($cpfData['total_resources'] ?? 0) > 0): ?>
+                            <!-- Dados existentes no banco - mostrar mesmo sem análise completa -->
+                            <div class="stats-card warning">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-database icon me-3" style="font-size: 2rem;"></i>
+                                    <div>
+                                        <h4 class="mb-1">Dados de CPF encontrados no banco</h4>
+                                        <p class="mb-2">
+                                            <?php if ($lastScanInfo): ?>
+                                                Última análise: <?= date('d/m/Y H:i', strtotime($lastScanInfo['lastScan'])) ?>
+                                            <?php else: ?>
+                                                Dados históricos disponíveis no banco de dados
+                                            <?php endif; ?>
+                                        </p>
+                                        <small class="text-light">
+                                            <i class="fas fa-exclamation-triangle"></i> 
+                                            <?= number_format($cpfData['total_resources'] ?? 0, 0, ',', '.') ?> recursos com CPFs encontrados
+                                        </small>
                                     </div>
                                 </div>
                             </div>
@@ -2146,6 +2167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <thead>
                                             <tr>
                                                 <th>Dataset</th>
+                                                <!-- <th>Órgão</th> -->
                                                 <th>Recurso</th>
                                                 <th>Formato</th>
                                                 <th>CPFs</th>
@@ -2160,13 +2182,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                         <div>
                                                             <strong><?= htmlspecialchars($finding['dataset_name']) ?></strong>
                                                             <br>
-                                                            <!-- <small class="text-muted">ID: <?= htmlspecialchars($finding['dataset_id']) ?></small> -->
-                                                            <?php if (!empty($finding['dataset_organization'])): ?>
-                                                                <br>
-                                                                <!-- <small class="text-info"><?= htmlspecialchars($finding['dataset_organization']) ?></small> -->
-                                                            <?php endif; ?>
+                                                            <small class="text-muted">ID: <?= htmlspecialchars($finding['dataset_id']) ?></small>
                                                         </div>
                                                     </td>
+                                                    <!-- <td>
+                                                        <span class="badge bg-info"><?= htmlspecialchars($finding['dataset_organization']) ?></span>
+                                                    </td> -->
                                                     <td>
                                                         <div>
                                                             <strong><?= htmlspecialchars($finding['resource_name']) ?></strong>
@@ -2201,7 +2222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                     </td>
                                                 </tr>
                                                 <tr>
-                                                    <td colspan="6" class="p-0">
+                                                    <td colspan="7" class="p-0">
                                                         <div class="collapse" id="collapse<?= $index ?>">
                                                             <div class="p-3 bg-light">
                                                                 <h6 class="mb-3">

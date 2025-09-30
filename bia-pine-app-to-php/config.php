@@ -10,44 +10,44 @@ if (file_exists(__DIR__ . '/.env') && class_exists('Dotenv\Dotenv')) {
     $dotenv->load();
 }
 
-// HOMOLOG
+// Configurações do Banco de Dados via variáveis de ambiente
 if (!defined('DB_CONNECTION')) {
-    define('DB_CONNECTION', 'mysql');
+    define('DB_CONNECTION', $_ENV['DB_CONNECTION'] ?? 'mysql');
 }
 if (!defined('DB_HOST')) {
-    define('DB_HOST', 'mysqlhom01.intra.goias.gov.br');
+    define('DB_HOST', $_ENV['DB_HOST'] ?? '127.0.0.1');
 }
 if (!defined('DB_PORT')) {
-    define('DB_PORT', '3306');
+    define('DB_PORT', $_ENV['DB_PORT'] ?? '3306');
 }
 if (!defined('DB_DATABASE')) {
-    define('DB_DATABASE', 'app_controladoria');
+    define('DB_DATABASE', $_ENV['DB_DATABASE'] ?? 'app_controladoria');
 }
 if (!defined('DB_USERNAME')) {
-    define('DB_USERNAME', 'user_controla');
+    define('DB_USERNAME', $_ENV['DB_USERNAME'] ?? 'root');
 }
 if (!defined('DB_PASSWORD')) {
-    define('DB_PASSWORD', 'VEUFwSpVmh778gUVWhae'); 
+    define('DB_PASSWORD', $_ENV['DB_PASSWORD'] ?? '');
 }
 
-// LOCALHOST
+// homolog
 // if (!defined('DB_CONNECTION')) {
-//     define('DB_CONNECTION', 'mysql');
+//     define('DB_CONNECTION', $_ENV['DB_CONNECTION'] ?? 'mysql');
 // }
 // if (!defined('DB_HOST')) {
-//     define('DB_HOST', '127.0.0.1');
+//     define('DB_HOST', $_ENV['DB_HOST'] ?? 'mysqlhom01.intra.goias.gov.br');
 // }
 // if (!defined('DB_PORT')) {
-//     define('DB_PORT', '3306');
+//     define('DB_PORT', $_ENV['DB_PORT'] ?? '3306');
 // }
 // if (!defined('DB_DATABASE')) {
-//     define('DB_DATABASE', 'app_controladoria');
+//     define('DB_DATABASE', $_ENV['DB_DATABASE'] ?? 'app_controladoria');
 // }
 // if (!defined('DB_USERNAME')) {
-//     define('DB_USERNAME', 'root');
+//     define('DB_USERNAME', $_ENV['DB_USERNAME'] ?? 'user_controla');
 // }
 // if (!defined('DB_PASSWORD')) {
-//     define('DB_PASSWORD', ''); 
+//     define('DB_PASSWORD', $_ENV['DB_PASSWORD'] ?? 'VEUFwSpVmh778gUVWhae');
 // }
 
 // CREATE DATABASE IF NOT EXISTS analise_ckan;
@@ -84,6 +84,7 @@ if (!defined('DB_PASSWORD')) {
 //     `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
 //     `identificador_recurso` VARCHAR(255) NOT NULL,
 //     `identificador_dataset` VARCHAR(255) NOT NULL,
+//     `orgao` VARCHAR(255) NOT NULL, -- CAMPO PARA O NOME DO ÓRGÃO
 //     `cpfs_encontrados` JSON NOT NULL,
 //     `quantidade_cpfs` INT UNSIGNED NOT NULL,
 //     `metadados_recurso` JSON NOT NULL,
@@ -93,33 +94,25 @@ if (!defined('DB_PASSWORD')) {
 //     KEY `idx_dataset` (`identificador_dataset`)
 //   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+// Configurações do Google Sheets via variáveis de ambiente
 if (!defined('GOOGLE_CREDENTIALS_JSON')) {
-    $credenciaisEnv = getenv('GOOGLE_CREDENTIALS_JSON');
-    if ($credenciaisEnv) {
-        define('GOOGLE_CREDENTIALS_JSON', $credenciaisEnv);
-    } else {
-        define('GOOGLE_CREDENTIALS_JSON', '{"type":"service_account","project_id":"seu-projeto","private_key_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"...","client_id":"...","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url":"..."}');
-    }
+    define('GOOGLE_CREDENTIALS_JSON', $_ENV['GOOGLE_CREDENTIALS_JSON'] ?? '{"type":"service_account","project_id":"seu-projeto","private_key_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"...","client_id":"...","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url":"..."}');
 }
 
 if (!defined('GOOGLE_SPREADSHEET_ID')) {
-    // ID da planilha Google que será atualizada
-    define('GOOGLE_SPREADSHEET_ID', '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
+    define('GOOGLE_SPREADSHEET_ID', $_ENV['GOOGLE_SPREADSHEET_ID'] ?? '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
 }
 
 if (!defined('DEFAULT_CKAN_PORTAL')) {
-    // Configurações do portal CKAN padrão
-    define('DEFAULT_CKAN_PORTAL', 'https://dadosabertos.go.gov.br');
+    define('DEFAULT_CKAN_PORTAL', $_ENV['DEFAULT_CKAN_PORTAL'] ?? 'https://dadosabertos.go.gov.br');
 }
 
 if (!defined('HTTP_TIMEOUT')) {
-    // Configurações de timeout para requisições HTTP
-    define('HTTP_TIMEOUT', 30);
+    define('HTTP_TIMEOUT', (int)($_ENV['HTTP_TIMEOUT'] ?? 30));
 }
 
 if (!defined('HTTP_VERIFY_SSL')) {
-    // Para desenvolvimento local
-    define('HTTP_VERIFY_SSL', false);
+    define('HTTP_VERIFY_SSL', filter_var($_ENV['HTTP_VERIFY_SSL'] ?? 'false', FILTER_VALIDATE_BOOLEAN));
 }
 
 // Configurações de erro (para desenvolvimento)
@@ -136,9 +129,12 @@ if (!is_dir(__DIR__ . '/logs')) {
 // Configurações de timezone
 date_default_timezone_set('America/Sao_Paulo');
 
-// Configurações de memória para processamento de documentos grandes
-ini_set('memory_limit', defined('MEMORY_LIMIT') ? MEMORY_LIMIT : '2G');
-ini_set('max_execution_time', defined('MAX_EXECUTION_TIME') ? MAX_EXECUTION_TIME : 600);
+// Configurações de memória para processamento de documentos grandes via variáveis de ambiente
+$memoryLimit = $_ENV['MEMORY_LIMIT'] ?? '2G';
+$maxExecutionTime = (int)($_ENV['MAX_EXECUTION_TIME'] ?? 600);
+
+ini_set('memory_limit', $memoryLimit);
+ini_set('max_execution_time', $maxExecutionTime);
 
 /**
  * Cria uma conexão PDO com o banco de dados.
