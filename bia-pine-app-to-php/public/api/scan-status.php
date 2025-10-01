@@ -9,9 +9,9 @@ header('Access-Control-Allow-Methods: GET, POST');
 header('Access-Control-Allow-Headers: Content-Type');
 
 try {
-    $lockFile = __DIR__ . '/../../cache/scan.lock';
+    $statusFile = __DIR__ . '/../../cache/scan_status.json';
 
-    if (!file_exists($lockFile)) {
+    if (!file_exists($statusFile)) {
         echo json_encode([
             'inProgress' => false,
             'status' => 'idle',
@@ -20,9 +20,9 @@ try {
         exit;
     }
 
-    $lockContent = file_get_contents($lockFile);
-    if ($lockContent === false || empty(trim($lockContent))) {
-        unlink($lockFile);
+    $statusContent = @file_get_contents($statusFile);
+    if ($statusContent === false || empty(trim($statusContent))) {
+        @unlink($statusFile);
         echo json_encode([
             'inProgress' => false,
             'status' => 'idle',
@@ -31,9 +31,9 @@ try {
         exit;
     }
 
-    $statusData = json_decode($lockContent, true);
+    $statusData = json_decode($statusContent, true);
     if (!$statusData) {
-        unlink($lockFile);
+        @unlink($statusFile);
         echo json_encode([
             'inProgress' => false,
             'status' => 'idle',
@@ -49,7 +49,7 @@ try {
         $oneHourAgo = time() - 3600;
         
         if ($endTime < $oneHourAgo) {
-            unlink($lockFile);
+            @unlink($statusFile);
             echo json_encode([
                 'inProgress' => false,
                 'status' => 'idle',

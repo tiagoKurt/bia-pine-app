@@ -238,12 +238,12 @@ class CkanScannerService
             }
         }
 
-        file_put_contents($queueFile, json_encode($recursosParaProcessar));
+        @file_put_contents($queueFile, json_encode($recursosParaProcessar));
         
         // Atualiza o lockfile com o total a ser processado
         $status = $this->readLockFile($lockFile);
         $status['progress']['total_recursos'] = count($recursosParaProcessar);
-        file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
+        @file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
     }
 
     /**
@@ -260,7 +260,7 @@ class CkanScannerService
         // Atualiza o total de recursos no status se não existir
         if (!isset($status['progress']['total_recursos'])) {
             $status['progress']['total_recursos'] = $totalRecursos;
-            file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
+            @file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
         }
         
         if ($indiceInicial >= $totalRecursos) {
@@ -309,7 +309,7 @@ class CkanScannerService
         }
         
         // Salva o progresso final
-        file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
+        @file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
 
         // Se terminou a fila, marca como concluído
         if ($status['progress']['recursos_processados'] >= $totalRecursos) {
@@ -374,7 +374,7 @@ class CkanScannerService
                 
                 // Salva progresso a cada 5 recursos no lote (mais frequente)
                 if ($recursosProcessados % 5 === 0) {
-                    file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
+                    @file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
                     echo "Checkpoint: {$recursosProcessados} recursos processados no lote\n";
                 }
                 
@@ -392,7 +392,7 @@ class CkanScannerService
         }
         
         // Salva o progresso do lote
-        file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
+        @file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
         
         return [
             'processados' => $recursosProcessados,
@@ -490,7 +490,7 @@ class CkanScannerService
                 
                 // Salva progresso a cada 10 recursos para melhor persistência
                 if ($recursosProcessadosNesteLote % 10 === 0) {
-                    file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
+                    @file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
                 }
                 
                 // Limpeza de memória a cada 25 recursos
@@ -507,7 +507,7 @@ class CkanScannerService
         }
         
         // Salva o progresso final
-        file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
+        @file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
 
         // Se terminou a fila, marca como concluído
         if ($status['progress']['recursos_processados'] >= $totalRecursos) {
@@ -542,15 +542,15 @@ class CkanScannerService
                 return [];
             }
 
-            // Verifica se o arquivo não é muito grande (limite reduzido para 10MB)
-            if (strlen($fileContent) > 10 * 1024 * 1024) {
+            // Verifica se o arquivo não é muito grande (limite aumentado para 200MB)
+            if (strlen($fileContent) > 110 * 1024 * 1024) {
                 error_log("Arquivo muito grande ignorado: {$recurso['resource_id']} (" . round(strlen($fileContent) / 1024 / 1024, 2) . "MB)");
                 return [];
             }
 
             // Verifica espaço em disco antes de salvar
             $freeSpace = disk_free_space($this->tempDir);
-            if ($freeSpace < strlen($fileContent) + (100 * 1024 * 1024)) { // 100MB de margem
+            if ($freeSpace < strlen($fileContent) + (110 * 1024 * 1024)) { // 200MB de margem
                 error_log("Espaço insuficiente em disco para processar: {$recurso['resource_id']}");
                 return [];
             }
@@ -559,7 +559,7 @@ class CkanScannerService
             $filePath = $this->tempDir . '/' . $fileName;
             
             // Salva o arquivo temporário
-            if (file_put_contents($filePath, $fileContent) === false) {
+            if (@file_put_contents($filePath, $fileContent) === false) {
                 error_log("Falha ao salvar arquivo temporário: {$filePath}");
                 return [];
             }

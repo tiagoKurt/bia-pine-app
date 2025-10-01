@@ -6,15 +6,15 @@ if (!file_exists($workerPath)) {
     exit(1);
 }
 
-$lockFile = __DIR__ . '/cache/scan.lock';
-if (!file_exists($lockFile)) {
+$statusFile = __DIR__ . '/cache/scan_status.json';
+if (!file_exists($statusFile)) {
     echo "Nenhuma análise pendente encontrada.\n";
     exit(0);
 }
 
-$lockData = json_decode(file_get_contents($lockFile), true);
-if (!$lockData || $lockData['status'] !== 'pending') {
-    echo "Análise não está pendente (status: " . ($lockData['status'] ?? 'indefinido') . ")\n";
+$statusData = json_decode(file_get_contents($statusFile), true);
+if (!$statusData || $statusData['status'] !== 'pending') {
+    echo "Análise não está pendente (status: " . ($statusData['status'] ?? 'indefinido') . ")\n";
     exit(0);
 }
 

@@ -11,31 +11,11 @@ if (file_exists(__DIR__ . '/.env') && class_exists('Dotenv\Dotenv')) {
 }
 
 // Configurações do Banco de Dados via variáveis de ambiente
-if (!defined('DB_CONNECTION')) {
-    define('DB_CONNECTION', $_ENV['DB_CONNECTION'] ?? 'mysql');
-}
-if (!defined('DB_HOST')) {
-    define('DB_HOST', $_ENV['DB_HOST'] ?? '127.0.0.1');
-}
-if (!defined('DB_PORT')) {
-    define('DB_PORT', $_ENV['DB_PORT'] ?? '3306');
-}
-if (!defined('DB_DATABASE')) {
-    define('DB_DATABASE', $_ENV['DB_DATABASE'] ?? 'app_controladoria');
-}
-if (!defined('DB_USERNAME')) {
-    define('DB_USERNAME', $_ENV['DB_USERNAME'] ?? 'root');
-}
-if (!defined('DB_PASSWORD')) {
-    define('DB_PASSWORD', $_ENV['DB_PASSWORD'] ?? '');
-}
-
-// homolog
 // if (!defined('DB_CONNECTION')) {
 //     define('DB_CONNECTION', $_ENV['DB_CONNECTION'] ?? 'mysql');
 // }
 // if (!defined('DB_HOST')) {
-//     define('DB_HOST', $_ENV['DB_HOST'] ?? 'mysqlhom01.intra.goias.gov.br');
+//     define('DB_HOST', $_ENV['DB_HOST'] ?? '127.0.0.1');
 // }
 // if (!defined('DB_PORT')) {
 //     define('DB_PORT', $_ENV['DB_PORT'] ?? '3306');
@@ -44,11 +24,31 @@ if (!defined('DB_PASSWORD')) {
 //     define('DB_DATABASE', $_ENV['DB_DATABASE'] ?? 'app_controladoria');
 // }
 // if (!defined('DB_USERNAME')) {
-//     define('DB_USERNAME', $_ENV['DB_USERNAME'] ?? 'user_controla');
+//     define('DB_USERNAME', $_ENV['DB_USERNAME'] ?? 'root');
 // }
 // if (!defined('DB_PASSWORD')) {
-//     define('DB_PASSWORD', $_ENV['DB_PASSWORD'] ?? 'VEUFwSpVmh778gUVWhae');
+//     define('DB_PASSWORD', $_ENV['DB_PASSWORD'] ?? '');
 // }
+
+// homolog
+if (!defined('DB_CONNECTION')) {
+    define('DB_CONNECTION', $_ENV['DB_CONNECTION'] ?? 'mysql');
+}
+if (!defined('DB_HOST')) {
+    define('DB_HOST', $_ENV['DB_HOST'] ?? 'mysqlhom01.intra.goias.gov.br');
+}
+if (!defined('DB_PORT')) {
+    define('DB_PORT', $_ENV['DB_PORT'] ?? '3306');
+}
+if (!defined('DB_DATABASE')) {
+    define('DB_DATABASE', $_ENV['DB_DATABASE'] ?? 'app_controladoria');
+}
+if (!defined('DB_USERNAME')) {
+    define('DB_USERNAME', $_ENV['DB_USERNAME'] ?? 'user_controla');
+}
+if (!defined('DB_PASSWORD')) {
+    define('DB_PASSWORD', $_ENV['DB_PASSWORD'] ?? 'VEUFwSpVmh778gUVWhae');
+}
 
 // CREATE DATABASE IF NOT EXISTS analise_ckan;
 
@@ -130,11 +130,24 @@ if (!is_dir(__DIR__ . '/logs')) {
 date_default_timezone_set('America/Sao_Paulo');
 
 // Configurações de memória para processamento de documentos grandes via variáveis de ambiente
-$memoryLimit = $_ENV['MEMORY_LIMIT'] ?? '2G';
-$maxExecutionTime = (int)($_ENV['MAX_EXECUTION_TIME'] ?? 600);
+$memoryLimit = $_ENV['MEMORY_LIMIT'] ?? '10G';
+$maxExecutionTime = (int)($_ENV['MAX_EXECUTION_TIME'] ?? 1800); // Aumentado para 30 minutos
 
 ini_set('memory_limit', $memoryLimit);
 ini_set('max_execution_time', $maxExecutionTime);
+
+// Configurações específicas para PDFs grandes
+if (!defined('PDF_MEMORY_LIMIT')) {
+    define('PDF_MEMORY_LIMIT', $_ENV['PDF_MEMORY_LIMIT'] ?? '4G');
+}
+
+if (!defined('PDF_MAX_EXECUTION_TIME')) {
+    define('PDF_MAX_EXECUTION_TIME', $_ENV['PDF_MAX_EXECUTION_TIME'] ?? 1800); // 30 minutos para PDFs
+}
+
+if (!defined('PDF_TIMEOUT')) {
+    define('PDF_TIMEOUT', $_ENV['PDF_TIMEOUT'] ?? 1200); // 20 minutos para parsing de PDF
+}
 
 /**
  * Cria uma conexão PDO com o banco de dados.

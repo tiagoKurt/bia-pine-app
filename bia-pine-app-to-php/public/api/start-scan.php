@@ -14,8 +14,28 @@ $forceNew = isset($_POST['force']) && $_POST['force'] === 'true';
 
 try {
     $lockDir = __DIR__ . '/../../cache';
-    $lockFile = $lockDir . '/scan.lock';
     $historyFile = $lockDir . '/scan-history.json';
+    
+    // Estratégia simplificada: usa apenas um arquivo de status fixo
+    $actualLockFile = $lockDir . '/scan_status.json';
+    
+    // Função para criar arquivo de lock de forma robusta
+    function createLockFile($lockFile) {
+        // Tenta criar o arquivo se não existir
+        if (!file_exists($lockFile)) {
+            $dir = dirname($lockFile);
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+            @file_put_contents($lockFile, '{}');
+        }
+        
+        // Testa se consegue escrever no arquivo
+        $test = @file_put_contents($lockFile, '{}', LOCK_EX);
+        return $test !== false;
+    }
+    
+    $canCreateLock = createLockFile($actualLockFile);
     
     if (!is_dir($lockDir)) {
         mkdir($lockDir, 0755, true);
@@ -44,11 +64,11 @@ try {
         }
     }
 
-    if (file_exists($lockFile)) {
-        $lockData = json_decode(file_get_contents($lockFile), true);
+    if ($actualLockFile && file_exists($actualLockFile)) {
+        $lockData = json_decode(file_get_contents($actualLockFile), true);
         
         if (isset($lockData['status']) && in_array($lockData['status'], ['completed', 'failed'])) {
-            unlink($lockFile);
+            @unlink($actualLockFile);
         } elseif (isset($lockData['status']) && in_array($lockData['status'], ['pending', 'running'])) {
             $lastUpdate = isset($lockData['lastUpdate']) ? strtotime($lockData['lastUpdate']) : 0;
             $currentTime = time();
@@ -56,10 +76,10 @@ try {
             $timeoutSeconds = $timeoutMinutes * 60;
             
             if (($currentTime - $lastUpdate) > $timeoutSeconds) {
-                unlink($lockFile);
+                @unlink($actualLockFile);
             } else {
                 if ($forceNew) {
-                    unlink($lockFile);
+                    @unlink($actualLockFile);
                 } else {
                     $remainingTime = $timeoutSeconds - ($currentTime - $lastUpdate);
                     $remainingMinutes = ceil($remainingTime / 60);
@@ -94,13 +114,17 @@ try {
         throw new Exception('Erro ao serializar dados de status');
     }
     
-    $success = file_put_contents($lockFile, $jsonData);
+    if (!$canCreateLock) {
+        throw new Exception('Não foi possível criar arquivo de controle da análise - problemas de permissão');
+    }
+    
+    $success = @file_put_contents($actualLockFile, $jsonData);
     
     if (!$success) {
         throw new Exception('Não foi possível criar arquivo de controle da análise');
     }
     
-    if (!file_exists($lockFile) || filesize($lockFile) === 0) {
+    if (!file_exists($actualLockFile) || filesize($actualLockFile) === 0) {
         throw new Exception('Arquivo de controle não foi criado corretamente');
     }
 

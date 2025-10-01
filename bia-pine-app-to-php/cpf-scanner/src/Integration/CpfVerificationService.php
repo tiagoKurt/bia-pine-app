@@ -3,14 +3,15 @@
 
 namespace CpfScanner\Integration;
 
+use Exception;
 use PDO;
 use PDOException;
 
 class CpfVerificationService
 {
-    private PDO $pdo;
+    private $pdo;
 
-    public function __construct(PDO $pdo)
+    public function __construct($pdo)
     {
         $this->pdo = $pdo;
     }
@@ -18,7 +19,7 @@ class CpfVerificationService
     /**
      * Retorna a instância PDO para uso externo
      */
-    public function getPdo(): PDO
+    public function getPdo()
     {
         return $this->pdo;
     }
@@ -27,7 +28,7 @@ class CpfVerificationService
      * Valida um CPF usando o algoritmo oficial brasileiro.
      * Esta função pode ser mantida para validação interna, se necessário.
      */
-    public function validarCPF(string $cpf): bool
+    public function validarCPF($cpf)
     {
         $cpf = preg_replace('/[^0-9]/is', '', $cpf);
         if (strlen($cpf) != 11 || preg_match('/(\d)\1{10}/', $cpf)) {
@@ -52,7 +53,7 @@ class CpfVerificationService
      * @param array $metadados       Metadados do recurso (dataset_id, resource_id, etc.).
      * @return bool                  True em caso de sucesso, false em caso de falha.
      */
-    public function salvarResultadoRecurso(array $cpfsEncontrados, array $metadados): bool
+    public function salvarResultadoRecurso($cpfsEncontrados, $metadados)
     {
         if (empty($cpfsEncontrados) || empty($metadados['resource_id'])) {
             return false; // Não há nada para salvar ou falta o ID do recurso
@@ -97,5 +98,58 @@ class CpfVerificationService
             error_log("Erro ao salvar resultado do recurso: " . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Processa CPFs encontrados e salva no banco de dados
+     * 
+     * @param array $foundCpfs Lista de CPFs encontrados
+     * @param string $source Fonte da verificação (ex: 'ckan_scanner')
+     * @param array $metadados Metadados do recurso
+     * @return array Estatísticas do processamento
+     */
+    public function processarCPFsEncontrados($foundCpfs, $source, $metadados)
+    {
+        $stats = [
+            'total_encontrados' => count($foundCpfs),
+            'salvos_com_sucesso' => 0,
+            'erros' => 0
+        ];
+
+        if (empty($foundCpfs)) {
+            return $stats;
+        }
+
+        try {
+            // Valida CPFs antes de salvar
+            $cpfsValidos = [];
+            foreach ($foundCpfs as $cpf) {
+                if ($this->validarCPF($cpf)) {
+                    $cpfsValidos[] = $cpf;
+                }
+            }
+
+            if (empty($cpfsValidos)) {
+                error_log("[AVISO] Nenhum CPF válido encontrado para o recurso: " . ($metadados['resource_id'] ?? 'unknown'));
+                return $stats;
+            }
+
+            // Salva no banco de dados
+            $sucesso = $this->salvarResultadoRecurso($cpfsValidos, $metadados);
+            
+            if ($sucesso) {
+                $stats['salvos_com_sucesso'] = count($cpfsValidos);
+                error_log("[SUCESSO] {$stats['salvos_com_sucesso']} CPFs salvos para o recurso: " . ($metadados['resource_id'] ?? 'unknown'));
+            } else {
+                $stats['erros'] = count($cpfsValidos);
+                error_log("[ERRO] Falha ao salvar CPFs para o recurso: " . ($metadados['resource_id'] ?? 'unknown'));
+            }
+
+        } catch (Exception $e) {
+            $stats['erros'] = count($foundCpfs);
+            error_log("[ERRO] Exceção ao processar CPFs: " . $e->getMessage());
+        }
+
+        return $stats;
     }
 }

@@ -36,7 +36,7 @@ RewriteRule ^(.*)$ index.php [QSA,L]
 
 # Configurações de memória e performance para PHP
 <IfModule mod_php.c>
-    php_value memory_limit 2G
+    php_value memory_limit 10G
     php_value max_execution_time 600
 </IfModule>
 

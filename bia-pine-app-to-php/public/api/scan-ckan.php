@@ -101,12 +101,45 @@ try {
                 $fileContent = @file_get_contents($resourceUrl);
                 if ($fileContent === false) continue;
 
-                $fileName = basename(parse_url($resourceUrl, PHP_URL_PATH)) ?: $resource['id'] . '.' . $resource['format'];
+                // 1. VALIDAÇÃO DE CONTEÚDO: Verificar se o arquivo não está vazio.
+                if (empty($fileContent)) {
+                    error_log("[ERRO] Arquivo baixado está vazio: " . $resource['id']);
+                    continue;
+                }
+
+                // 2. VALIDAÇÃO DE CABEÇALHO MÁGICO para PDF.
+                $resourceFormat = strtolower($resource['format'] ?? 'unknown');
+                if ($resourceFormat === 'pdf' && substr(trim($fileContent), 0, 5) !== '%PDF-') {
+                    // Se não for um PDF válido, pode ser um HTML de erro.
+                    if (strpos(trim($fileContent), '<!DOCTYPE html>') !== false) {
+                        error_log("[ERRO] Download retornou página HTML de erro para PDF: " . $resource['id']);
+                    } else {
+                        error_log("[ERRO] Arquivo PDF inválido - cabeçalho: " . substr($fileContent, 0, 20) . " - " . $resource['id']);
+                    }
+                    continue;
+                }
+
+                // 3. VALIDAÇÃO DE TAMANHO para evitar arquivos muito grandes
+                if (strlen($fileContent) > 110 * 1024 * 1024) { // 200MB
+                    error_log("[ERRO] Arquivo muito grande: " . round(strlen($fileContent) / 1024 / 1024, 2) . "MB - " . $resource['id']);
+                    continue;
+                }
+
+                $fileName = basename(parse_url($resourceUrl, PHP_URL_PATH)) ?: $resource['id'] . '.' . $resourceFormat;
                 $filePath = $tempDir . '/' . $fileName;
+                
+                // Salva o arquivo SOMENTE se as validações passarem
                 file_put_contents($filePath, $fileContent);
 
                 $parser = FileParserFactory::createParserFromFile($filePath);
+                
+                // Log de início do processamento
+                error_log("[PROCESSAMENTO] Iniciando análise do arquivo: " . $fileName . " (" . round(strlen($fileContent) / 1024 / 1024, 2) . "MB)");
+                
                 $textContent = $parser->getText($filePath);
+                
+                // Log de conclusão do processamento
+                error_log("[PROCESSAMENTO] Concluída análise do arquivo: " . $fileName . " - Texto extraído: " . strlen($textContent) . " caracteres");
 
                 if (empty(trim($textContent))) {
                     unlink($filePath);

@@ -100,11 +100,40 @@ foreach ($datasetIds as $datasetId) {
             
             echo "    ⬇️  Baixando arquivo...\n";
             $fileContent = file_get_contents($resourceUrl);
+            
             if ($fileContent === false) {
-                throw new \Exception("Falha ao baixar o arquivo");
+                // Caso extremo de falha de I/O ou rede (mantido)
+                throw new \Exception("Falha ao baixar o arquivo: file_get_contents retornou false.");
             }
             
+            // 1. VALIDAÇÃO DE CONTEÚDO: Verificar se o arquivo não está vazio.
+            if (empty($fileContent)) {
+                echo "    ❌ O arquivo baixado está vazio.\n";
+                continue;
+            }
+
+            // 2. VALIDAÇÃO DE CABEÇALHO MÁGICO para PDF.
+            // Verifica se os primeiros 5 bytes são %PDF-
+            if ($resourceFormat === 'pdf' && substr(trim($fileContent), 0, 5) !== '%PDF-') {
+                // Se não for um PDF válido, pode ser um HTML de erro.
+                if (strpos(trim($fileContent), '<!DOCTYPE html>') !== false) {
+                    echo "    ❌ O download do recurso PDF retornou uma página de erro HTML.\n";
+                } else {
+                    echo "    ❌ O arquivo baixado não possui o cabeçalho mágico de um PDF (%PDF-).\n";
+                    echo "    📝 Primeiros bytes: " . substr($fileContent, 0, 20) . "...\n";
+                }
+                continue;
+            }
+
+            // 3. VALIDAÇÃO DE TAMANHO para evitar arquivos muito grandes
+            if (strlen($fileContent) > 110 * 1024 * 1024) { // 200MB
+                echo "    ❌ Arquivo muito grande: " . round(strlen($fileContent) / 1024 / 1024, 2) . "MB\n";
+                continue;
+            }
+            
+            // Salva o arquivo SOMENTE se as validações passarem
             file_put_contents($filePath, $fileContent);
+            echo "    ✅ Arquivo baixado e validado com sucesso (" . round(strlen($fileContent) / 1024, 2) . "KB)\n";
 
             echo "    🔍 Analisando conteúdo...\n";
             $parser = FileParserFactory::createParserFromFile($filePath);

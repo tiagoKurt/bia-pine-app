@@ -8,38 +8,60 @@ use Dotenv\Dotenv;
 
 // --- Configuração ---
 $cacheDir = __DIR__ . '/cache';
-$lockFile = $cacheDir . '/scan.lock';
 $queueFile = $cacheDir . '/scan_queue.json';
 
-$lockFp = fopen($lockFile, 'c+');
+// Estratégia simplificada: usa apenas um arquivo de lock fixo
+$actualLockFile = $cacheDir . '/scan_status.json';
+
+// Função para criar/abrir arquivo de lock de forma robusta
+function createLockFile($lockFile) {
+    // Tenta criar o arquivo se não existir
+    if (!file_exists($lockFile)) {
+        $dir = dirname($lockFile);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        @file_put_contents($lockFile, '{}');
+    }
+    
+    // Tenta abrir o arquivo
+    $lockFp = @fopen($lockFile, 'c+');
+    if ($lockFp) {
+        return [$lockFp, $lockFile];
+    }
+    
+    return [false, null];
+}
+
+[$lockFp, $actualLockFile] = createLockFile($actualLockFile);
 if (!$lockFp) {
-    echo "Erro ao abrir arquivo de lock: $lockFile\n";
-    exit(1);
+    echo "Erro ao abrir arquivo de lock. Tentando continuar sem lock...\n";
+    $actualLockFile = null;
 }
 
 $forceAnalysis = (isset($argv[1]) && $argv[1] === '--force') || 
                  (isset($GLOBALS['FORCE_ANALYSIS']) && $GLOBALS['FORCE_ANALYSIS']);
 
 // Verifica se o arquivo tem um timestamp recente (menos de 5 minutos)
-if (file_exists($lockFile) && !$forceAnalysis) {
-    $fileTime = filemtime($lockFile);
+if ($actualLockFile && file_exists($actualLockFile) && !$forceAnalysis) {
+    $fileTime = filemtime($actualLockFile);
     $currentTime = time();
     if (($currentTime - $fileTime) < 300) { // 5 minutos
         echo "Outro processo de análise pode estar em execução (arquivo recente).\n";
-        fclose($lockFp);
+        if ($lockFp) fclose($lockFp);
         exit;
     }
 }
 
-if ($forceAnalysis && file_exists($lockFile)) {
-    echo "Forçando nova análise - removendo lock anterior...\n";
-    unlink($lockFile);
+if ($forceAnalysis && $actualLockFile && file_exists($actualLockFile)) {
+    echo "Forçando nova análise - removendo status anterior...\n";
+    @unlink($actualLockFile);
 }
 
 try {
     echo "Worker iniciado em: " . date('Y-m-d H:i:s') . "\n";
     echo "Diretório atual: " . __DIR__ . "\n";
-    echo "Arquivo de lock: " . $lockFile . "\n";
+    echo "Arquivo de status: " . ($actualLockFile ?: 'Nenhum (modo sem status)') . "\n";
     
     if (file_exists(__DIR__ . '/.env')) {
         echo "Carregando arquivo .env\n";
@@ -118,10 +140,15 @@ try {
         $pdo
     );
 
-    $scanner->setProgressCallback(function($progress) use ($lockFile) {
+    $scanner->setProgressCallback(function($progress) use ($actualLockFile) {
+        if (!$actualLockFile) {
+            echo "Progresso: " . json_encode($progress) . "\n";
+            return;
+        }
+        
         $currentLock = [];
-        if (file_exists($lockFile)) {
-            $content = file_get_contents($lockFile);
+        if (file_exists($actualLockFile)) {
+            $content = @file_get_contents($actualLockFile);
             if ($content !== false && !empty(trim($content))) {
                 $data = json_decode($content, true);
                 if ($data) {
@@ -131,13 +158,15 @@ try {
         }
         $currentLock['progress'] = array_merge($currentLock['progress'] ?? [], $progress);
         $currentLock['lastUpdate'] = date('c');
-        file_put_contents($lockFile, json_encode($currentLock, JSON_PRETTY_PRINT));
+        @file_put_contents($actualLockFile, json_encode($currentLock, JSON_PRETTY_PRINT));
     });
     
     // Atualiza o status para 'running' imediatamente
     $status['status'] = 'running';
     $status['lastUpdate'] = date('c');
-    file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
+    if ($actualLockFile) {
+        @file_put_contents($actualLockFile, json_encode($status, JSON_PRETTY_PRINT));
+    }
     
     $maxIterations = 3000; // Limite de segurança para evitar loop infinito
     $iteration = 0;
@@ -146,12 +175,12 @@ try {
         $iteration++;
         echo "Iteração $iteration - Processando lote...\n";
         
-        $result = $scanner->executarAnaliseControlada($lockFile, $queueFile);
+        $result = $scanner->executarAnaliseControlada($actualLockFile, $queueFile);
         
         if ($result['status'] === 'completed') {
             $finalStatus = [];
-            if (file_exists($lockFile)) {
-                $content = file_get_contents($lockFile);
+            if ($actualLockFile && file_exists($actualLockFile)) {
+                $content = @file_get_contents($actualLockFile);
                 if ($content !== false && !empty(trim($content))) {
                     $data = json_decode($content, true);
                     if ($data) {
@@ -162,7 +191,9 @@ try {
             $finalStatus['status'] = 'completed';
             $finalStatus['endTime'] = date('c');
             $finalStatus['message'] = $result['message'];
-            file_put_contents($lockFile, json_encode($finalStatus, JSON_PRETTY_PRINT));
+            if ($actualLockFile) {
+                @file_put_contents($actualLockFile, json_encode($finalStatus, JSON_PRETTY_PRINT));
+            }
             echo "Análise concluída com sucesso!\n";
             break;
         }
@@ -185,8 +216,8 @@ try {
 
 } catch (Exception $e) {
     $errorStatus = [];
-    if (file_exists($lockFile)) {
-        $content = file_get_contents($lockFile);
+    if ($actualLockFile && file_exists($actualLockFile)) {
+        $content = @file_get_contents($actualLockFile);
         if ($content !== false && !empty(trim($content))) {
             $data = json_decode($content, true);
             if ($data) {
@@ -197,8 +228,13 @@ try {
     $errorStatus['status'] = 'failed';
     $errorStatus['error'] = $e->getMessage();
     $errorStatus['endTime'] = date('c');
-    file_put_contents($lockFile, json_encode($errorStatus, JSON_PRETTY_PRINT));
+    if ($actualLockFile) {
+        @file_put_contents($actualLockFile, json_encode($errorStatus, JSON_PRETTY_PRINT));
+    }
+    echo "Erro: " . $e->getMessage() . "\n";
     
 } finally {
-    fclose($lockFp);
+    if ($lockFp) {
+        fclose($lockFp);
+    }
 }
