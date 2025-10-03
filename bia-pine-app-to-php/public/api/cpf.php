@@ -1,7 +1,8 @@
 <?php
 
 require_once __DIR__ . '/../../config.php';
-require_once __DIR__ . '/../../vendor/autoload.php';
+// Garantir que o autoloader esteja disponível
+ensureAutoloader();
 
 // Headers para API
 header('Content-Type: application/json; charset=utf-8');

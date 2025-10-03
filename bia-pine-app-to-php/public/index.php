@@ -1,6 +1,7 @@
 <?php
 
-require_once __DIR__ . '/../vendor/autoload.php';
+// Garantir que o autoloader esteja disponível
+ensureAutoloader();
 require_once __DIR__ . '/../config.php';
 
 use App\Api\StatusController;

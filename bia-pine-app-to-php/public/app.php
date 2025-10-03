@@ -7,7 +7,9 @@ header("Pragma: no-cache");
 header("Expires: 0");
 
 require __DIR__ . '/../config.php';
-require __DIR__ . '/../vendor/autoload.php';
+
+// Garantir que o autoloader esteja disponível
+ensureAutoloader();
 
 // Criar conexão com o banco de dados
 try {

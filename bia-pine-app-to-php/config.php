@@ -1,8 +1,5 @@
 <?php
-// Carrega o autoloader do Composer se ainda não foi carregado
-if (!class_exists('Dotenv\Dotenv') && file_exists(__DIR__ . '/vendor/autoload.php')) {
-    require_once __DIR__ . '/vendor/autoload.php';
-}
+
 
 // Carrega variáveis de ambiente do arquivo .env se existir
 if (file_exists(__DIR__ . '/.env') && class_exists('Dotenv\Dotenv')) {
@@ -11,31 +8,11 @@ if (file_exists(__DIR__ . '/.env') && class_exists('Dotenv\Dotenv')) {
 }
 
 // Configurações do Banco de Dados via variáveis de ambiente
-if (!defined('DB_CONNECTION')) {
-    define('DB_CONNECTION', $_ENV['DB_CONNECTION'] ?? 'mysql');
-}
-if (!defined('DB_HOST')) {
-    define('DB_HOST', $_ENV['DB_HOST'] ?? '127.0.0.1');
-}
-if (!defined('DB_PORT')) {
-    define('DB_PORT', $_ENV['DB_PORT'] ?? '3306');
-}
-if (!defined('DB_DATABASE')) {
-    define('DB_DATABASE', $_ENV['DB_DATABASE'] ?? 'app_controladoria');
-}
-if (!defined('DB_USERNAME')) {
-    define('DB_USERNAME', $_ENV['DB_USERNAME'] ?? 'root');
-}
-if (!defined('DB_PASSWORD')) {
-    define('DB_PASSWORD', $_ENV['DB_PASSWORD'] ?? '');
-}
-
-// homolog
 // if (!defined('DB_CONNECTION')) {
 //     define('DB_CONNECTION', $_ENV['DB_CONNECTION'] ?? 'mysql');
 // }
 // if (!defined('DB_HOST')) {
-//     define('DB_HOST', $_ENV['DB_HOST'] ?? 'mysqlhom01.intra.goias.gov.br');
+//     define('DB_HOST', $_ENV['DB_HOST'] ?? '127.0.0.1');
 // }
 // if (!defined('DB_PORT')) {
 //     define('DB_PORT', $_ENV['DB_PORT'] ?? '3306');
@@ -44,11 +21,31 @@ if (!defined('DB_PASSWORD')) {
 //     define('DB_DATABASE', $_ENV['DB_DATABASE'] ?? 'app_controladoria');
 // }
 // if (!defined('DB_USERNAME')) {
-//     define('DB_USERNAME', $_ENV['DB_USERNAME'] ?? 'user_controla');
+//     define('DB_USERNAME', $_ENV['DB_USERNAME'] ?? 'root');
 // }
 // if (!defined('DB_PASSWORD')) {
-//     define('DB_PASSWORD', $_ENV['DB_PASSWORD'] ?? 'VEUFwSpVmh778gUVWhae');
+//     define('DB_PASSWORD', $_ENV['DB_PASSWORD'] ?? '');
 // }
+
+// homolog
+if (!defined('DB_CONNECTION')) {
+    define('DB_CONNECTION', $_ENV['DB_CONNECTION'] ?? 'mysql');
+}
+if (!defined('DB_HOST')) {
+    define('DB_HOST', $_ENV['DB_HOST'] ?? 'mysqlhom01.intra.goias.gov.br');
+}
+if (!defined('DB_PORT')) {
+    define('DB_PORT', $_ENV['DB_PORT'] ?? '3306');
+}
+if (!defined('DB_DATABASE')) {
+    define('DB_DATABASE', $_ENV['DB_DATABASE'] ?? 'app_controladoria');
+}
+if (!defined('DB_USERNAME')) {
+    define('DB_USERNAME', $_ENV['DB_USERNAME'] ?? 'user_controla');
+}
+if (!defined('DB_PASSWORD')) {
+    define('DB_PASSWORD', $_ENV['DB_PASSWORD'] ?? 'VEUFwSpVmh778gUVWhae');
+}
 
 // CREATE DATABASE IF NOT EXISTS analise_ckan;
 
@@ -81,14 +78,7 @@ if (!defined('DB_PASSWORD')) {
 //     KEY `idx_dataset` (`identificador_dataset`)
 //   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-// Configurações do Google Sheets via variáveis de ambiente
-if (!defined('GOOGLE_CREDENTIALS_JSON')) {
-    define('GOOGLE_CREDENTIALS_JSON', $_ENV['GOOGLE_CREDENTIALS_JSON'] ?? '{"type":"service_account","project_id":"seu-projeto","private_key_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"...","client_id":"...","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url":"..."}');
-}
-
-if (!defined('GOOGLE_SPREADSHEET_ID')) {
-    define('GOOGLE_SPREADSHEET_ID', $_ENV['GOOGLE_SPREADSHEET_ID'] ?? '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
-}
+// Configurações do Google Sheets removidas - não utilizadas no projeto
 
 if (!defined('DEFAULT_CKAN_PORTAL')) {
     define('DEFAULT_CKAN_PORTAL', $_ENV['DEFAULT_CKAN_PORTAL'] ?? 'https://dadosabertos.go.gov.br');
@@ -187,4 +177,24 @@ function getPdoConnection(): \PDO
         }
     }
     return $pdo;
+}
+
+/**
+ * Função auxiliar para garantir que as classes necessárias estejam disponíveis
+ * Detecta automaticamente se as classes já estão carregadas globalmente
+ */
+function ensureAutoloader() {
+    // Se as classes App já estão disponíveis, não precisa fazer nada
+    if (class_exists('App\Bia') && class_exists('App\Pine')) {
+        return true;
+    }
+    
+    // Tenta carregar o autoloader local se existir (desenvolvimento)
+    if (file_exists(__DIR__ . '/vendor/autoload.php')) {
+        require_once __DIR__ . '/vendor/autoload.php';
+        return true;
+    }
+    
+    // Se chegou aqui, as classes não estão disponíveis
+    throw new Exception('Classes App\Bia e App\Pine não encontradas. Verifique se o autoloader do Composer está configurado globalmente no servidor.');
 }
