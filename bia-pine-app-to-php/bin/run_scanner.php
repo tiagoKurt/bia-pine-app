@@ -1,248 +1,154 @@
 <?php
 
-ensureAutoloader();
 require_once __DIR__ . '/../config.php';
+ensureAutoloader();
 
 use App\Worker\CkanScannerService;
+use App\Cpf\Ckan\CkanApiClient;
 use App\Cpf\CpfRepository;
-use Dotenv\Dotenv;
+use App\Cpf\CpfVerificationService; 
+use App\Cpf\Scanner\LogicBasedScanner;
+
 $cacheDir = __DIR__ . '/../cache';
 $queueFile = $cacheDir . '/scan_queue.json';
-$actualLockFile = $cacheDir . '/scan_status.json';
-function createLockFile($lockFile) {
+$lockFile = $cacheDir . '/scan_status.json';
+
+// --- Funções Auxiliares (Para o Worker de Cron) ---
+function updateProgress(string $lockFile, array $progress) {
+    if (!file_exists($lockFile)) return;
+    
+    $statusData = json_decode(file_get_contents($lockFile), true) ?: [];
+    $statusData['progress'] = array_merge($statusData['progress'] ?? [], $progress);
+    $statusData['lastUpdate'] = date('c');
+    file_put_contents($lockFile, json_encode($statusData, JSON_PRETTY_PRINT));
+}
+
+function getStatus(string $lockFile): array {
     if (!file_exists($lockFile)) {
-        $dir = dirname($lockFile);
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0755, true);
-        }
-        @file_put_contents($lockFile, '{}');
+        return ['status' => 'not_started'];
     }
-    
-    $lockFp = @fopen($lockFile, 'c+');
-    if ($lockFp) {
-        return [$lockFp, $lockFile];
-    }
-    
-    return [false, null];
+    $content = file_get_contents($lockFile);
+    return json_decode($content, true) ?: ['status' => 'error'];
 }
+// --- FIM Funções Auxiliares ---
 
-[$lockFp, $actualLockFile] = createLockFile($actualLockFile);
-if (!$lockFp) {
-    echo "Erro ao abrir arquivo de lock. Tentando continuar sem lock...\n";
-    $actualLockFile = null;
-}
-
-$forceAnalysis = (isset($argv[1]) && $argv[1] === '--force') || 
-                 (isset($GLOBALS['FORCE_ANALYSIS']) && $GLOBALS['FORCE_ANALYSIS']);
-
-if ($actualLockFile && file_exists($actualLockFile) && !$forceAnalysis) {
-    $fileTime = filemtime($actualLockFile);
-    $currentTime = time();
-    if (($currentTime - $fileTime) < 300) {
-        echo "Outro processo de análise pode estar em execução (arquivo recente).\n";
-        if ($lockFp) fclose($lockFp);
-        exit;
-    }
-}
-
-if ($forceAnalysis && $actualLockFile && file_exists($actualLockFile)) {
-    echo "Forçando nova análise - removendo status anterior...\n";
-    @unlink($actualLockFile);
-}
+echo "=== WORKER DE ANÁLISE DE CPF (Cron) ===\n";
+echo "Iniciado em: " . date('Y-m-d H:i:s') . "\n";
 
 try {
-    echo "Worker iniciado em: " . date('Y-m-d H:i:s') . "\n";
+    $status = getStatus($lockFile);
     
-    if (file_exists(__DIR__ . '/../.env')) {
-        $dotenv = Dotenv::createImmutable(__DIR__ . '/..');
-        $dotenv->load();
-    }
-
-    if (!file_exists($actualLockFile)) {
-        if ($forceAnalysis) {
-            echo "Forçando análise - criando novo arquivo de status...\n";
-            if ($lockFp) {
-                fclose($lockFp);
-            }
-            
-            $lockData = [
-                'status' => 'pending',
-                'startTime' => date('c'),
-                'progress' => [
-                    'datasets_analisados' => 0,
-                    'recursos_analisados' => 0,
-                    'recursos_com_cpfs' => 0,
-                    'total_cpfs_salvos' => 0,
-                    'current_step' => 'Iniciando análise...'
-                ],
-                'lastUpdate' => date('c')
-            ];
-            @file_put_contents($actualLockFile, json_encode($lockData, JSON_PRETTY_PRINT));
-            
-            $lockFp = @fopen($actualLockFile, 'c+');
-            if (!$lockFp) {
-                echo "Erro ao reabrir arquivo de status: $actualLockFile\n";
-                exit(1);
-            }
-        } else {
-            echo "Arquivo de status não encontrado: $actualLockFile\n";
-            if ($lockFp) {
-                fclose($lockFp);
-            }
-            exit;
-        }
+    if ($status['status'] !== 'pending' && $status['status'] !== 'running' && $status['status'] !== 'cancelling') {
+        echo "Status atual: {$status['status']}. Nenhuma análise a ser executada.\n";
+        exit(0);
     }
     
-    echo "Arquivo de status encontrado: $actualLockFile\n";
-
-    $lockContent = '';
-    if ($lockFp) {
-        rewind($lockFp);
-        while (!feof($lockFp)) {
-            $lockContent .= fread($lockFp, 8192);
-        }
-    } else {
-        $lockContent = @file_get_contents($actualLockFile);
+    // Se o status for 'cancelling', o worker finaliza a si mesmo
+    if ($status['status'] === 'cancelling') {
+        $status['status'] = 'cancelled';
+        $status['endTime'] = date('c');
+        $status['message'] = 'Análise anterior foi cancelada.';
+        file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
+        echo "Worker cancelado por requisição da API.\n";
+        exit(0);
     }
+
+    echo "Status: {$status['status']} - Preparando ambiente...\n";
     
-    if (empty(trim($lockContent))) {
-        if ($lockFp) {
-            fclose($lockFp);
-        }
-        if ($actualLockFile) {
-            @unlink($actualLockFile);
-        }
-        exit;
-    }
+    // Conexão e Injeção de Dependências
+    $pdo = getPdoConnection();
 
-    $status = json_decode($lockContent, true);
-    if (!$status) {
-        if ($lockFp) {
-            fclose($lockFp);
-        }
-        if ($actualLockFile) {
-            @unlink($actualLockFile);
-        }
-        exit;
-    }
-
-    if ($status['status'] === 'completed' || $status['status'] === 'failed') {
-        if (file_exists($queueFile)) unlink($queueFile);
-        if ($lockFp) {
-            fclose($lockFp);
-        }
-        if ($actualLockFile) {
-            @unlink($actualLockFile);
-        }
-        exit;
-    }
-
-    $pdo = conectarBanco();
-    $cpfRepository = new CpfRepository($pdo);
-    $scanner = new CkanScannerService(
+    // O service já injeta todos os outros componentes (CkanApiClient, CpfRepository, etc.)
+    // O construtor do CkanScannerService usa o $pdo para inicializar o CpfRepository e o CpfVerificationService
+    $scannerService = new CkanScannerService(
         CKAN_API_URL,
         CKAN_API_KEY,
-        $cacheDir . '/ckan_api',
+        $cacheDir,
         $pdo
     );
 
-    $scanner->setProgressCallback(function($progress) use ($actualLockFile) {
-        if (!$actualLockFile) {
-            echo "Progresso: " . json_encode($progress) . "\n";
-            return;
-        }
-        
-        $currentLock = [];
-        if (file_exists($actualLockFile)) {
-            $content = @file_get_contents($actualLockFile);
-            if ($content !== false && !empty(trim($content))) {
-                $data = json_decode($content, true);
-                if ($data) {
-                    $currentLock = $data;
-                }
-            }
-        }
-        $currentLock['progress'] = array_merge($currentLock['progress'] ?? [], $progress);
-        $currentLock['lastUpdate'] = date('c');
-        @file_put_contents($actualLockFile, json_encode($currentLock, JSON_PRETTY_PRINT));
+    // Define o callback de progresso usando a função auxiliar
+    $scannerService->setProgressCallback(function($progress) use ($lockFile) {
+        updateProgress($lockFile, $progress);
+        echo "Progresso: " . ($progress['current_step'] ?? '...') . "\n";
     });
     
-    // Atualiza o status para 'running' imediatamente
-    $status['status'] = 'running';
-    $status['lastUpdate'] = date('c');
-    $status['message'] = 'Worker iniciado e processando...';
-    if ($actualLockFile) {
-        @file_put_contents($actualLockFile, json_encode($status, JSON_PRETTY_PRINT));
-        error_log("Status atualizado para 'running' no arquivo: " . $actualLockFile);
+    // Atualiza o status para 'running' imediatamente (se estiver 'pending')
+    if ($status['status'] === 'pending') {
+        $status['status'] = 'running';
+        $status['lastUpdate'] = date('c');
+        $status['message'] = 'Worker iniciado e processando lotes de recursos...';
+        file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
+        error_log("Status atualizado para 'running' no arquivo: " . $lockFile);
     }
     
-    $maxIterations = 3000; // Limite de segurança para evitar loop infinito
+    
+    // --- Loop Principal de Execução ---
+    $maxIterations = 3000; 
     $iteration = 0;
     
     while ($iteration < $maxIterations) {
         $iteration++;
+        
+        // Verifica se houve um pedido de cancelamento durante o processamento do lote
+        $currentStatus = getStatus($lockFile);
+        if ($currentStatus['status'] === 'cancelling') {
+            echo "Pedido de cancelamento detectado. Finalizando...\n";
+            $currentStatus['status'] = 'cancelled';
+            $currentStatus['endTime'] = date('c');
+            $currentStatus['message'] = 'Análise cancelada pelo usuário.';
+            file_put_contents($lockFile, json_encode($currentStatus, JSON_PRETTY_PRINT));
+            exit(0);
+        }
+        
         echo "Iteração $iteration - Processando lote...\n";
         
-        $result = $scanner->executarAnaliseControlada($actualLockFile, $queueFile);
+        $result = $scannerService->executarAnaliseControlada($lockFile, $queueFile);
         
         if ($result['status'] === 'completed') {
-            $finalStatus = [];
-            if ($actualLockFile && file_exists($actualLockFile)) {
-                $content = @file_get_contents($actualLockFile);
-                if ($content !== false && !empty(trim($content))) {
-                    $data = json_decode($content, true);
-                    if ($data) {
-                        $finalStatus = $data;
-                    }
-                }
-            }
+            $finalStatus = getStatus($lockFile);
             $finalStatus['status'] = 'completed';
             $finalStatus['endTime'] = date('c');
             $finalStatus['message'] = $result['message'];
-            if ($actualLockFile) {
-                @file_put_contents($actualLockFile, json_encode($finalStatus, JSON_PRETTY_PRINT));
-            }
+            file_put_contents($lockFile, json_encode($finalStatus, JSON_PRETTY_PRINT));
             echo "Análise concluída com sucesso!\n";
-            break;
+            exit(0);
         }
         
-        if ($result['status'] === 'running') {
-            echo "Lote processado. Continuando...\n";
-            usleep(100000); // 0.1 segundo
-            continue;
-        }
-        
-        if ($result['status'] === 'failed') {
+        if ($result['status'] === 'failed' || $result['status'] === 'error') {
+            $finalStatus = getStatus($lockFile);
+            $finalStatus['status'] = 'failed';
+            $finalStatus['error'] = $result['message'];
+            $finalStatus['endTime'] = date('c');
+            file_put_contents($lockFile, json_encode($finalStatus, JSON_PRETTY_PRINT));
             echo "Erro na análise: " . ($result['message'] ?? 'Erro desconhecido') . "\n";
-            break;
+            exit(1);
         }
+        
+        // Se estiver 'running', continua para o próximo lote (com pausa)
+        echo "Lote processado. Aguardando próximo lote (0.5s)...\n";
+        usleep(500000); // 0.5 segundo
     }
     
     if ($iteration >= $maxIterations) {
-        echo "Limite de iterações atingido. Análise pode estar incompleta.\n";
+        // Fallback de erro se atingir o limite de iterações
+        $errorStatus = getStatus($lockFile);
+        $errorStatus['status'] = 'failed';
+        $errorStatus['error'] = 'Limite máximo de iterações atingido. Análise pode estar incompleta.';
+        $errorStatus['endTime'] = date('c');
+        file_put_contents($lockFile, json_encode($errorStatus, JSON_PRETTY_PRINT));
     }
 
 } catch (Exception $e) {
-    $errorStatus = [];
-    if ($actualLockFile && file_exists($actualLockFile)) {
-        $content = @file_get_contents($actualLockFile);
-        if ($content !== false && !empty(trim($content))) {
-            $data = json_decode($content, true);
-            if ($data) {
-                $errorStatus = $data;
-            }
-        }
-    }
+    // Tratamento de erro fatal (e.g., falha de conexão com DB no início)
+    error_log("ERRO FATAL NO WORKER: " . $e->getMessage());
+    $errorStatus = getStatus($lockFile);
     $errorStatus['status'] = 'failed';
     $errorStatus['error'] = $e->getMessage();
     $errorStatus['endTime'] = date('c');
-    if ($actualLockFile) {
-        @file_put_contents($actualLockFile, json_encode($errorStatus, JSON_PRETTY_PRINT));
-    }
-    echo "Erro: " . $e->getMessage() . "\n";
-    
-} finally {
-    if ($lockFp) {
-        fclose($lockFp);
-    }
+    file_put_contents($lockFile, json_encode($errorStatus, JSON_PRETTY_PRINT));
+    echo "✗ ERRO FATAL: " . $e->getMessage() . "\n";
+    exit(1);
 }
+
+echo "=== FIM DO WORKER ===\n";

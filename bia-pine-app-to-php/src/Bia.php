@@ -27,7 +27,6 @@ class Bia
         $template->setValue('titulo_documento', $titulo);
         $template->setValue('descricao_base', $descricao);
 
-
         if (!empty($colunas)) {
             try {
                 $template->cloneRowAndSetValues('coluna', array_map(function($r) {
@@ -62,19 +61,25 @@ class Bia
     public function gerarDicionarioWord(string $recursoUrl, string $templatePath): string
     {
         try {
+            error_log("BIA: Iniciando gerarDicionarioWord com URL: " . $recursoUrl);
+            error_log("BIA: Template path: " . $templatePath);
+            
             // Validar URL do recurso
             if (empty($recursoUrl) || !filter_var($recursoUrl, FILTER_VALIDATE_URL)) {
+                error_log("BIA: URL inválida: " . $recursoUrl);
                 throw new \Exception('URL do recurso inválida.');
             }
 
             // Extrair resource ID
             if (!preg_match('/\/resource\/([a-zA-Z0-9-]+)/', $recursoUrl, $matches)) {
+                error_log("BIA: Não foi possível extrair resource ID da URL: " . $recursoUrl);
                 throw new \Exception('Link do recurso CKAN inválido. Deve conter "/resource/" seguido de um ID válido.');
             }
             $resourceId = $matches[1];
 
             // Extrair dataset ID
             if (!preg_match('/\/dataset\/([a-zA-Z0-9-]+)/', $recursoUrl, $matches)) {
+                error_log("BIA: Não foi possível extrair dataset ID da URL: " . $recursoUrl);
                 throw new \Exception('Não foi possível extrair o dataset_id do link. Deve conter "/dataset/" seguido de um ID válido.');
             }
             $datasetId = $matches[1];
@@ -82,36 +87,48 @@ class Bia
             error_log("BIA: Processando recurso ID: {$resourceId}, dataset ID: {$datasetId}");
 
             // Buscar informações do dataset
+            error_log("BIA: Buscando informações do dataset...");
             $datasetInfo = $this->buscarDatasetInfo($datasetId);
             if (empty($datasetInfo)) {
+                error_log("BIA: Dataset não encontrado ou inacessível");
                 throw new \Exception('Dataset não encontrado ou inacessível.');
             }
             
             $nomeBase = $datasetInfo['title'] ?? 'Dataset sem título';
             $tituloDocumento = $this->gerarTituloDocumento($nomeBase);
+            error_log("BIA: Título do documento: " . $tituloDocumento);
             
             // Buscar descrição do recurso
+            error_log("BIA: Buscando descrição do recurso...");
             $descricaoBase = $this->buscarDescricaoRecurso($resourceId, $datasetInfo);
+            error_log("BIA: Descrição obtida: " . substr($descricaoBase, 0, 100) . "...");
             
             // Buscar dados do recurso
+            error_log("BIA: Buscando dados do recurso...");
             $colunasInfo = $this->buscarDadosRecurso($resourceId);
             if (empty($colunasInfo)) {
+                error_log("BIA: Não foi possível extrair informações das colunas");
                 throw new \Exception('Não foi possível extrair informações das colunas do recurso.');
             }
             
             error_log("BIA: Gerando documento com " . count($colunasInfo) . " colunas");
             
-            return $this->gerarDocumentoComTemplate(
+            error_log("BIA: Chamando gerarDocumentoComTemplate...");
+            $result = $this->gerarDocumentoComTemplate(
                 $templatePath,
                 $tituloDocumento,
                 $descricaoBase,
                 $colunasInfo
             );
             
+            error_log("BIA: Documento gerado com sucesso: " . $result);
+            return $result;
+            
         } catch (\Exception $e) {
             error_log("BIA: Erro em gerarDicionarioWord: " . $e->getMessage());
             error_log("BIA: URL: " . $recursoUrl);
             error_log("BIA: Template: " . $templatePath);
+            error_log("BIA: Stack trace: " . $e->getTraceAsString());
             throw $e;
         }
     }
@@ -224,9 +241,10 @@ class Bia
         $response = @file_get_contents($url, false, $context);
         if ($response === false) {
             $error = error_get_last();
-            $errorMsg = $error ? $error['message'] : 'Erro desconhecido';
-            error_log("BIA: Erro ao acessar API: " . $errorMsg);
-            throw new \Exception("Erro ao acessar API: {$url}. Erro: {$errorMsg}");
+            $errorMsg = $error ? $error['message'] : 'Erro desconhecido (provavelmente Timeout ou Firewall)';
+            error_log("BIA: ERRO DE CONEXÃO FATAL ao acessar API: " . $errorMsg);
+            
+            throw new \Exception("Erro de Rede/Firewall ao acessar API CKAN: {$url}. Verifique as permissões de saída HTTP/HTTPS do servidor de homologação. Mensagem: {$errorMsg}");
         }
         
         error_log("BIA: Resposta recebida, tamanho: " . strlen($response) . " bytes");

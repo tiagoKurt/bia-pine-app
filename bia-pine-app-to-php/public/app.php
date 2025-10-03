@@ -6,18 +6,20 @@ header("Cache-Control: no-cache, no-store, must-revalidate");
 header("Pragma: no-cache");
 header("Expires: 0");
 
-header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;");
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; img-src 'self' data: https:; connect-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;");
 
 require __DIR__ . '/../config.php';
 
 // Garantir que o autoloader esteja disponível
 ensureAutoloader();
 
-// Criar conexão com o banco de dados
+// Criar conexão com o banco de dados (apenas se necessário)
+$pdo = null;
 try {
     $pdo = conectarBanco();
 } catch (Exception $e) {
-    die('Erro fatal de conexão com o banco de dados: ' . $e->getMessage());
+    // Log do erro mas não interrompe a execução para funcionalidades que não dependem do banco
+    error_log("Erro de conexão com banco de dados: " . $e->getMessage());
 }
 
 use App\Bia;
@@ -35,16 +37,20 @@ if (!class_exists('App\Pine')) {
 }
 
 try {
+    error_log("BIA: Tentando instanciar classe Bia...");
     $bia = new Bia();
     error_log("BIA: Classe Bia instanciada com sucesso");
 } catch (Exception $e) {
     error_log("ERRO: Falha ao instanciar classe Bia: " . $e->getMessage());
+    error_log("ERRO: Stack trace: " . $e->getTraceAsString());
     die('Erro ao inicializar classe Bia: ' . $e->getMessage());
 }
 try {
     $pine = new Pine();
 } catch (Exception $e) {
-    die('Erro fatal de conexão com o banco de dados: ' . $e->getMessage());
+    // Log do erro mas não interrompe a execução
+    error_log("Erro ao instanciar classe Pine: " . $e->getMessage());
+    $pine = null;
 }
 
 
@@ -61,8 +67,13 @@ $paginaAtual = isset($_GET['page']) && isset($_GET['tab']) && $_GET['tab'] === '
 $itensPorPagina = 15;
 
 $analysisResults = []; 
-if (!empty($portalUrl)) {
-    $analysisResults = $pine->getDatasetsPaginados($portalUrl, $paginaAtual, $itensPorPagina);
+if (!empty($portalUrl) && $pine) {
+    try {
+        $analysisResults = $pine->getDatasetsPaginados($portalUrl, $paginaAtual, $itensPorPagina);
+    } catch (Exception $e) {
+        error_log("Erro ao buscar datasets: " . $e->getMessage());
+        $analysisResults = [];
+    }
 }
 
 
@@ -78,24 +89,31 @@ $estatisticas = [];
 $lastScanInfo = null;
 
 try {
-    // Primeiro tenta usar a nova tabela otimizada
-    $cpfData = getCpfFindingsPaginadoFromNewTable($pdo, $paginaCpfAtual, $itensPorPaginaCpf);
-    $cpfFindings = $cpfData['findings'] ?? [];
-    
-    $lastScanInfo = getLastCpfScanInfoFromNewTable($pdo);
-    
-    // Buscar estatísticas da nova tabela
-    $estatisticas = obterEstatisticasVerificacoesFromNewTable($pdo);
-    
-    // Se não há dados na nova tabela, tenta a tabela antiga como fallback
-    if (empty($cpfFindings)) {
-        $cpfData = getCpfFindingsPaginado($pdo, $paginaCpfAtual, $itensPorPaginaCpf);
+    if ($pdo) {
+        // Primeiro tenta usar a nova tabela otimizada
+        $cpfData = getCpfFindingsPaginadoFromNewTable($pdo, $paginaCpfAtual, $itensPorPaginaCpf);
         $cpfFindings = $cpfData['findings'] ?? [];
         
-        $lastScanInfo = getLastCpfScanInfo($pdo);
+        $lastScanInfo = getLastCpfScanInfoFromNewTable($pdo);
         
-        // Buscar estatísticas gerais do banco
-        $estatisticas = obterEstatisticasVerificacoes($pdo);
+        // Buscar estatísticas da nova tabela
+        $estatisticas = obterEstatisticasVerificacoesFromNewTable($pdo);
+        
+        // Se não há dados na nova tabela, tenta a tabela antiga como fallback
+        if (empty($cpfFindings)) {
+            $cpfData = getCpfFindingsPaginado($pdo, $paginaCpfAtual, $itensPorPaginaCpf);
+            $cpfFindings = $cpfData['findings'] ?? [];
+            
+            $lastScanInfo = getLastCpfScanInfo($pdo);
+            
+            // Buscar estatísticas gerais do banco
+            $estatisticas = obterEstatisticasVerificacoes($pdo);
+        }
+    } else {
+        $cpfData = ['total_resources' => 0, 'total_paginas' => 1, 'pagina_atual' => 1];
+        $cpfFindings = [];
+        $estatisticas = ['total' => 0, 'validos' => 0, 'invalidos' => 0, 'total_recursos' => 0];
+        $lastScanInfo = null;
     }
     
 } catch (Exception $e) {
@@ -109,15 +127,48 @@ try {
 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Configurar tratamento de erro global para requisições AJAX
+    set_error_handler(function($severity, $message, $file, $line) {
+        if (error_reporting() & $severity) {
+            $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+                      strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+            
+            if ($isAjax) {
+                http_response_code(500);
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Erro interno do servidor: ' . $message,
+                    'type' => 'error',
+                    'debug' => [
+                        'file' => $file,
+                        'line' => $line,
+                        'severity' => $severity
+                    ]
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+        }
+        return false;
+    });
+    
     $action = $_POST['action'] ?? '';
+    
+    // Verificar se é uma requisição AJAX
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+              strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+    
+    error_log("BIA: Verificando requisição AJAX");
+    error_log("BIA: HTTP_X_REQUESTED_WITH = " . ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? 'NÃO DEFINIDO'));
+    error_log("BIA: isAjax = " . ($isAjax ? 'true' : 'false'));
     
     // Ação da aba BIA
     if ($action === 'gerar_dicionario') {
-        $recursoUrl = $_POST['recurso_url'] ?? '';
+        error_log("BIA: Processando requisição gerar_dicionario");
+        error_log("BIA: isAjax = " . ($isAjax ? 'true' : 'false'));
+        error_log("BIA: Headers: " . json_encode(getallheaders()));
         
-        // Verificar se é uma requisição AJAX
-        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
-                  strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+        $recursoUrl = $_POST['recurso_url'] ?? '';
         
         if (empty($recursoUrl)) {
             if ($isAjax) {
@@ -138,11 +189,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 // Log da requisição
                 error_log("BIA: Iniciando geração de dicionário para URL: " . $recursoUrl);
+                error_log("BIA: Método da requisição: " . $_SERVER['REQUEST_METHOD']);
+                // Log dos headers de forma compatível
+                $headers = function_exists('getallheaders') ? getallheaders() : [];
+                error_log("BIA: Headers da requisição: " . json_encode($headers));
                 
                 $templateFile = __DIR__ . '/../templates/modelo_bia2_pronto_para_preencher.docx';
                 
                 // Verificar se o template existe
                 if (!file_exists($templateFile)) {
+                    error_log("BIA: Template não encontrado: " . $templateFile);
                     throw new Exception("Template não encontrado: " . $templateFile);
                 }
                 
@@ -154,19 +210,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception("Classe Bia não está disponível");
                 }
                 
+                error_log("BIA: Classe Bia está disponível, tipo: " . get_class($bia));
                 error_log("BIA: Chamando gerarDicionarioWord...");
+                
+                // Verificar se a URL é válida
+                if (!filter_var($recursoUrl, FILTER_VALIDATE_URL)) {
+                    error_log("BIA: URL inválida: " . $recursoUrl);
+                    throw new Exception("URL do recurso inválida: " . $recursoUrl);
+                }
+                
                 $outputFile = $bia->gerarDicionarioWord($recursoUrl, $templateFile);
                 error_log("BIA: Arquivo gerado: " . $outputFile);
 
                 if ($isAjax) {
+                    // Limpar qualquer output anterior
+                    if (ob_get_level()) {
+                        ob_clean();
+                    }
+                    
                     // Retornar resposta AJAX com dados de download
+                    header('Content-Type: application/json; charset=utf-8');
                     echo json_encode([
                         'success' => true,
                         'message' => 'Documento gerado e baixado com sucesso!',
                         'type' => 'success',
                         'downloadFile' => $outputFile,
                         'downloadFileName' => basename($outputFile)
-                    ]);
+                    ], JSON_UNESCAPED_UNICODE);
                     exit;
                 } else {
                     $_SESSION['message'] = 'Documento gerado e baixado com sucesso!';
@@ -185,7 +255,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errorMessage = 'Ocorreu um erro ao gerar o dicionário: ' . $e->getMessage();
                 
                 if ($isAjax) {
+                    // Limpar qualquer output anterior
+                    if (ob_get_level()) {
+                        ob_clean();
+                    }
+                    
                     http_response_code(500);
+                    header('Content-Type: application/json; charset=utf-8');
                     echo json_encode([
                         'success' => false,
                         'message' => $errorMessage,
@@ -195,7 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'line' => $e->getLine(),
                             'trace' => $e->getTraceAsString()
                         ]
-                    ]);
+                    ], JSON_UNESCAPED_UNICODE);
                     exit;
                 } else {
                     $_SESSION['message'] = $errorMessage;
@@ -1803,7 +1879,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             Gerar Dicionário de Dados
                         </h2>
                         <p class="description-text">
-                            Crie dicionários de dados em formato Word a partir de recursos CKAN. 
+                            Crie dicionários de dados em formato Word a partir de recursos CKAN.
                             O sistema analisa automaticamente a estrutura dos dados e gera documentação completa.
                         </p>
                         
@@ -3016,7 +3092,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             formData.append('action', 'gerar_dicionario');
             formData.append('recurso_url', recursoUrl);
             
-            fetch('', {
+            console.log('Enviando requisição AJAX...');
+            console.log('URL:', window.location.href);
+            console.log('FormData:', Object.fromEntries(formData));
+            
+            fetch('api/bia.php', {
                 method: 'POST',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest'
@@ -3027,8 +3107,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 console.log('Response status:', response.status);
                 console.log('Response headers:', response.headers);
                 
+                // Verificar se a resposta é JSON válida
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    console.error('Resposta não é JSON válida. Content-Type:', contentType);
+                    return response.text().then(text => {
+                        console.error('Resposta em texto:', text);
+                        throw new Error(`Resposta inválida do servidor: ${text.substring(0, 200)}...`);
+                    });
+                }
+                
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    return response.json().then(errorData => {
+                        console.error('Erro do servidor:', errorData);
+                        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                    });
                 }
                 
                 return response.json();
