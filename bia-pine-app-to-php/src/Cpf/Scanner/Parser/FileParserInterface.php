@@ -1,6 +1,6 @@
 <?php
 
-namespace CpfScanner\Parsing\Contract;
+namespace App\Cpf\Scanner\Parser;
 
 interface FileParserInterface
 {

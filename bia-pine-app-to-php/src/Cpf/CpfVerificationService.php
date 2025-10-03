@@ -1,7 +1,7 @@
 <?php
-// src/Integration/CpfVerificationService.php
+// src/Cpf/CpfVerificationService.php
 
-namespace CpfScanner\Integration;
+namespace App\Cpf;
 
 use Exception;
 use PDO;

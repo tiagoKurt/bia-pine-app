@@ -1,102 +1,101 @@
 <?php
+
+require_once __DIR__ . '/../../config.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
+
+use App\Worker\CkanScannerService;
+use App\Cpf\CpfVerificationService;
+
+// Headers para API
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Método não permitido']);
+// Trata requisições OPTIONS (preflight)
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
     exit;
 }
 
-$forceNew = isset($_POST['force']) && $_POST['force'] === 'true';
-
 try {
-    $lockDir = __DIR__ . '/../../cache';
-    $historyFile = $lockDir . '/scan-history.json';
-    
-    // Estratégia simplificada: usa apenas um arquivo de status fixo
-    $actualLockFile = $lockDir . '/scan_status.json';
-    
-    // Função para criar arquivo de lock de forma robusta
-    function createLockFile($lockFile) {
-        // Tenta criar o arquivo se não existir
-        if (!file_exists($lockFile)) {
-            $dir = dirname($lockFile);
-            if (!is_dir($dir)) {
-                @mkdir($dir, 0755, true);
-            }
-            @file_put_contents($lockFile, '{}');
-        }
-        
-        // Testa se consegue escrever no arquivo
-        $test = @file_put_contents($lockFile, '{}', LOCK_EX);
-        return $test !== false;
-    }
-    
-    $canCreateLock = createLockFile($actualLockFile);
-    
-    if (!is_dir($lockDir)) {
-        mkdir($lockDir, 0755, true);
+    // Verifica se é uma requisição POST
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        http_response_code(405);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Método não permitido. Use POST.'
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
     }
 
-    if (file_exists($historyFile)) {
-        $history = json_decode(file_get_contents($historyFile), true);
-        $lastScan = $history['lastCompletedScan'] ?? null;
+    // Verifica se já existe uma análise em andamento
+    $cacheDir = __DIR__ . '/../../cache';
+    $lockFile = $cacheDir . '/scan_status.json';
+    
+    // Cria diretório de cache se não existir
+    if (!is_dir($cacheDir)) {
+        mkdir($cacheDir, 0755, true);
+    }
+    
+    // Verifica se há análise em andamento
+    if (file_exists($lockFile)) {
+        $lockContent = file_get_contents($lockFile);
+        $lockData = json_decode($lockContent, true);
         
-        if ($lastScan) {
-            $lastScanTime = strtotime($lastScan);
-            $fourHoursAgo = time() - (4 * 3600);
+        if ($lockData && isset($lockData['status'])) {
+            $status = $lockData['status'];
             
-            if ($lastScanTime > $fourHoursAgo) {
-                $remainingTime = $lastScanTime + (4 * 3600) - time();
-                $hoursRemaining = ceil($remainingTime / 3600);
+            // Se está rodando ou pendente, não permite nova análise
+            if (in_array($status, ['running', 'pending'])) {
+                $nextScanAllowed = 'N/A';
+                if (isset($lockData['startTime'])) {
+                    $startTime = new DateTime($lockData['startTime']);
+                    $nextScanTime = $startTime->modify('+1 hour');
+                    $nextScanAllowed = $nextScanTime->format('d/m/Y H:i:s');
+                }
                 
                 echo json_encode([
-                    'success' => false, 
-                    'message' => "Aguarde {$hoursRemaining} hora(s) antes de executar uma nova análise.",
+                    'success' => false,
                     'cooldownActive' => true,
-                    'nextScanAllowed' => date('Y-m-d H:i:s', $lastScanTime + (4 * 3600))
-                ]);
+                    'message' => 'Já existe uma análise em andamento',
+                    'nextScanAllowed' => $nextScanAllowed
+                ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
         }
     }
 
-    if ($actualLockFile && file_exists($actualLockFile)) {
-        $lockData = json_decode(file_get_contents($actualLockFile), true);
-        
-        if (isset($lockData['status']) && in_array($lockData['status'], ['completed', 'failed'])) {
-            @unlink($actualLockFile);
-        } elseif (isset($lockData['status']) && in_array($lockData['status'], ['pending', 'running'])) {
-            $lastUpdate = isset($lockData['lastUpdate']) ? strtotime($lockData['lastUpdate']) : 0;
-            $currentTime = time();
-            $timeoutMinutes = 30;
-            $timeoutSeconds = $timeoutMinutes * 60;
-            
-            if (($currentTime - $lastUpdate) > $timeoutSeconds) {
-                @unlink($actualLockFile);
-            } else {
-                if ($forceNew) {
-                    @unlink($actualLockFile);
-                } else {
-                    $remainingTime = $timeoutSeconds - ($currentTime - $lastUpdate);
-                    $remainingMinutes = ceil($remainingTime / 60);
-                    
-                    echo json_encode([
-                        'success' => false, 
-                        'message' => "Uma análise já está em andamento. Aguarde {$remainingMinutes} minuto(s) ou force uma nova análise.",
-                        'currentStatus' => $lockData['status'],
-                        'canForce' => true,
-                        'timeout' => $remainingTime
-                    ]);
-                    exit;
-                }
-            }
-        }
+    // Verifica se é para forçar nova análise
+    $force = isset($_POST['force']) && $_POST['force'] === 'true';
+    
+    if ($force && file_exists($lockFile)) {
+        unlink($lockFile);
     }
-    $lockData = [
+
+    // Conecta ao banco de dados
+    $pdo = conectarBanco();
+    
+    // Configurações do CKAN
+    $ckanUrl = CKAN_API_URL;
+    $ckanApiKey = CKAN_API_KEY;
+    
+    // Cria o serviço de scanner
+    $scannerService = new CkanScannerService($ckanUrl, $ckanApiKey, $cacheDir, $pdo);
+    
+    // Define callback de progresso
+    $scannerService->setProgressCallback(function($data) use ($lockFile) {
+        $statusData = [
+            'status' => 'running',
+            'startTime' => date('c'),
+            'progress' => $data,
+            'lastUpdate' => date('c')
+        ];
+        file_put_contents($lockFile, json_encode($statusData, JSON_PRETTY_PRINT));
+    });
+    
+    // Cria arquivo de status inicial
+    $initialStatus = [
         'status' => 'pending',
         'startTime' => date('c'),
         'progress' => [
@@ -108,63 +107,67 @@ try {
         ],
         'lastUpdate' => date('c')
     ];
-
-    $jsonData = json_encode($lockData, JSON_PRETTY_PRINT);
-    if ($jsonData === false) {
-        throw new Exception('Erro ao serializar dados de status');
+    
+    file_put_contents($lockFile, json_encode($initialStatus, JSON_PRETTY_PRINT));
+    
+    // Executa o scanner diretamente em background usando popen
+    $scriptPath = __DIR__ . '/../../bin/run_scanner.php';
+    
+    // Cria o comando
+    $command = "php " . escapeshellarg($scriptPath);
+    if ($force) {
+        $command .= " --force";
     }
     
-    if (!$canCreateLock) {
-        throw new Exception('Não foi possível criar arquivo de controle da análise - problemas de permissão');
+    // Para Windows, usa start /B para executar em background
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $command = "start /B " . $command . " > NUL 2>&1";
+    } else {
+        $command .= " > /dev/null 2>&1 &";
     }
     
-    $success = @file_put_contents($actualLockFile, $jsonData);
-    
-    if (!$success) {
-        throw new Exception('Não foi possível criar arquivo de controle da análise');
+    // Executa o comando em background
+    $handle = popen($command, 'r');
+    if ($handle) {
+        pclose($handle);
+        error_log("Scanner iniciado com sucesso via popen");
+    } else {
+        // Fallback para exec se popen falhar
+        exec($command);
+        error_log("Scanner iniciado via exec (fallback)");
     }
     
-    if (!file_exists($actualLockFile) || filesize($actualLockFile) === 0) {
-        throw new Exception('Arquivo de controle não foi criado corretamente');
-    }
-
-    $workerPath = dirname(__DIR__, 2) . '/worker.php';
-    if (file_exists($workerPath)) {
-        $startWorkerPath = dirname(__DIR__, 2) . '/start-worker.php';
-        if (file_exists($startWorkerPath)) {
-            // Usa o start-worker.php que tem melhor controle
-            if (PHP_OS_FAMILY === 'Windows') {
-                $command = "start /B php \"$startWorkerPath\" > nul 2>&1";
-                pclose(popen($command, 'r'));
-            } else {
-                $command = "php \"$startWorkerPath\" > /dev/null 2>&1 &";
-                exec($command);
-            }
-        } else {
-            // Fallback para execução direta do worker
-            if (PHP_OS_FAMILY === 'Windows') {
-                $command = "start /B php \"$workerPath\" > nul 2>&1";
-                pclose(popen($command, 'r'));
-            } else {
-                $command = "php \"$workerPath\" > /dev/null 2>&1 &";
-                exec($command);
+    // Aguarda um momento para garantir que o processo iniciou
+    usleep(1000000); // 1 segundo
+    
+    // Verifica se o status foi atualizado para 'running'
+    $maxAttempts = 10;
+    $attempt = 0;
+    $statusUpdated = false;
+    
+    while ($attempt < $maxAttempts && !$statusUpdated) {
+        usleep(200000); // 0.2 segundos
+        if (file_exists($lockFile)) {
+            $lockContent = file_get_contents($lockFile);
+            $lockData = json_decode($lockContent, true);
+            if ($lockData && isset($lockData['status']) && $lockData['status'] === 'running') {
+                $statusUpdated = true;
             }
         }
-    } else {
-        error_log("Worker não encontrado em: " . $workerPath);
+        $attempt++;
     }
-
+    
     echo json_encode([
-        'success' => true, 
-        'message' => 'Análise iniciada em segundo plano.',
-        'status' => 'pending'
-    ]);
-
+        'success' => true,
+        'message' => 'Análise CKAN iniciada com sucesso',
+        'status' => 'started',
+        'status_updated' => $statusUpdated
+    ], JSON_UNESCAPED_UNICODE);
+    
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode([
-        'success' => false, 
-        'message' => 'Erro interno: ' . $e->getMessage()
-    ]);
+        'success' => false,
+        'message' => 'Erro ao iniciar análise: ' . $e->getMessage()
+    ], JSON_UNESCAPED_UNICODE);
 }
-?>

@@ -1,101 +1,68 @@
 <?php
-if (ob_get_level()) {
-    ob_end_clean();
-}
 
+require_once __DIR__ . '/../../config.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
+
+use App\Api\StatusController;
+
+// Headers para API
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+
+// Trata requisições OPTIONS (preflight)
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 
 try {
-    $statusFile = __DIR__ . '/../../cache/scan_status.json';
-
-    if (!file_exists($statusFile)) {
+    // Verifica se é uma requisição GET
+    if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+        http_response_code(405);
         echo json_encode([
-            'inProgress' => false,
-            'status' => 'idle',
-            'message' => 'Nenhuma análise em andamento'
-        ]);
+            'success' => false,
+            'message' => 'Método não permitido. Use GET.'
+        ], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
-    $statusContent = @file_get_contents($statusFile);
-    if ($statusContent === false || empty(trim($statusContent))) {
-        @unlink($statusFile);
-        echo json_encode([
-            'inProgress' => false,
-            'status' => 'idle',
-            'message' => 'Nenhuma análise em andamento'
-        ]);
-        exit;
-    }
-
-    $statusData = json_decode($statusContent, true);
-    if (!$statusData) {
-        @unlink($statusFile);
-        echo json_encode([
-            'inProgress' => false,
-            'status' => 'idle',
-            'message' => 'Dados de status corrompidos - arquivo removido'
-        ]);
-        exit;
-    }
-
-    $inProgress = in_array($statusData['status'] ?? '', ['pending', 'running']);
+    // Configuração de cache
+    $cacheDir = __DIR__ . '/../../cache';
+    $controller = new StatusController($cacheDir);
     
-    if (!$inProgress && isset($statusData['endTime'])) {
-        $endTime = strtotime($statusData['endTime']);
-        $oneHourAgo = time() - 3600;
-        
-        if ($endTime < $oneHourAgo) {
-            @unlink($statusFile);
-            echo json_encode([
-                'inProgress' => false,
-                'status' => 'idle',
-                'message' => 'Nenhuma análise em andamento'
-            ]);
-            exit;
-        }
-    }
-
+    // Obtém o status da análise
+    $statusData = $controller->getStatus();
+    
+    // Converte o status para o formato esperado pelo frontend
     $response = [
-        'inProgress' => $inProgress,
-        'status' => $statusData['status'] ?? 'unknown',
-        'progress' => $statusData['progress'] ?? null,
+        'success' => true,
+        'inProgress' => in_array($statusData['status'] ?? 'not_started', ['running', 'pending']),
+        'status' => $statusData['status'] ?? 'not_started',
+        'message' => $statusData['message'] ?? 'Análise não iniciada',
+        'progress' => $statusData['progress'] ?? [],
         'startTime' => $statusData['startTime'] ?? null,
         'lastUpdate' => $statusData['lastUpdate'] ?? null
     ];
-
-    switch ($statusData['status'] ?? '') {
-        case 'pending':
-            $response['message'] = 'Análise na fila, aguardando início...';
-            break;
-        case 'running':
-            $response['message'] = 'Análise em execução...';
-            break;
-        case 'completed':
-            $response['message'] = 'Análise concluída com sucesso!';
-            $response['endTime'] = $statusData['endTime'] ?? null;
-            $response['results'] = $statusData['results'] ?? null;
-            break;
-        case 'failed':
-            $response['message'] = 'Análise falhou';
-            $response['error'] = $statusData['error'] ?? 'Erro desconhecido';
-            $response['endTime'] = $statusData['endTime'] ?? null;
-            break;
-        default:
-            $response['message'] = 'Status desconhecido';
+    
+    // Se há progresso, adiciona informações específicas
+    if (isset($statusData['progress']) && is_array($statusData['progress'])) {
+        $progress = $statusData['progress'];
+        $response['datasets_analisados'] = $progress['datasets_analisados'] ?? 0;
+        $response['recursos_analisados'] = $progress['recursos_analisados'] ?? 0;
+        $response['recursos_com_cpfs'] = $progress['recursos_com_cpfs'] ?? 0;
+        $response['total_cpfs_salvos'] = $progress['total_cpfs_salvos'] ?? 0;
+        $response['current_step'] = $progress['current_step'] ?? 'Aguardando...';
     }
-
-    echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-
+    
+    echo json_encode($response, JSON_UNESCAPED_UNICODE);
+    
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode([
-        'inProgress' => false,
-        'status' => 'error',
-        'message' => 'Erro ao verificar status: ' . $e->getMessage()
-    ]);
+        'success' => false,
+        'message' => 'Erro ao obter status: ' . $e->getMessage(),
+        'inProgress' => false
+    ], JSON_UNESCAPED_UNICODE);
 }
-?>

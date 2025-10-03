@@ -1,6 +1,6 @@
 <?php
 
-namespace CpfScanner\Scanning\Contract;
+namespace App\Cpf\Scanner;
 
 interface CpfScannerInterface
 {

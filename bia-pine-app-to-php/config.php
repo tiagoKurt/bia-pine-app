@@ -11,31 +11,11 @@ if (file_exists(__DIR__ . '/.env') && class_exists('Dotenv\Dotenv')) {
 }
 
 // Configurações do Banco de Dados via variáveis de ambiente
-// if (!defined('DB_CONNECTION')) {
-//     define('DB_CONNECTION', $_ENV['DB_CONNECTION'] ?? 'mysql');
-// }
-// if (!defined('DB_HOST')) {
-//     define('DB_HOST', $_ENV['DB_HOST'] ?? '127.0.0.1');
-// }
-// if (!defined('DB_PORT')) {
-//     define('DB_PORT', $_ENV['DB_PORT'] ?? '3306');
-// }
-// if (!defined('DB_DATABASE')) {
-//     define('DB_DATABASE', $_ENV['DB_DATABASE'] ?? 'app_controladoria');
-// }
-// if (!defined('DB_USERNAME')) {
-//     define('DB_USERNAME', $_ENV['DB_USERNAME'] ?? 'root');
-// }
-// if (!defined('DB_PASSWORD')) {
-//     define('DB_PASSWORD', $_ENV['DB_PASSWORD'] ?? '');
-// }
-
-// homolog
 if (!defined('DB_CONNECTION')) {
     define('DB_CONNECTION', $_ENV['DB_CONNECTION'] ?? 'mysql');
 }
 if (!defined('DB_HOST')) {
-    define('DB_HOST', $_ENV['DB_HOST'] ?? 'mysqlhom01.intra.goias.gov.br');
+    define('DB_HOST', $_ENV['DB_HOST'] ?? '127.0.0.1');
 }
 if (!defined('DB_PORT')) {
     define('DB_PORT', $_ENV['DB_PORT'] ?? '3306');
@@ -44,11 +24,31 @@ if (!defined('DB_DATABASE')) {
     define('DB_DATABASE', $_ENV['DB_DATABASE'] ?? 'app_controladoria');
 }
 if (!defined('DB_USERNAME')) {
-    define('DB_USERNAME', $_ENV['DB_USERNAME'] ?? 'user_controla');
+    define('DB_USERNAME', $_ENV['DB_USERNAME'] ?? 'root');
 }
 if (!defined('DB_PASSWORD')) {
-    define('DB_PASSWORD', $_ENV['DB_PASSWORD'] ?? 'VEUFwSpVmh778gUVWhae');
+    define('DB_PASSWORD', $_ENV['DB_PASSWORD'] ?? '');
 }
+
+// homolog
+// if (!defined('DB_CONNECTION')) {
+//     define('DB_CONNECTION', $_ENV['DB_CONNECTION'] ?? 'mysql');
+// }
+// if (!defined('DB_HOST')) {
+//     define('DB_HOST', $_ENV['DB_HOST'] ?? 'mysqlhom01.intra.goias.gov.br');
+// }
+// if (!defined('DB_PORT')) {
+//     define('DB_PORT', $_ENV['DB_PORT'] ?? '3306');
+// }
+// if (!defined('DB_DATABASE')) {
+//     define('DB_DATABASE', $_ENV['DB_DATABASE'] ?? 'app_controladoria');
+// }
+// if (!defined('DB_USERNAME')) {
+//     define('DB_USERNAME', $_ENV['DB_USERNAME'] ?? 'user_controla');
+// }
+// if (!defined('DB_PASSWORD')) {
+//     define('DB_PASSWORD', $_ENV['DB_PASSWORD'] ?? 'VEUFwSpVmh778gUVWhae');
+// }
 
 // CREATE DATABASE IF NOT EXISTS analise_ckan;
 
@@ -105,6 +105,15 @@ if (!defined('GOOGLE_SPREADSHEET_ID')) {
 
 if (!defined('DEFAULT_CKAN_PORTAL')) {
     define('DEFAULT_CKAN_PORTAL', $_ENV['DEFAULT_CKAN_PORTAL'] ?? 'https://dadosabertos.go.gov.br');
+}
+
+// Configurações do CKAN via variáveis de ambiente
+if (!defined('CKAN_API_URL')) {
+    define('CKAN_API_URL', $_ENV['CKAN_API_URL'] ?? 'https://dadosabertos.go.gov.br/api/3/action/');
+}
+
+if (!defined('CKAN_API_KEY')) {
+    define('CKAN_API_KEY', $_ENV['CKAN_API_KEY'] ?? '');
 }
 
 if (!defined('HTTP_TIMEOUT')) {

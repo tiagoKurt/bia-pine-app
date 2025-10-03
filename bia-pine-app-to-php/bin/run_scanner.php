@@ -1,13 +1,13 @@
 <?php
 
-require_once __DIR__ . '/vendor/autoload.php';
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../config.php';
 
-use App\CkanScannerService;
+use App\Worker\CkanScannerService;
 use Dotenv\Dotenv;
 
 // --- Configuração ---
-$cacheDir = __DIR__ . '/cache';
+$cacheDir = __DIR__ . '/../cache';
 $queueFile = $cacheDir . '/scan_queue.json';
 
 // Estratégia simplificada: usa apenas um arquivo de lock fixo
@@ -63,20 +63,24 @@ try {
     echo "Diretório atual: " . __DIR__ . "\n";
     echo "Arquivo de status: " . ($actualLockFile ?: 'Nenhum (modo sem status)') . "\n";
     
-    if (file_exists(__DIR__ . '/.env')) {
+    // Log das configurações
+    echo "CKAN_API_URL: " . (defined('CKAN_API_URL') ? CKAN_API_URL : 'NÃO DEFINIDO') . "\n";
+    echo "CKAN_API_KEY: " . (defined('CKAN_API_KEY') ? (CKAN_API_KEY ? 'DEFINIDO' : 'VAZIO') : 'NÃO DEFINIDO') . "\n";
+    
+    if (file_exists(__DIR__ . '/../.env')) {
         echo "Carregando arquivo .env\n";
-        $dotenv = Dotenv::createImmutable(__DIR__);
+        $dotenv = Dotenv::createImmutable(__DIR__ . '/..');
         $dotenv->load();
     } else {
-        echo "Arquivo .env não encontrado, usando configurações padrão\n";
-        $_ENV['CKAN_API_URL'] = 'https://dadosabertos.go.gov.br';
-        $_ENV['CKAN_API_KEY'] = '';
+        echo "Arquivo .env não encontrado, usando configurações do config.php\n";
     }
 
-    if (!file_exists($lockFile)) {
+    if (!file_exists($actualLockFile)) {
         if ($forceAnalysis) {
-            echo "Forçando análise - criando novo arquivo de lock...\n";
-            fclose($lockFp);
+            echo "Forçando análise - criando novo arquivo de status...\n";
+            if ($lockFp) {
+                fclose($lockFp);
+            }
             
             $lockData = [
                 'status' => 'pending',
@@ -90,52 +94,70 @@ try {
                 ],
                 'lastUpdate' => date('c')
             ];
-            file_put_contents($lockFile, json_encode($lockData, JSON_PRETTY_PRINT));
+            @file_put_contents($actualLockFile, json_encode($lockData, JSON_PRETTY_PRINT));
             
-            $lockFp = fopen($lockFile, 'c+');
+            $lockFp = @fopen($actualLockFile, 'c+');
             if (!$lockFp) {
-                echo "Erro ao reabrir arquivo de lock: $lockFile\n";
+                echo "Erro ao reabrir arquivo de status: $actualLockFile\n";
                 exit(1);
             }
         } else {
-            echo "Arquivo de lock não encontrado: $lockFile\n";
-            fclose($lockFp);
+            echo "Arquivo de status não encontrado: $actualLockFile\n";
+            if ($lockFp) {
+                fclose($lockFp);
+            }
             exit;
         }
     }
     
-    echo "Arquivo de lock encontrado: $lockFile\n";
+    echo "Arquivo de status encontrado: $actualLockFile\n";
 
     $lockContent = '';
-    rewind($lockFp);
-    while (!feof($lockFp)) {
-        $lockContent .= fread($lockFp, 8192);
+    if ($lockFp) {
+        rewind($lockFp);
+        while (!feof($lockFp)) {
+            $lockContent .= fread($lockFp, 8192);
+        }
+    } else {
+        $lockContent = @file_get_contents($actualLockFile);
     }
     
     if (empty(trim($lockContent))) {
-        fclose($lockFp);
-        unlink($lockFile);
+        if ($lockFp) {
+            fclose($lockFp);
+        }
+        if ($actualLockFile) {
+            @unlink($actualLockFile);
+        }
         exit;
     }
 
     $status = json_decode($lockContent, true);
     if (!$status) {
-        fclose($lockFp);
-        unlink($lockFile);
+        if ($lockFp) {
+            fclose($lockFp);
+        }
+        if ($actualLockFile) {
+            @unlink($actualLockFile);
+        }
         exit;
     }
 
     if ($status['status'] === 'completed' || $status['status'] === 'failed') {
         if (file_exists($queueFile)) unlink($queueFile);
-        fclose($lockFp);
-        unlink($lockFile);
+        if ($lockFp) {
+            fclose($lockFp);
+        }
+        if ($actualLockFile) {
+            @unlink($actualLockFile);
+        }
         exit;
     }
 
     $pdo = conectarBanco();
     $scanner = new CkanScannerService(
-        $_ENV['CKAN_API_URL'] ?? 'https://dadosabertos.go.gov.br',
-        $_ENV['CKAN_API_KEY'] ?? '',
+        CKAN_API_URL,
+        CKAN_API_KEY,
         $cacheDir . '/ckan_api',
         $pdo
     );

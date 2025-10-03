@@ -2345,7 +2345,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     const portalUrl = document.getElementById('portal_url').value;
                     if (portalUrl) {
                         currentPortalUrl = portalUrl;
-                        loadPineData();
+                        // Removido loadPineData() - análise só será executada manualmente
                     }
                 });
             } else {
@@ -2425,13 +2425,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (portalUrl) {
                 console.log('URL de portal encontrada:', portalUrl);
                 currentPortalUrl = portalUrl;
-                // Aguardar um pouco para garantir que a página carregou completamente
-                setTimeout(() => {
-                    if (document.getElementById('pine').classList.contains('active')) {
-                        console.log('PINE está ativo, carregando dados');
-                        loadPineData();
-                    }
-                }, 100);
+                // Removido carregamento automático - análise só será executada manualmente
             } else {
                 loadExistingPineData();
             }

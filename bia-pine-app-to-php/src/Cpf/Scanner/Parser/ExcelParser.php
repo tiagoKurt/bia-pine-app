@@ -1,8 +1,8 @@
 <?php
 
-namespace CpfScanner\Parsing\Parser;
+namespace App\Cpf\Scanner\Parser;
 
-use CpfScanner\Parsing\Contract\FileParserInterface;
+use App\Cpf\Scanner\Parser\FileParserInterface;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Exception as SpreadsheetException;
 

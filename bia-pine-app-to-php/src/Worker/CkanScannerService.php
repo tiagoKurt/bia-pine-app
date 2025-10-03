@@ -1,19 +1,22 @@
 <?php
 
-namespace App;
+namespace App\Worker;
 
-use CpfScanner\Ckan\CkanApiClient;
-use CpfScanner\Parsing\Factory\FileParserFactory;
-use CpfScanner\Scanning\Strategy\LogicBasedScanner;
-use CpfScanner\Integration\CpfVerificationService;
+use App\Cpf\Ckan\CkanApiClient;
+use App\Cpf\Scanner\Parser\FileParserFactory;
+use App\Cpf\Scanner\LogicBasedScanner;
+use App\Cpf\CpfVerificationService;
 use Exception;
 
 class CkanScannerService
 {
-    private const RECURSOS_POR_LOTE = 100; // Lote otimizado para processamento eficiente
+    private const RECURSOS_POR_LOTE = 20; // Lote reduzido para melhor controle de memória - 20 arquivos
     private const TEMPO_LIMITE_EXECUCAO = 3600; // 60 minutos - tempo mais generoso
-    private const MEMORY_LIMIT_MB = 512; // Limite de memória aumentado
-    private const BATCH_SIZE = 100; // Tamanho do lote para processamento
+    private const MEMORY_LIMIT_MB = 256; // Limite de memória mais conservador
+    private const BATCH_SIZE = 20; // Tamanho do lote para processamento - 20 arquivos
+    private const CLEANUP_AFTER_BATCH = true; // Limpar arquivos após cada lote
+    private const MAX_FILE_SIZE_MB = 50; // Limite de arquivo reduzido para 50MB
+    private const CHUNK_SIZE = 4096; // Chunk menor para streaming - 4KB
 
     private CkanApiClient $ckanClient;
     private LogicBasedScanner $scanner;
@@ -66,13 +69,28 @@ class CkanScannerService
             $this->scanner = new LogicBasedScanner();
         }
         
-        // Força coleta de lixo
-        if (function_exists('gc_collect_cycles')) {
-            gc_collect_cycles();
+        // Limpa o cliente CKAN se existir
+        if (isset($this->ckanClient)) {
+            unset($this->ckanClient);
         }
+        
+        // Força coleta de lixo múltiplas vezes
+        $this->forceGarbageCollection();
         
         // Limpa cache de arquivos temporários
         $this->cleanTempFiles();
+        
+        // Log do uso de memória após limpeza
+        $memoryUsage = memory_get_usage(true) / 1024 / 1024;
+        $peakMemory = memory_get_peak_usage(true) / 1024 / 1024;
+        echo "Memória após limpeza: " . round($memoryUsage, 2) . "MB (Pico: " . round($peakMemory, 2) . "MB)\n";
+        
+        // Se a memória ainda estiver alta, força mais limpeza
+        if ($memoryUsage > self::MEMORY_LIMIT_MB * 0.8) {
+            echo "Memória alta detectada, forçando limpeza adicional...\n";
+            $this->forceGarbageCollection();
+            $this->cleanTempFiles();
+        }
     }
 
     /**
@@ -109,6 +127,35 @@ class CkanScannerService
                          round($freedSpace / 1024 / 1024, 2) . "MB liberados");
             }
         }
+    }
+
+    /**
+     * Limpa arquivos temporários do diretório de cache após cada lote
+     */
+    private function cleanupTempFiles(): void
+    {
+        if (!is_dir($this->tempDir)) {
+            return;
+        }
+
+        $files = glob($this->tempDir . '/*');
+        $deletedCount = 0;
+        
+        foreach ($files as $file) {
+            if (is_file($file)) {
+                // Remove todos os arquivos temporários após cada lote
+                if (@unlink($file)) {
+                    $deletedCount++;
+                }
+            }
+        }
+        
+        if ($deletedCount > 0) {
+            echo "Limpeza: {$deletedCount} arquivos temporários removidos após lote\n";
+        }
+        
+        // Força garbage collection após limpeza
+        gc_collect_cycles();
     }
 
     /**
@@ -279,7 +326,7 @@ class CkanScannerService
         $recursosProcessadosNesteLote = 0;
         $datasetsProcessados = [];
         
-        // Processa em lotes de 100 recursos
+        // Processa em lotes de 30 recursos
         for ($i = $indiceInicial; $i < $totalRecursos; $i += self::BATCH_SIZE) {
             $loteAtual = min(self::BATCH_SIZE, $totalRecursos - $i);
             echo "--- Processando lote: recursos " . ($i + 1) . " a " . ($i + $loteAtual) . " ---\n";
@@ -293,7 +340,13 @@ class CkanScannerService
             
             echo "Lote processado: {$resultadoLote['processados']} recursos\n";
             echo "Total processado: " . ($i + $loteAtual) . "/$totalRecursos recursos\n";
-            echo "Memória atual: " . round(memory_get_usage(true) / 1024 / 1024, 2) . "MB\n\n";
+            echo "Memória atual: " . round(memory_get_usage(true) / 1024 / 1024, 2) . "MB\n";
+            
+            // Limpeza automática de arquivos temporários após cada lote de 30
+            if (self::CLEANUP_AFTER_BATCH) {
+                $this->cleanupTempFiles();
+                echo "Arquivos temporários limpos após lote de 30 recursos\n";
+            }
             
             // Verifica se deve parar APÓS processar o lote
             if ($this->shouldStopForMemoryOrTime($startTimeFromLock)) {
@@ -519,84 +572,289 @@ class CkanScannerService
 
     /**
      * Lógica para baixar, analisar e extrair CPFs de um único recurso.
+     * Versão otimizada com streaming de arquivos para reduzir uso de memória.
      */
     private function _processarRecursoIndividual(array $recurso): array
     {
-        $filePath = null;
+        $filePath = $this->tempDir . '/' . uniqid('res_') . '.tmp';
+        $foundCpfs = [];
+        
         try {
-            // Verifica se a URL é válida
+            // 1. Verifica se a URL é válida
             if (empty($recurso['url']) || !filter_var($recurso['url'], FILTER_VALIDATE_URL)) {
                 return [];
             }
 
-            // Configura timeout para download
-            $context = stream_context_create([
-                'http' => [
-                    'timeout' => 30,
-                    'user_agent' => 'CKAN-Scanner/1.0'
-                ]
-            ]);
-
-            $fileContent = @file_get_contents($recurso['url'], false, $context);
-            if ($fileContent === false || empty($fileContent)) {
-                return [];
-            }
-
-            // Verifica se o arquivo não é muito grande (limite aumentado para 200MB)
-            if (strlen($fileContent) > 110 * 1024 * 1024) {
-                error_log("Arquivo muito grande ignorado: {$recurso['resource_id']} (" . round(strlen($fileContent) / 1024 / 1024, 2) . "MB)");
-                return [];
-            }
-
-            // Verifica espaço em disco antes de salvar
-            $freeSpace = disk_free_space($this->tempDir);
-            if ($freeSpace < strlen($fileContent) + (110 * 1024 * 1024)) { // 200MB de margem
-                error_log("Espaço insuficiente em disco para processar: {$recurso['resource_id']}");
-                return [];
-            }
-
-            $fileName = basename(parse_url($recurso['url'], PHP_URL_PATH)) ?: $recurso['resource_id'] . '.' . ($recurso['format'] ?? 'txt');
-            $filePath = $this->tempDir . '/' . $fileName;
+            echo "Baixando em streaming: {$recurso['url']} para {$filePath}\n";
             
-            // Salva o arquivo temporário
-            if (@file_put_contents($filePath, $fileContent) === false) {
-                error_log("Falha ao salvar arquivo temporário: {$filePath}");
+            // 2. Download do Arquivo para o Disco (STREAMING OTIMIZADO)
+            $downloadSuccess = $this->downloadFileStreaming($recurso['url'], $filePath);
+            
+            if (!$downloadSuccess || !file_exists($filePath) || filesize($filePath) === 0) {
+                echo "Falha ao baixar ou arquivo vazio: {$recurso['url']}\n";
+                @unlink($filePath);
                 return [];
             }
 
-            // Limpa o conteúdo da memória imediatamente
-            unset($fileContent);
-
-            try {
-                $parser = FileParserFactory::createParserFromFile($filePath);
-                $textContent = $parser->getText($filePath);
-            } catch (Exception $e) {
-                error_log("Erro ao processar arquivo: {$filePath} - " . $e->getMessage());
-                $textContent = '';
-            } finally {
-                // Remove o arquivo temporário imediatamente após processamento
-                if ($filePath && file_exists($filePath)) {
-                    unlink($filePath);
-                }
-            }
-
-            if (empty(trim($textContent))) {
+            // 3. Verifica Tamanho do Arquivo (após o download)
+            $fileSize = filesize($filePath);
+            $maxSizeBytes = self::MAX_FILE_SIZE_MB * 1024 * 1024;
+            if ($fileSize > $maxSizeBytes) {
+                error_log("Arquivo muito grande ignorado: {$recurso['resource_id']} (" . round($fileSize / 1024 / 1024, 2) . "MB)");
+                @unlink($filePath);
                 return [];
             }
 
-            $result = $this->scanner->scan($textContent);
-            
-            // Limpa o conteúdo de texto da memória
-            unset($textContent);
-            
-            return $result;
+            // 4. Processamento do Arquivo com Streaming Otimizado
+            $foundCpfs = $this->processFileOptimized($filePath);
 
         } catch (Exception $e) {
             error_log("Erro ao processar recurso {$recurso['resource_id']}: " . $e->getMessage());
-            if ($filePath && file_exists($filePath)) {
-                unlink($filePath);
+            return [];
+        } finally {
+            // 5. Limpeza: Remove o arquivo temporário
+            if (file_exists($filePath)) {
+                @unlink($filePath);
             }
+            // Força coleta de lixo agressiva
+            $this->forceGarbageCollection();
+        }
+        
+        return $foundCpfs;
+    }
+
+    /**
+     * Download de arquivo com streaming otimizado para reduzir uso de memória
+     */
+    private function downloadFileStreaming(string $url, string $filePath): bool
+    {
+        try {
+            // Cria contexto HTTP com timeout e headers otimizados
+            $context = stream_context_create([
+                'http' => [
+                    'timeout' => 30,
+                    'user_agent' => 'CKAN-Scanner/1.0',
+                    'method' => 'GET',
+                    'header' => [
+                        'Connection: close',
+                        'Accept-Encoding: gzip, deflate'
+                    ]
+                ]
+            ]);
+            
+            // Abre o arquivo de destino para escrita
+            $fileHandle = fopen($filePath, 'w');
+            if (!$fileHandle) {
+                return false;
+            }
+            
+            // Abre o stream de origem
+            $sourceHandle = fopen($url, 'r', false, $context);
+            if (!$sourceHandle) {
+                fclose($fileHandle);
+                return false;
+            }
+            
+            // Copia em chunks pequenos para reduzir uso de memória
+            $chunkSize = self::CHUNK_SIZE;
+            $totalBytes = 0;
+            $maxBytes = self::MAX_FILE_SIZE_MB * 1024 * 1024;
+            
+            while (!feof($sourceHandle)) {
+                $chunk = fread($sourceHandle, $chunkSize);
+                if ($chunk === false) {
+                    break;
+                }
+                
+                $totalBytes += strlen($chunk);
+                
+                // Verifica limite de tamanho durante o download
+                if ($totalBytes > $maxBytes) {
+                    fclose($sourceHandle);
+                    fclose($fileHandle);
+                    @unlink($filePath);
+                    return false;
+                }
+                
+                fwrite($fileHandle, $chunk);
+                
+                // Força coleta de lixo a cada 1MB baixado
+                if ($totalBytes % (1024 * 1024) === 0) {
+                    if (function_exists('gc_collect_cycles')) {
+                        gc_collect_cycles();
+                    }
+                }
+            }
+            
+            fclose($sourceHandle);
+            fclose($fileHandle);
+            
+            return $totalBytes > 0;
+            
+        } catch (Exception $e) {
+            error_log("Erro no download streaming: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Processamento otimizado de arquivo com streaming
+     */
+    private function processFileOptimized(string $filePath): array
+    {
+        $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        
+        // Para arquivos CSV/TXT, usa streaming linha por linha
+        if (in_array($extension, ['csv', 'txt', 'tsv'])) {
+            return $this->processFileStreamingOptimized($filePath);
+        }
+        
+        // Para outros formatos, usa parser tradicional mas com limpeza agressiva
+        return $this->processFileTraditional($filePath);
+    }
+
+    /**
+     * Processamento tradicional com limpeza agressiva de memória
+     */
+    private function processFileTraditional(string $filePath): array
+    {
+        $foundCpfs = [];
+        
+        try {
+            $parser = FileParserFactory::createParserFromFile($filePath);
+            $textContent = $parser->getText($filePath);
+            
+            if (!empty(trim($textContent))) {
+                $foundCpfs = $this->scanner->scan($textContent);
+            }
+            
+            // Limpeza imediata
+            unset($textContent);
+            unset($parser);
+            
+        } catch (Exception $e) {
+            error_log("Erro no processamento tradicional: " . $e->getMessage());
+        }
+        
+        return $foundCpfs;
+    }
+
+    /**
+     * Processamento com streaming otimizado para CSV/TXT
+     */
+    private function processFileStreamingOptimized(string $filePath): array
+    {
+        $foundCpfs = [];
+        $handle = fopen($filePath, 'r');
+        
+        if (!$handle) {
             return [];
         }
+
+        $buffer = '';
+        $chunkSize = self::CHUNK_SIZE;
+        $processedBytes = 0;
+        $fileSize = filesize($filePath);
+        
+        while (!feof($handle)) {
+            $chunk = fread($handle, $chunkSize);
+            if ($chunk === false) {
+                break;
+            }
+            
+            $buffer .= $chunk;
+            $processedBytes += strlen($chunk);
+            
+            // Processa o buffer quando ele atinge um tamanho razoável
+            if (strlen($buffer) > 32768) { // 32KB
+                $cpfs = $this->scanner->scan($buffer);
+                $foundCpfs = array_merge($foundCpfs, $cpfs);
+                $buffer = ''; // Limpa o buffer
+                
+                // Força coleta de lixo a cada chunk
+                $this->forceGarbageCollection();
+            }
+            
+            // Log de progresso a cada 10% do arquivo
+            if ($fileSize > 0 && $processedBytes % max(1, intval($fileSize / 10)) === 0) {
+                $progress = round(($processedBytes / $fileSize) * 100, 1);
+                echo "Processando arquivo: {$progress}% ({$processedBytes}/{$fileSize} bytes)\n";
+            }
+        }
+        
+        // Processa o buffer restante
+        if (!empty($buffer)) {
+            $cpfs = $this->scanner->scan($buffer);
+            $foundCpfs = array_merge($foundCpfs, $cpfs);
+        }
+        
+        fclose($handle);
+        
+        // Remove duplicatas e retorna
+        return array_unique($foundCpfs);
+    }
+
+    /**
+     * Força coleta de lixo de forma agressiva
+     */
+    private function forceGarbageCollection(): void
+    {
+        if (function_exists('gc_collect_cycles')) {
+            gc_collect_cycles();
+            gc_collect_cycles(); // Dupla coleta para garantir limpeza
+        }
+    }
+
+    /**
+     * Verifica se o arquivo pode ser processado com streaming (CSV, TXT)
+     */
+    private function canProcessStreaming(string $filePath): bool
+    {
+        $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        return in_array($extension, ['csv', 'txt', 'tsv']);
+    }
+
+    /**
+     * Processa arquivo com streaming para reduzir uso de memória
+     */
+    private function processFileStreaming(string $filePath, $parser): array
+    {
+        $foundCpfs = [];
+        $handle = fopen($filePath, 'r');
+        
+        if (!$handle) {
+            return [];
+        }
+
+        $buffer = '';
+        $chunkSize = 8192; // 8KB por chunk
+        
+        while (!feof($handle)) {
+            $chunk = fread($handle, $chunkSize);
+            $buffer .= $chunk;
+            
+            // Processa o buffer quando ele atinge um tamanho razoável
+            if (strlen($buffer) > 65536) { // 64KB
+                $cpfs = $this->scanner->scan($buffer);
+                $foundCpfs = array_merge($foundCpfs, $cpfs);
+                $buffer = ''; // Limpa o buffer
+                
+                // Força coleta de lixo a cada chunk
+                if (function_exists('gc_collect_cycles')) {
+                    gc_collect_cycles();
+                }
+            }
+        }
+        
+        // Processa o buffer restante
+        if (!empty($buffer)) {
+            $cpfs = $this->scanner->scan($buffer);
+            $foundCpfs = array_merge($foundCpfs, $cpfs);
+        }
+        
+        fclose($handle);
+        
+        // Remove duplicatas
+        return array_unique($foundCpfs);
     }
 }

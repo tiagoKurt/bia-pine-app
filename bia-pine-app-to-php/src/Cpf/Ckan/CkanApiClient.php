@@ -1,6 +1,6 @@
 <?php
 
-namespace CpfScanner\Ckan;
+namespace App\Cpf\Ckan;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
@@ -16,7 +16,7 @@ class CkanApiClient
     public function __construct(string $baseUrl, string $apiKey = '', string $cacheDir = 'cache', int $maxRetries = 5)
     {
         $this->httpClient = new Client([
-            'base_uri' => rtrim($baseUrl, '/') . '/api/3/action/',
+            'base_uri' => rtrim($baseUrl, '/') . '/',
             'timeout' => 30,
             'connect_timeout' => 10
         ]);

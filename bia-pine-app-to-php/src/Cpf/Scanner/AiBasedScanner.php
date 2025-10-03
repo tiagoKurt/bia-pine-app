@@ -1,8 +1,8 @@
 <?php
 
-namespace CpfScanner\Scanning\Strategy;
+namespace App\Cpf\Scanner;
 
-use CpfScanner\Scanning\Contract\CpfScannerInterface;
+use App\Cpf\Scanner\CpfScannerInterface;
 
 class AiBasedScanner implements CpfScannerInterface
 {

@@ -1,30 +1,21 @@
 <?php
 
-namespace CpfScanner\Parsing\Parser;
+namespace App\Cpf\Scanner\Parser;
 
-use CpfScanner\Parsing\Contract\FileParserInterface;
-use CpfScanner\Validation\PdfValidator;
+use App\Cpf\Scanner\Parser\FileParserInterface;
 use Smalot\PdfParser\Parser;
 use Exception as PdfParserException;
 
-// Carregar configurações específicas de PDF
-require_once __DIR__ . '/../../../config/pdf-config.php';
-
 class PdfParser implements FileParserInterface
 {
-    private $pdfValidator;
     private $maxExecutionTime;
     private $memoryLimit;
 
     public function __construct()
     {
-        $this->pdfValidator = new PdfValidator();
         // Configurações otimizadas para PDFs grandes
-        $this->maxExecutionTime = PDF_MAX_EXECUTION_TIME;
-        $this->memoryLimit = PDF_MEMORY_LIMIT;
-        
-        // Aplicar configurações específicas de PDF
-        aplicarConfiguracoesPdf();
+        $this->maxExecutionTime = 1800; // 30 minutos
+        $this->memoryLimit = '4G';
     }
 
     public function getText(string $filePath): string
@@ -40,25 +31,16 @@ class PdfParser implements FileParserInterface
         ini_set('max_execution_time', $this->maxExecutionTime);
         ini_set('memory_limit', $this->memoryLimit);
 
-        // Validar o arquivo PDF antes de processar
-        $validation = $this->pdfValidator->validatePdfFile($filePath);
-        if (!$validation['valid']) {
-            // Restaurar configurações originais
-            ini_set('max_execution_time', $originalTimeLimit);
-            ini_set('memory_limit', $originalMemoryLimit);
-            throw new \Exception("Arquivo PDF inválido: " . $validation['message']);
-        }
-
         try {
             // Verificar tamanho do arquivo antes do processamento
             $fileSize = filesize($filePath);
-            if ($fileSize > PDF_MAX_SIZE_WARNING) {
-                logPdf('WARNING', "Arquivo PDF muito grande: " . round($fileSize / 1024 / 1024, 2) . "MB", ['file' => $filePath]);
+            if ($fileSize > 100 * 1024 * 1024) { // 100MB
+                error_log("WARNING: Arquivo PDF muito grande: " . round($fileSize / 1024 / 1024, 2) . "MB - {$filePath}");
             }
 
-            // Verificar se deve processar em chunks
-            if (deveProcessarEmChunks($filePath)) {
-                logPdf('INFO', "Processando PDF grande em chunks", ['file' => $filePath, 'size' => $fileSize]);
+            // Verificar se deve processar em chunks (PDFs maiores que 50MB)
+            if ($fileSize > 50 * 1024 * 1024) {
+                error_log("INFO: Processando PDF grande em chunks - {$filePath} (" . round($fileSize / 1024 / 1024, 2) . "MB)");
                 $chunks = $this->getTextInChunks($filePath);
                 $fullText = '';
                 
@@ -70,7 +52,7 @@ class PdfParser implements FileParserInterface
                 ini_set('max_execution_time', $originalTimeLimit);
                 ini_set('memory_limit', $originalMemoryLimit);
                 
-                logPdf('INFO', "Concluído processamento em chunks", ['file' => $filePath, 'text_length' => strlen($fullText)]);
+                error_log("INFO: Concluído processamento em chunks - {$filePath} (" . strlen($fullText) . " caracteres)");
                 return $fullText;
             }
 
@@ -78,7 +60,7 @@ class PdfParser implements FileParserInterface
             
             // Configurar timeout específico para o parser
             $startTime = microtime(true);
-            $timeout = PDF_TIMEOUT;
+            $timeout = 1200; // 20 minutos
             
             // Usar output buffering para capturar possíveis erros
             ob_start();
@@ -114,15 +96,9 @@ class PdfParser implements FileParserInterface
             
         } catch (PdfParserException $e) {
             // Log detalhado para debug
-            $fileInfo = $this->pdfValidator->getFileInfo($filePath);
             $executionTime = isset($startTime) ? microtime(true) - $startTime : 0;
             
-            logPdf('ERROR', "Falha ao processar PDF", [
-                'file' => $filePath,
-                'file_info' => $fileInfo,
-                'error' => $e->getMessage(),
-                'execution_time' => $executionTime
-            ]);
+            error_log("ERROR: Falha ao processar PDF - {$filePath} - {$e->getMessage()} - Tempo: {$executionTime}s");
             
             // Restaurar configurações originais
             ini_set('max_execution_time', $originalTimeLimit);
@@ -134,10 +110,7 @@ class PdfParser implements FileParserInterface
             ini_set('max_execution_time', $originalTimeLimit);
             ini_set('memory_limit', $originalMemoryLimit);
             
-            logPdf('ERROR', "Erro inesperado ao processar PDF", [
-                'file' => $filePath,
-                'error' => $e->getMessage()
-            ]);
+            error_log("ERROR: Erro inesperado ao processar PDF - {$filePath} - {$e->getMessage()}");
             
             throw new \Exception("Erro inesperado ao processar '{$filePath}': " . $e->getMessage());
         }
@@ -165,7 +138,7 @@ class PdfParser implements FileParserInterface
 
         // Usar configuração padrão se não especificado
         if ($maxChunkSize === null) {
-            $maxChunkSize = PDF_CHUNK_SIZE;
+            $maxChunkSize = 10; // 10 páginas por chunk
         }
 
         // Configurar limites antes do processamento
@@ -214,21 +187,13 @@ class PdfParser implements FileParserInterface
                     }
 
                     // Log de progresso para PDFs grandes
-                    if ($totalPages > 100 && ($pageIndex + 1) % PDF_LOG_PROGRESS_INTERVAL === 0) {
-                        logPdf('INFO', "Progresso do processamento em chunks", [
-                            'file' => $filePath,
-                            'pages_processed' => $pageIndex + 1,
-                            'total_pages' => $totalPages,
-                            'percentage' => round((($pageIndex + 1) / $totalPages) * 100, 2)
-                        ]);
+                    if ($totalPages > 100 && ($pageIndex + 1) % 50 === 0) {
+                        $percentage = round((($pageIndex + 1) / $totalPages) * 100, 2);
+                        error_log("INFO: Progresso do processamento em chunks - {$filePath} - Páginas: " . ($pageIndex + 1) . "/{$totalPages} ({$percentage}%)");
                     }
 
                 } catch (\Exception $e) {
-                    logPdf('WARNING', "Erro ao processar página específica", [
-                        'file' => $filePath,
-                        'page' => $pageIndex + 1,
-                        'error' => $e->getMessage()
-                    ]);
+                    error_log("WARNING: Erro ao processar página específica - {$filePath} - Página: " . ($pageIndex + 1) . " - {$e->getMessage()}");
                     continue; // Continua com a próxima página
                 }
             }
@@ -253,6 +218,11 @@ class PdfParser implements FileParserInterface
      */
     public function shouldProcessInChunks(string $filePath): bool
     {
-        return deveProcessarEmChunks($filePath);
+        if (!file_exists($filePath)) {
+            return false;
+        }
+        
+        $fileSize = filesize($filePath);
+        return $fileSize > 50 * 1024 * 1024; // 50MB
     }
 }
