@@ -1,23 +1,15 @@
 <?php
 
-// Garantir que o autoloader esteja disponível
 ensureAutoloader();
 require_once __DIR__ . '/../config.php';
 
 use App\Worker\CkanScannerService;
 use App\Cpf\CpfRepository;
 use Dotenv\Dotenv;
-
-// --- Configuração ---
 $cacheDir = __DIR__ . '/../cache';
 $queueFile = $cacheDir . '/scan_queue.json';
-
-// Estratégia simplificada: usa apenas um arquivo de lock fixo
 $actualLockFile = $cacheDir . '/scan_status.json';
-
-// Função para criar/abrir arquivo de lock de forma robusta
 function createLockFile($lockFile) {
-    // Tenta criar o arquivo se não existir
     if (!file_exists($lockFile)) {
         $dir = dirname($lockFile);
         if (!is_dir($dir)) {
@@ -26,7 +18,6 @@ function createLockFile($lockFile) {
         @file_put_contents($lockFile, '{}');
     }
     
-    // Tenta abrir o arquivo
     $lockFp = @fopen($lockFile, 'c+');
     if ($lockFp) {
         return [$lockFp, $lockFile];
@@ -44,11 +35,10 @@ if (!$lockFp) {
 $forceAnalysis = (isset($argv[1]) && $argv[1] === '--force') || 
                  (isset($GLOBALS['FORCE_ANALYSIS']) && $GLOBALS['FORCE_ANALYSIS']);
 
-// Verifica se o arquivo tem um timestamp recente (menos de 5 minutos)
 if ($actualLockFile && file_exists($actualLockFile) && !$forceAnalysis) {
     $fileTime = filemtime($actualLockFile);
     $currentTime = time();
-    if (($currentTime - $fileTime) < 300) { // 5 minutos
+    if (($currentTime - $fileTime) < 300) {
         echo "Outro processo de análise pode estar em execução (arquivo recente).\n";
         if ($lockFp) fclose($lockFp);
         exit;
@@ -62,19 +52,10 @@ if ($forceAnalysis && $actualLockFile && file_exists($actualLockFile)) {
 
 try {
     echo "Worker iniciado em: " . date('Y-m-d H:i:s') . "\n";
-    echo "Diretório atual: " . __DIR__ . "\n";
-    echo "Arquivo de status: " . ($actualLockFile ?: 'Nenhum (modo sem status)') . "\n";
-    
-    // Log das configurações
-    echo "CKAN_API_URL: " . (defined('CKAN_API_URL') ? CKAN_API_URL : 'NÃO DEFINIDO') . "\n";
-    echo "CKAN_API_KEY: " . (defined('CKAN_API_KEY') ? (CKAN_API_KEY ? 'DEFINIDO' : 'VAZIO') : 'NÃO DEFINIDO') . "\n";
     
     if (file_exists(__DIR__ . '/../.env')) {
-        echo "Carregando arquivo .env\n";
         $dotenv = Dotenv::createImmutable(__DIR__ . '/..');
         $dotenv->load();
-    } else {
-        echo "Arquivo .env não encontrado, usando configurações do config.php\n";
     }
 
     if (!file_exists($actualLockFile)) {

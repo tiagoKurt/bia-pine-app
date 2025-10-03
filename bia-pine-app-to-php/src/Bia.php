@@ -10,6 +10,10 @@ class Bia
     
     public function __construct()
     {
+        // Verificar se o PhpWord está disponível
+        if (!class_exists('PhpOffice\PhpWord\TemplateProcessor')) {
+            throw new \Exception('PhpOffice\PhpWord\TemplateProcessor não está disponível. Verifique se o PhpWord está instalado corretamente.');
+        }
     }
 
     public function gerarDocumentoComTemplate(string $templatePath, string $titulo, string $descricao, array $colunas, string $outputPath = null): string
@@ -57,31 +61,59 @@ class Bia
 
     public function gerarDicionarioWord(string $recursoUrl, string $templatePath): string
     {
-        if (!preg_match('/\/resource\/([a-zA-Z0-9-]+)/', $recursoUrl, $matches)) {
-            throw new \Exception('Link do recurso CKAN inválido.');
-        }
-        $resourceId = $matches[1];
+        try {
+            // Validar URL do recurso
+            if (empty($recursoUrl) || !filter_var($recursoUrl, FILTER_VALIDATE_URL)) {
+                throw new \Exception('URL do recurso inválida.');
+            }
 
-        if (!preg_match('/\/dataset\/([a-zA-Z0-9-]+)/', $recursoUrl, $matches)) {
-            throw new \Exception('Não foi possível extrair o dataset_id do link.');
-        }
-        $datasetId = $matches[1];
+            // Extrair resource ID
+            if (!preg_match('/\/resource\/([a-zA-Z0-9-]+)/', $recursoUrl, $matches)) {
+                throw new \Exception('Link do recurso CKAN inválido. Deve conter "/resource/" seguido de um ID válido.');
+            }
+            $resourceId = $matches[1];
 
-        $datasetInfo = $this->buscarDatasetInfo($datasetId);
-        
-        $nomeBase = $datasetInfo['title'] ?? '';
-        $tituloDocumento = $this->gerarTituloDocumento($nomeBase);
-        
-        $descricaoBase = $this->buscarDescricaoRecurso($resourceId, $datasetInfo);
-        
-        $colunasInfo = $this->buscarDadosRecurso($resourceId);
-        
-        return $this->gerarDocumentoComTemplate(
-            $templatePath,
-            $tituloDocumento,
-            $descricaoBase,
-            $colunasInfo
-        );
+            // Extrair dataset ID
+            if (!preg_match('/\/dataset\/([a-zA-Z0-9-]+)/', $recursoUrl, $matches)) {
+                throw new \Exception('Não foi possível extrair o dataset_id do link. Deve conter "/dataset/" seguido de um ID válido.');
+            }
+            $datasetId = $matches[1];
+
+            error_log("BIA: Processando recurso ID: {$resourceId}, dataset ID: {$datasetId}");
+
+            // Buscar informações do dataset
+            $datasetInfo = $this->buscarDatasetInfo($datasetId);
+            if (empty($datasetInfo)) {
+                throw new \Exception('Dataset não encontrado ou inacessível.');
+            }
+            
+            $nomeBase = $datasetInfo['title'] ?? 'Dataset sem título';
+            $tituloDocumento = $this->gerarTituloDocumento($nomeBase);
+            
+            // Buscar descrição do recurso
+            $descricaoBase = $this->buscarDescricaoRecurso($resourceId, $datasetInfo);
+            
+            // Buscar dados do recurso
+            $colunasInfo = $this->buscarDadosRecurso($resourceId);
+            if (empty($colunasInfo)) {
+                throw new \Exception('Não foi possível extrair informações das colunas do recurso.');
+            }
+            
+            error_log("BIA: Gerando documento com " . count($colunasInfo) . " colunas");
+            
+            return $this->gerarDocumentoComTemplate(
+                $templatePath,
+                $tituloDocumento,
+                $descricaoBase,
+                $colunasInfo
+            );
+            
+        } catch (\Exception $e) {
+            error_log("BIA: Erro em gerarDicionarioWord: " . $e->getMessage());
+            error_log("BIA: URL: " . $recursoUrl);
+            error_log("BIA: Template: " . $templatePath);
+            throw $e;
+        }
     }
 
     private function buscarDatasetInfo(string $datasetId): array
@@ -175,21 +207,42 @@ class Bia
 
     private function fazerRequisicao(string $url): array
     {
+        error_log("BIA: Fazendo requisição para: " . $url);
+        
         $context = stream_context_create([
             'http' => [
                 'timeout' => 30,
-                'user_agent' => 'BIA-PINE-App/1.0'
+                'user_agent' => 'BIA-PINE-App/1.0',
+                'method' => 'GET',
+                'header' => [
+                    'Accept: application/json',
+                    'Content-Type: application/json'
+                ]
             ]
         ]);
         
-        $response = file_get_contents($url, false, $context);
+        $response = @file_get_contents($url, false, $context);
         if ($response === false) {
-            throw new \Exception("Erro ao acessar API: {$url}");
+            $error = error_get_last();
+            $errorMsg = $error ? $error['message'] : 'Erro desconhecido';
+            error_log("BIA: Erro ao acessar API: " . $errorMsg);
+            throw new \Exception("Erro ao acessar API: {$url}. Erro: {$errorMsg}");
         }
+        
+        error_log("BIA: Resposta recebida, tamanho: " . strlen($response) . " bytes");
         
         $data = json_decode($response, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new \Exception("Erro ao decodificar resposta JSON da API");
+            $jsonError = json_last_error_msg();
+            error_log("BIA: Erro JSON: " . $jsonError);
+            error_log("BIA: Resposta recebida: " . substr($response, 0, 500));
+            throw new \Exception("Erro ao decodificar resposta JSON da API: {$jsonError}");
+        }
+        
+        if (isset($data['error'])) {
+            $errorMsg = $data['error']['message'] ?? 'Erro desconhecido da API';
+            error_log("BIA: API retornou erro: " . $errorMsg);
+            throw new \Exception("API retornou erro: {$errorMsg}");
         }
         
         return $data;

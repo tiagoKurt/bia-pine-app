@@ -6,6 +6,8 @@ header("Cache-Control: no-cache, no-store, must-revalidate");
 header("Pragma: no-cache");
 header("Expires: 0");
 
+header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;");
+
 require __DIR__ . '/../config.php';
 
 // Garantir que o autoloader esteja disponível
@@ -21,7 +23,24 @@ try {
 use App\Bia;
 use App\Pine;
 
-$bia = new Bia();
+// Verificar se as classes estão disponíveis antes de instanciar
+if (!class_exists('App\Bia')) {
+    error_log("ERRO: Classe App\Bia não encontrada");
+    die('Erro: Classe App\Bia não encontrada. Verifique se o autoloader está configurado corretamente.');
+}
+
+if (!class_exists('App\Pine')) {
+    error_log("ERRO: Classe App\Pine não encontrada");
+    die('Erro: Classe App\Pine não encontrada. Verifique se o autoloader está configurado corretamente.');
+}
+
+try {
+    $bia = new Bia();
+    error_log("BIA: Classe Bia instanciada com sucesso");
+} catch (Exception $e) {
+    error_log("ERRO: Falha ao instanciar classe Bia: " . $e->getMessage());
+    die('Erro ao inicializar classe Bia: ' . $e->getMessage());
+}
 try {
     $pine = new Pine();
 } catch (Exception $e) {
@@ -96,26 +115,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'gerar_dicionario') {
         $recursoUrl = $_POST['recurso_url'] ?? '';
         
+        // Verificar se é uma requisição AJAX
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+                  strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+        
         if (empty($recursoUrl)) {
-            $_SESSION['message'] = 'Informe o link do recurso CKAN.';
-            $_SESSION['messageType'] = 'error';
+            if ($isAjax) {
+                http_response_code(400);
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Informe o link do recurso CKAN.',
+                    'type' => 'error'
+                ]);
+                exit;
+            } else {
+                $_SESSION['message'] = 'Informe o link do recurso CKAN.';
+                $_SESSION['messageType'] = 'error';
+                header("Location: " . $_SERVER['PHP_SELF'] . "?tab=bia");
+                exit;
+            }
         } else {
             try {
+                // Log da requisição
+                error_log("BIA: Iniciando geração de dicionário para URL: " . $recursoUrl);
+                
                 $templateFile = __DIR__ . '/../templates/modelo_bia2_pronto_para_preencher.docx';
+                
+                // Verificar se o template existe
+                if (!file_exists($templateFile)) {
+                    throw new Exception("Template não encontrado: " . $templateFile);
+                }
+                
+                error_log("BIA: Template encontrado: " . $templateFile);
+                
+                // Verificar se a classe Bia está disponível
+                if (!isset($bia) || !is_object($bia)) {
+                    error_log("BIA: Classe Bia não está disponível");
+                    throw new Exception("Classe Bia não está disponível");
+                }
+                
+                error_log("BIA: Chamando gerarDicionarioWord...");
                 $outputFile = $bia->gerarDicionarioWord($recursoUrl, $templateFile);
+                error_log("BIA: Arquivo gerado: " . $outputFile);
 
-                $_SESSION['message'] = 'Documento gerado e baixado com sucesso!';
-                $_SESSION['messageType'] = 'success';
-                $_SESSION['downloadFile'] = $outputFile;
-                $_SESSION['downloadFileName'] = basename($outputFile);
+                if ($isAjax) {
+                    // Retornar resposta AJAX com dados de download
+                    echo json_encode([
+                        'success' => true,
+                        'message' => 'Documento gerado e baixado com sucesso!',
+                        'type' => 'success',
+                        'downloadFile' => $outputFile,
+                        'downloadFileName' => basename($outputFile)
+                    ]);
+                    exit;
+                } else {
+                    $_SESSION['message'] = 'Documento gerado e baixado com sucesso!';
+                    $_SESSION['messageType'] = 'success';
+                    $_SESSION['downloadFile'] = $outputFile;
+                    $_SESSION['downloadFileName'] = basename($outputFile);
+                    header("Location: " . $_SERVER['PHP_SELF'] . "?tab=bia");
+                    exit;
+                }
                 
             } catch (Exception $e) {
-                $_SESSION['message'] = 'Ocorreu um erro ao gerar o dicionário: ' . $e->getMessage();
-                $_SESSION['messageType'] = 'error';
+                error_log("BIA: Erro ao gerar dicionário: " . $e->getMessage());
+                error_log("BIA: Stack trace: " . $e->getTraceAsString());
+                error_log("BIA: File: " . $e->getFile() . " Line: " . $e->getLine());
+                
+                $errorMessage = 'Ocorreu um erro ao gerar o dicionário: ' . $e->getMessage();
+                
+                if ($isAjax) {
+                    http_response_code(500);
+                    echo json_encode([
+                        'success' => false,
+                        'message' => $errorMessage,
+                        'type' => 'error',
+                        'debug' => [
+                            'file' => $e->getFile(),
+                            'line' => $e->getLine(),
+                            'trace' => $e->getTraceAsString()
+                        ]
+                    ]);
+                    exit;
+                } else {
+                    $_SESSION['message'] = $errorMessage;
+                    $_SESSION['messageType'] = 'error';
+                    header("Location: " . $_SERVER['PHP_SELF'] . "?tab=bia");
+                    exit;
+                }
             }
         }
-        header("Location: " . $_SERVER['PHP_SELF'] . "?tab=bia");
-        exit;
     }
     
     if ($action === 'analyze_portal') {
@@ -1771,28 +1860,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 Documento gerado e baixado com sucesso!
                                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                             </div>
-                            <script>
-                                // Aguardar o Bootstrap carregar
-                                document.addEventListener('DOMContentLoaded', function() {
-                                    // Download automático
-                                    window.location.href = 'download.php?file=<?= urlencode($downloadFileName) ?>&path=<?= urlencode($downloadFile) ?>';
-                                    
-                                    // Remove o pop-up após 3 segundos
-                                    setTimeout(function() {
-                                        const notification = document.getElementById('download-notification');
-                                        if (notification) {
-                                            // Usar método nativo do Bootstrap 5
-                                            if (typeof bootstrap !== 'undefined') {
-                                                const bsAlert = bootstrap.Alert.getOrCreateInstance(notification);
-                                                bsAlert.close();
-                                            } else {
-                                                // Fallback: remover manualmente
-                                                notification.style.display = 'none';
-                                            }
-                                        }
-                                    }, 3000);
-                                });
-                            </script>
+                            <div id="download-data" 
+                                 data-file="<?= htmlspecialchars($downloadFileName, ENT_QUOTES, 'UTF-8') ?>" 
+                                 data-path="<?= htmlspecialchars($downloadFile, ENT_QUOTES, 'UTF-8') ?>" 
+                                 style="display: none;">
+                            </div>
                         <?php endif; ?>
                     </div>
 
@@ -2890,7 +2962,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Script para carregamento no botão de geração de dicionário BIA
-        document.getElementById('dicionario-form').addEventListener('submit', function() {
+        document.getElementById('dicionario-form').addEventListener('submit', function(e) {
+            e.preventDefault(); // Prevenir submit padrão
+            
             const gerarBtn = document.getElementById('gerar-btn');
             const btnText = document.getElementById('btn-text');
             const btnLoading = document.getElementById('btn-loading');
@@ -2898,6 +2972,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const progressBar = document.getElementById('progress-bar');
             const progressText = document.getElementById('progress-text');
             const progressPercent = document.getElementById('progress-percent');
+            const recursoUrl = document.getElementById('recurso_url').value;
+            
+            if (!recursoUrl) {
+                showMessage('Por favor, informe o link do recurso CKAN.', 'error');
+                return;
+            }
             
             // Desabilitar botão e mostrar loading
             gerarBtn.disabled = true;
@@ -2930,6 +3010,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     clearInterval(progressInterval);
                 }
             }, 800);
+            
+            // Fazer requisição AJAX
+            const formData = new FormData();
+            formData.append('action', 'gerar_dicionario');
+            formData.append('recurso_url', recursoUrl);
+            
+            fetch('', {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                return response.json();
+            })
+            .then(data => {
+                console.log('Response data:', data);
+                
+                // Limpar progresso
+                clearInterval(progressInterval);
+                progressBar.style.width = '100%';
+                progressBar.setAttribute('aria-valuenow', '100');
+                progressText.textContent = 'Processando resposta...';
+                progressPercent.textContent = '100%';
+                
+                if (data.success) {
+                    console.log('Sucesso! Iniciando download:', data.downloadFileName);
+                    
+                    // Iniciar download
+                    window.location.href = 'download.php?file=' + encodeURIComponent(data.downloadFileName) + '&path=' + encodeURIComponent(data.downloadFile);
+                    
+                    // Mostrar notificação de sucesso
+                    showMessage(data.message, 'success');
+                    
+                    // Resetar formulário após 2 segundos
+                    setTimeout(() => {
+                        document.getElementById('dicionario-form').reset();
+                        progressContainer.classList.add('d-none');
+                        gerarBtn.disabled = false;
+                        btnText.classList.remove('d-none');
+                        btnLoading.classList.add('d-none');
+                    }, 2000);
+                } else {
+                    console.error('Erro do servidor:', data.message);
+                    throw new Error(data.message || 'Erro desconhecido do servidor');
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                clearInterval(progressInterval);
+                progressContainer.classList.add('d-none');
+                gerarBtn.disabled = false;
+                btnText.classList.remove('d-none');
+                btnLoading.classList.add('d-none');
+                showMessage('Erro ao gerar dicionário: ' + error.message, 'error');
+            });
         });
 
         // Script para manter a aba ativa após o refresh da página
@@ -3433,6 +3577,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             executeScanCkan(true);
         }
+
+        // Função para lidar com download automático (CSP-safe)
+        function handleAutoDownload() {
+            const downloadData = document.getElementById('download-data');
+            if (downloadData) {
+                const fileName = downloadData.getAttribute('data-file');
+                const filePath = downloadData.getAttribute('data-path');
+                
+                if (fileName && filePath) {
+                    // Download automático
+                    window.location.href = 'download.php?file=' + encodeURIComponent(fileName) + '&path=' + encodeURIComponent(filePath);
+                    
+                    // Remove o pop-up após 3 segundos
+                    setTimeout(function() {
+                        const notification = document.getElementById('download-notification');
+                        if (notification) {
+                            // Usar método nativo do Bootstrap 5
+                            if (typeof bootstrap !== 'undefined') {
+                                const bsAlert = bootstrap.Alert.getOrCreateInstance(notification);
+                                bsAlert.close();
+                            } else {
+                                // Fallback: remover manualmente
+                                notification.style.display = 'none';
+                            }
+                        }
+                    }, 3000);
+                }
+            }
+        }
+
+        // Executar download automático se necessário
+        document.addEventListener('DOMContentLoaded', function() {
+            handleAutoDownload();
+        });
     </script>
 </body>
 </html>

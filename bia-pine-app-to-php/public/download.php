@@ -1,6 +1,12 @@
 <?php
+// Habilitar logging de erros
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+
 if (!isset($_GET['file']) || !isset($_GET['path'])) {
     http_response_code(400);
+    error_log("Download error: Parâmetros inválidos - file: " . ($_GET['file'] ?? 'não definido') . ", path: " . ($_GET['path'] ?? 'não definido'));
     die('Parâmetros inválidos');
 }
 
@@ -29,9 +35,13 @@ if (!$realPath) {
 $tempDirReal = realpath($tempDir);
 $fileDir = dirname($realPath);
 
-if (strpos($realPath, $tempDirReal) !== 0) {
+// Verificação mais flexível para permitir arquivos temporários
+$isInTempDir = strpos($realPath, $tempDirReal) === 0;
+$isInProjectDir = strpos($realPath, realpath(__DIR__ . '/../..')) === 0;
+
+if (!$isInTempDir && !$isInProjectDir) {
     http_response_code(403);
-    die('Acesso negado: arquivo fora do diretório temporário. Temp: ' . $tempDirReal . ', File Dir: ' . $fileDir);
+    die('Acesso negado: arquivo fora dos diretórios permitidos. Temp: ' . $tempDirReal . ', Project: ' . realpath(__DIR__ . '/../..') . ', File Dir: ' . $fileDir);
 }
 
 if (!file_exists($realPath)) {
@@ -60,23 +70,35 @@ if (ob_get_level()) {
     ob_end_clean();
 }
 
-$handle = fopen($realPath, 'rb');
-if ($handle === false) {
-    http_response_code(500);
-    die('Erro ao abrir arquivo');
-}
-
-while (!feof($handle)) {
-    $chunk = fread($handle, 8192);
-    if ($chunk === false) {
-        break;
+try {
+    $handle = fopen($realPath, 'rb');
+    if ($handle === false) {
+        error_log("Download error: Não foi possível abrir o arquivo: " . $realPath);
+        http_response_code(500);
+        die('Erro ao abrir arquivo');
     }
-    echo $chunk;
+
+    while (!feof($handle)) {
+        $chunk = fread($handle, 8192);
+        if ($chunk === false) {
+            error_log("Download error: Erro ao ler chunk do arquivo: " . $realPath);
+            break;
+        }
+        echo $chunk;
+    }
+
+    fclose($handle);
+
+    // Tentar remover o arquivo temporário, mas não falhar se não conseguir
+    if (!unlink($realPath)) {
+        error_log("Download warning: Não foi possível remover arquivo temporário: " . $realPath);
+    }
+
+} catch (Exception $e) {
+    error_log("Download error: Exceção durante download: " . $e->getMessage());
+    http_response_code(500);
+    die('Erro interno durante download');
 }
-
-fclose($handle);
-
-unlink($realPath);
 
 exit;
 ?>

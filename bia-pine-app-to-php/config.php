@@ -1,7 +1,6 @@
 <?php
 
 
-// Carrega variáveis de ambiente do arquivo .env se existir
 if (file_exists(__DIR__ . '/.env') && class_exists('Dotenv\Dotenv')) {
     $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
     $dotenv->load();
@@ -78,13 +77,11 @@ if (!defined('DB_PASSWORD')) {
 //     KEY `idx_dataset` (`identificador_dataset`)
 //   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-// Configurações do Google Sheets removidas - não utilizadas no projeto
 
 if (!defined('DEFAULT_CKAN_PORTAL')) {
     define('DEFAULT_CKAN_PORTAL', $_ENV['DEFAULT_CKAN_PORTAL'] ?? 'https://dadosabertos.go.gov.br');
 }
 
-// Configurações do CKAN via variáveis de ambiente
 if (!defined('CKAN_API_URL')) {
     define('CKAN_API_URL', $_ENV['CKAN_API_URL'] ?? 'https://dadosabertos.go.gov.br/api/3/action/');
 }
@@ -101,38 +98,31 @@ if (!defined('HTTP_VERIFY_SSL')) {
     define('HTTP_VERIFY_SSL', filter_var($_ENV['HTTP_VERIFY_SSL'] ?? 'false', FILTER_VALIDATE_BOOLEAN));
 }
 
-// Configurações de erro (para desenvolvimento)
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ini_set('log_errors', 1);
 ini_set('error_log', __DIR__ . '/logs/error.log');
 
-// Criar diretório de logs se não existir
 if (!is_dir(__DIR__ . '/logs')) {
     mkdir(__DIR__ . '/logs', 0755, true);
 }
 
-// Configurações de timezone
 date_default_timezone_set('America/Sao_Paulo');
-
-// Configurações de memória para processamento de documentos grandes via variáveis de ambiente
 $memoryLimit = $_ENV['MEMORY_LIMIT'] ?? '10G';
-$maxExecutionTime = (int)($_ENV['MAX_EXECUTION_TIME'] ?? 1800); // Aumentado para 30 minutos
+$maxExecutionTime = (int)($_ENV['MAX_EXECUTION_TIME'] ?? 1800);
 
 ini_set('memory_limit', $memoryLimit);
 ini_set('max_execution_time', $maxExecutionTime);
-
-// Configurações específicas para PDFs grandes
 if (!defined('PDF_MEMORY_LIMIT')) {
     define('PDF_MEMORY_LIMIT', $_ENV['PDF_MEMORY_LIMIT'] ?? '4G');
 }
 
 if (!defined('PDF_MAX_EXECUTION_TIME')) {
-    define('PDF_MAX_EXECUTION_TIME', $_ENV['PDF_MAX_EXECUTION_TIME'] ?? 1800); // 30 minutos para PDFs
+    define('PDF_MAX_EXECUTION_TIME', $_ENV['PDF_MAX_EXECUTION_TIME'] ?? 1800);
 }
 
 if (!defined('PDF_TIMEOUT')) {
-    define('PDF_TIMEOUT', $_ENV['PDF_TIMEOUT'] ?? 1200); // 20 minutos para parsing de PDF
+    define('PDF_TIMEOUT', $_ENV['PDF_TIMEOUT'] ?? 1200);
 }
 
 /**
@@ -155,7 +145,7 @@ function conectarBanco(): PDO {
 }
 
 /**
- * Retorna uma instância de PDO (alias para conectarBanco para compatibilidade)
+ * Retorna uma instância de PDO
  * @return \PDO
  * @throws \PDOException
  */
@@ -179,22 +169,20 @@ function getPdoConnection(): \PDO
     return $pdo;
 }
 
-/**
- * Função auxiliar para garantir que as classes necessárias estejam disponíveis
- * Detecta automaticamente se as classes já estão carregadas globalmente
- */
 function ensureAutoloader() {
-    // Se as classes App já estão disponíveis, não precisa fazer nada
     if (class_exists('App\Bia') && class_exists('App\Pine')) {
         return true;
     }
     
-    // Tenta carregar o autoloader local se existir (desenvolvimento)
-    if (file_exists(__DIR__ . '/vendor/autoload.php')) {
-        require_once __DIR__ . '/vendor/autoload.php';
-        return true;
+    $autoloadPath = __DIR__ . '/vendor/autoload.php';
+    if (file_exists($autoloadPath)) {
+        require_once $autoloadPath;
+        
+        if (class_exists('App\Bia') && class_exists('App\Pine')) {
+            return true;
+        }
     }
     
-    // Se chegou aqui, as classes não estão disponíveis
     throw new Exception('Classes App\Bia e App\Pine não encontradas. Verifique se o autoloader do Composer está configurado globalmente no servidor.');
 }
+
