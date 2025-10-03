@@ -2333,6 +2333,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setTimeout(() => {
                 setupPineEventListeners();
                 checkForExistingPortalUrl();
+                
+                // Se estivermos na aba PINE, carregar dados automaticamente
+                const urlParams = new URLSearchParams(window.location.search);
+                const tab = urlParams.get('tab');
+                if (tab === 'pine') {
+                    loadExistingPineData();
+                }
             }, 200);
         });
 
@@ -2345,8 +2352,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     const portalUrl = document.getElementById('portal_url').value;
                     if (portalUrl) {
                         currentPortalUrl = portalUrl;
-                        // Removido loadPineData() - análise só será executada manualmente
                     }
+                    // Carregar dados existentes quando a aba for ativada
+                    loadExistingPineData();
                 });
             } else {
                 console.log('PINE tab NÃO encontrada');
@@ -2440,7 +2448,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 console.log('📊 Carregando dados existentes...');
                 const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
-                const statsUrl = `${baseUrl}api/pine-stats.php?portal_url=any`;
+                
+                // Usar portal_url atual se disponível
+                const portalUrl = currentPortalUrl || document.getElementById('portal_url').value;
+                const statsUrl = `${baseUrl}api/pine-data.php?action=stats${portalUrl ? '&portal_url=' + encodeURIComponent(portalUrl) : ''}`;
                 console.log('URL da API:', statsUrl);
                 
                 const statsResponse = await fetch(statsUrl);
@@ -2503,7 +2514,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 console.log('📊 Carregando estatísticas...');
                 // Usar caminho absoluto para evitar problemas de roteamento
                 const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
-                const statsUrl = `${baseUrl}api/pine-stats.php?portal_url=${encodeURIComponent(currentPortalUrl)}`;
+                const statsUrl = `${baseUrl}api/pine-data.php?action=stats`;
                 console.log('URL base:', baseUrl);
                 console.log('URL da API:', statsUrl);
                 
@@ -2554,19 +2565,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Função para carregar datasets com filtros
         async function loadPineDatasets() {
-            const portalUrl = currentPortalUrl || 'any';
+            const portalUrl = currentPortalUrl || document.getElementById('portal_url').value;
 
             const params = new URLSearchParams({
+                action: 'datasets',
                 portal_url: portalUrl,
                 page: currentFilters.page,
                 per_page: 15,
-                ...currentFilters
+                organization: currentFilters.organization,
+                status: currentFilters.status,
+                search: currentFilters.search
             });
 
             try {
                 const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
-                const response = await fetch(`${baseUrl}api/pine-filtered.php?${params}`);
+                const response = await fetch(`${baseUrl}api/pine-data.php?${params}`);
                 const data = await response.json();
+
+                console.log('📋 Dados dos datasets recebidos:', data);
 
                 if (data.success) {
                     updatePineDatasetsTable(data.datasets);
@@ -2574,6 +2590,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     updateDatasetsTitle(data.total);
                     showPineSection('pine-datasets');
                 } else {
+                    console.log('❌ Erro ao carregar datasets:', data.message);
                     showPineSection('pine-no-data');
                 }
             } catch (error) {
@@ -2584,6 +2601,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Atualizar dashboard
         function updatePineDashboard(stats) {
+            console.log('📊 Atualizando dashboard com stats:', stats);
             document.getElementById('total-datasets').textContent = stats.total_datasets || 0;
             document.getElementById('datasets-atualizados').textContent = stats.datasets_atualizados || 0;
             document.getElementById('datasets-desatualizados').textContent = stats.datasets_desatualizados || 0;
@@ -2614,6 +2632,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function updatePineDatasetsTable(datasets) {
             const tbody = document.getElementById('datasets-tbody');
             tbody.innerHTML = '';
+
+            console.log('📊 Atualizando tabela com', datasets.length, 'datasets');
+
+            if (datasets.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td colspan="6" class="text-center text-muted py-4">
+                        <i class="fas fa-inbox icon"></i><br>
+                        Nenhum dataset encontrado
+                    </td>
+                `;
+                tbody.appendChild(row);
+                return;
+            }
 
             datasets.forEach(dataset => {
                 const row = document.createElement('tr');
@@ -2749,7 +2781,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
 
             const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
-            window.open(`${baseUrl}api/pine-filtered.php?${params}`, '_blank');
+            window.open(`${baseUrl}api/pine-data.php?action=datasets&${params}`, '_blank');
         }
 
         // Funções auxiliares
@@ -2990,7 +3022,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const btnScanCkan = document.getElementById('btnScanCkan');
             if (btnScanCkan) {
                 btnScanCkan.addEventListener('click', function() {
-                    executeScanCkan();
+                    executeScanCkan(false); // Chama sem forçar por padrão
                 });
             } else {
             }
@@ -3006,41 +3038,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const originalText = btn.innerHTML;
             
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin icon"></i> Iniciando análise...';
+            btn.innerHTML = force ? 'Reiniciando...' : 'Iniciando...';
             
-            // Inicia a análise em background
+            // Mostra mensagem de feedback imediato
+            showMessage('Iniciando análise CKAN...', 'info');
+            
+            // Prepara os dados com a flag 'force'
             const formData = new FormData();
-            if (force) {
-                formData.append('force', 'true');
-            }
+            formData.append('force', force ? 1 : 0); 
+            
+            console.log('Iniciando análise CKAN...', { force: force });
             
             fetch('api/start-scan.php', {
                 method: 'POST',
                 body: formData
             })
             .then(response => {
+                console.log('Resposta recebida:', response.status);
+                if (response.status === 409) { 
+                    // CONFLITO: Análise já rodando, e não foi solicitado force
+                    showConfirmDialog(
+                        'Análise em Andamento',
+                        'Uma análise já está sendo executada no momento. Deseja cancelar a análise anterior e iniciar uma nova?',
+                        'Sim, iniciar nova análise',
+                        'Cancelar',
+                        () => {
+                            executeScanCkan(true); // Chama novamente, forçando o restart
+                        },
+                        () => {
+                            btn.disabled = false;
+                            btn.innerHTML = originalText;
+                        }
+                    );
+                    return Promise.reject('Analysis already running');
+                }
+                if (!response.ok) {
+                    throw new Error('Erro ao iniciar a análise. Código: ' + response.status);
+                }
                 return response.json();
             })
             .then(data => {
+                console.log('Dados recebidos:', data);
                 if (data.success) {
+                    showMessage(data.message, 'success');
                     showAsyncProgressModal();
                     startPollingStatus();
                 } else {
-                    if (data.cooldownActive) {
-                        showMessage('⏱️ ' + data.message + ' Próxima análise em: ' + data.nextScanAllowed, 'warning');
-                    } else if (data.canForce) {
-                        showForceAnalysisDialog(data.message, data.timeout);
-                    } else {
-                        showMessage('Erro ao iniciar análise: ' + data.message, 'error');
-                    }
+                    showMessage('Erro: ' + data.message, 'error');
                     btn.disabled = false;
                     btn.innerHTML = originalText;
                 }
             })
             .catch(error => {
-                showMessage('Erro de conexão ao iniciar análise.', 'error');
-                btn.disabled = false;
-                btn.innerHTML = originalText;
+                console.error('Falha ao iniciar a análise:', error);
+                if (error !== 'Analysis already running') {
+                    showMessage('Erro grave ao tentar iniciar a análise: ' + error, 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
             });
         }
         
@@ -3106,6 +3161,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 case 'warning':
                     alertClass = 'alert-warning';
                     break;
+                case 'info':
+                    alertClass = 'alert-info';
+                    break;
                 case 'error':
                 default:
                     alertClass = 'alert-danger';
@@ -3128,6 +3186,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     messageDiv.remove();
                 }
             }, timeout);
+        }
+
+        function showConfirmDialog(title, message, confirmText, cancelText, onConfirm, onCancel) {
+            // Remove dialog existente se houver
+            const existingDialog = document.getElementById('confirmDialog');
+            if (existingDialog) {
+                existingDialog.remove();
+            }
+
+            const dialogHtml = `
+                <div class="modal fade" id="confirmDialog" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">
+                                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                                    ${title}
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="mb-0">${message}</p>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="cancelBtn">
+                                    <i class="fas fa-times me-1"></i>
+                                    ${cancelText}
+                                </button>
+                                <button type="button" class="btn btn-warning" id="confirmBtn">
+                                    <i class="fas fa-play me-1"></i>
+                                    ${confirmText}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', dialogHtml);
+            
+            const modal = new bootstrap.Modal(document.getElementById('confirmDialog'));
+            const confirmBtn = document.getElementById('confirmBtn');
+            const cancelBtn = document.getElementById('cancelBtn');
+
+            confirmBtn.addEventListener('click', () => {
+                modal.hide();
+                onConfirm();
+            });
+
+            cancelBtn.addEventListener('click', () => {
+                modal.hide();
+                onCancel();
+            });
+
+            // Remove o modal do DOM quando fechado
+            document.getElementById('confirmDialog').addEventListener('hidden.bs.modal', () => {
+                document.getElementById('confirmDialog').remove();
+            });
+
+            modal.show();
         }
 
         function showAsyncProgressModal() {

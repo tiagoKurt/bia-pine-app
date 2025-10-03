@@ -67,19 +67,6 @@ if (!defined('DB_PASSWORD')) {
 //     portal_url VARCHAR(2083)
 // );
 
-// CREATE TABLE `mpda_verificacoes_cpf` (
-//     `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-//     `cpf` VARCHAR(11) NOT NULL,
-//     `e_valido` BOOLEAN NOT NULL,
-//     `data_verificacao` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-//     `observacoes` TEXT NULL,
-//     PRIMARY KEY (`id`),
-//     UNIQUE KEY `idx_cpf_unique` (`cpf`)
-//   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-// ALTER TABLE mpda_verificacoes_cpf ADD COLUMN identificador_fonte VARCHAR(255) NULL AFTER observacoes;
-// ALTER TABLE mpda_verificacoes_cpf ADD COLUMN name_dataset VARCHAR(255);
-// CREATE INDEX idx_identificador_fonte ON mpda_verificacoes_cpf (identificador_fonte);
-
 // CREATE TABLE `mpda_recursos_com_cpf` (
 //     `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
 //     `identificador_recurso` VARCHAR(255) NOT NULL,
@@ -175,4 +162,29 @@ function conectarBanco(): PDO {
     ];
     
     return new PDO($dsn, DB_USERNAME, DB_PASSWORD, $opcoes);
+}
+
+/**
+ * Retorna uma instância de PDO (alias para conectarBanco para compatibilidade)
+ * @return \PDO
+ * @throws \PDOException
+ */
+function getPdoConnection(): \PDO
+{
+    static $pdo = null;
+    if ($pdo === null) {
+        $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_DATABASE . ';charset=utf8mb4';
+        $options = [
+            \PDO::ATTR_ERRMODE            => \PDO::ERRMODE_EXCEPTION,
+            \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+            \PDO::ATTR_EMULATE_PREPARES   => false,
+        ];
+        try {
+            $pdo = new \PDO($dsn, DB_USERNAME, DB_PASSWORD, $options);
+        } catch (\PDOException $e) {
+            error_log("Database connection error: " . $e->getMessage());
+            throw new \PDOException("Erro ao conectar ao banco de dados.", (int)$e->getCode());
+        }
+    }
+    return $pdo;
 }

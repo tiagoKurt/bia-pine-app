@@ -128,4 +128,51 @@ class LogicBasedScanner implements CpfScannerInterface
             'invalid_cpfs' => count($allCandidates) - $validCount
         ];
     }
+
+    /**
+     * NOVO MÉTODO para retornar CPFs com status para armazenamento em massa.
+     */
+    public function scanForStorage(string $textContent): array
+    {
+        if (empty(trim($textContent))) {
+            return [];
+        }
+
+        // Limpeza (essencial para o uso de separadores em parsers como CSV/JSON)
+        $textContent = str_replace(' |SEPARATOR| ', ' ', $textContent);
+        $textContent = preg_replace('/\s+/', ' ', $textContent); 
+
+        // Os mesmos padrões de regex (use os seus que já estão na classe)
+        $patterns = [
+            '/(?:\b|\D)(\d{3}\.?\d{3}\.?\d{3}-?\d{2})(?:\b|\D)/',
+            '/(?:\b|\D)(\d{11})(?:\b|\D)/',
+            '/(?:\b|\D)(\d{3}\s?\d{3}\s?\d{3}\s?\d{2})(?:\b|\D)/',
+            '/(?:\b|\D)(\d{3}[\.\s]?\d{3}[\.\s]?\d{3}[-\.\s]?\d{2})(?:\b|\D)/'
+        ];
+
+        $uniqueNormalizedCpfs = [];
+        $cpfsToStore = [];
+        
+        foreach ($patterns as $pattern) {
+            preg_match_all($pattern, $textContent, $matches);
+            $candidates = $matches[1] ?? [];
+
+            foreach ($candidates as $cpf) {
+                $normalizedCpf = $this->normalizeCpf($cpf);
+                
+                // Processa apenas CPFs únicos
+                if (!isset($uniqueNormalizedCpfs[$normalizedCpf])) {
+                    $uniqueNormalizedCpfs[$normalizedCpf] = true;
+                    
+                    $isValid = $this->isValidCpf($cpf);
+                    $cpfsToStore[] = [
+                        'cpf' => $normalizedCpf,
+                        'isValid' => $isValid
+                    ];
+                }
+            }
+        }
+
+        return $cpfsToStore;
+    }
 }

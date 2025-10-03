@@ -241,7 +241,8 @@ class Pine
                     COUNT(*) as total_datasets,
                     SUM(CASE WHEN status = 'Atualizado' THEN 1 ELSE 0 END) as datasets_atualizados,
                     SUM(CASE WHEN status = 'Desatualizado' THEN 1 ELSE 0 END) as datasets_desatualizados,
-                    SUM(resources_count) as total_recursos
+                    SUM(resources_count) as total_recursos,
+                    COUNT(DISTINCT organization) as total_orgaos
                 FROM mpda_datasets";
         
         $stmt = $pdo->prepare($sql);
@@ -251,7 +252,8 @@ class Pine
             'total_datasets' => 0,
             'datasets_atualizados' => 0,
             'datasets_desatualizados' => 0,
-            'total_recursos' => 0
+            'total_recursos' => 0,
+            'total_orgaos' => 0
         ];
     }
 
@@ -293,7 +295,8 @@ class Pine
                     COUNT(*) as total_datasets,
                     SUM(CASE WHEN status = 'Atualizado' THEN 1 ELSE 0 END) as datasets_atualizados,
                     SUM(CASE WHEN status = 'Desatualizado' THEN 1 ELSE 0 END) as datasets_desatualizados,
-                    SUM(resources_count) as total_recursos
+                    SUM(resources_count) as total_recursos,
+                    COUNT(DISTINCT organization) as total_orgaos
                 FROM mpda_datasets 
                 WHERE portal_url = ?";
         
@@ -304,7 +307,8 @@ class Pine
             'total_datasets' => 0,
             'datasets_atualizados' => 0,
             'datasets_desatualizados' => 0,
-            'total_recursos' => 0
+            'total_recursos' => 0,
+            'total_orgaos' => 0
         ];
     }
 

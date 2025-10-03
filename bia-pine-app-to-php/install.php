@@ -64,19 +64,29 @@ try {
     exit(1);
 }
 
-// Criar tabela mpda_verificacoes_cpf
-echo "3. Criando tabela mpda_verificacoes_cpf...\n";
+// Criar tabela mpda_recursos_com_cpf
+echo "3. Criando tabela mpda_recursos_com_cpf...\n";
 
 try {
-    $sqlFile = __DIR__ . '/database/schema.sql';
-    if (!file_exists($sqlFile)) {
-        throw new Exception("Arquivo schema.sql não encontrado em database/");
-    }
+    $sql = "
+    CREATE TABLE IF NOT EXISTS `mpda_recursos_com_cpf` (
+        `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+        `identificador_recurso` VARCHAR(255) NOT NULL,
+        `identificador_dataset` VARCHAR(255) NOT NULL,
+        `orgao` VARCHAR(255) NOT NULL,
+        `cpfs_encontrados` JSON NOT NULL,
+        `quantidade_cpfs` INT UNSIGNED NOT NULL,
+        `metadados_recurso` JSON NOT NULL,
+        `data_verificacao` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        UNIQUE KEY `idx_recurso_unique` (`identificador_recurso`),
+        KEY `idx_dataset` (`identificador_dataset`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
     
-    $sql = file_get_contents($sqlFile);
     $pdo->exec($sql);
     
-    echo "✅ Tabela mpda_verificacoes_cpf criada com sucesso.\n";
+    echo "✅ Tabela mpda_recursos_com_cpf criada com sucesso.\n";
     
 } catch (Exception $e) {
     echo "❌ ERRO ao criar tabela:\n";
@@ -88,10 +98,10 @@ try {
 echo "4. Verificando estrutura da tabela...\n";
 
 try {
-    $stmt = $pdo->query("DESCRIBE mpda_verificacoes_cpf");
+    $stmt = $pdo->query("DESCRIBE mpda_recursos_com_cpf");
     $colunas = $stmt->fetchAll();
     
-    $colunas_esperadas = ['id', 'cpf', 'e_valido', 'data_verificacao', 'observacoes'];
+    $colunas_esperadas = ['id', 'identificador_recurso', 'identificador_dataset', 'orgao', 'cpfs_encontrados', 'quantidade_cpfs', 'metadados_recurso', 'data_verificacao'];
     $colunas_encontradas = array_column($colunas, 'Field');
     
     $colunas_faltando = array_diff($colunas_esperadas, $colunas_encontradas);
@@ -167,7 +177,7 @@ try {
     }
     
     // Limpar registro de teste
-    $pdo->prepare("DELETE FROM mpda_verificacoes_cpf WHERE cpf = ?")->execute([$cpf_teste]);
+    $pdo->prepare("DELETE FROM mpda_recursos_com_cpf WHERE identificador_recurso = ?")->execute(['test_resource']);
     
     echo "✅ Operações de banco de dados testadas com sucesso.\n";
     

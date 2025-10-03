@@ -38,6 +38,9 @@ try {
         mkdir($cacheDir, 0755, true);
     }
     
+    // Verifica se é para forçar nova análise
+    $force = isset($_POST['force']) && $_POST['force'] == '1';
+    
     // Verifica se há análise em andamento
     if (file_exists($lockFile)) {
         $lockContent = file_get_contents($lockFile);
@@ -46,31 +49,27 @@ try {
         if ($lockData && isset($lockData['status'])) {
             $status = $lockData['status'];
             
-            // Se está rodando ou pendente, não permite nova análise
-            if (in_array($status, ['running', 'pending'])) {
-                $nextScanAllowed = 'N/A';
-                if (isset($lockData['startTime'])) {
-                    $startTime = new DateTime($lockData['startTime']);
-                    $nextScanTime = $startTime->modify('+1 hour');
-                    $nextScanAllowed = $nextScanTime->format('d/m/Y H:i:s');
-                }
-                
+            // Se está rodando ou pendente, e NÃO for para forçar, retorna erro 409 (Conflict)
+            if (in_array($status, ['running', 'pending']) && !$force) {
                 echo json_encode([
                     'success' => false,
-                    'cooldownActive' => true,
-                    'message' => 'Já existe uma análise em andamento',
-                    'nextScanAllowed' => $nextScanAllowed
+                    'message' => 'Uma análise já está em execução. Cancele-a antes de iniciar uma nova.'
                 ], JSON_UNESCAPED_UNICODE);
+                http_response_code(409);
                 exit;
             }
+            
+            // 1. SE EXISTE, FORÇA O CANCELAMENTO DO SCAN ANTERIOR
+            if (in_array($status, ['running', 'pending']) && $force) {
+                // Altera o status para 'cancelling' para que o worker atual saia do loop
+                $lockData['status'] = 'cancelling';
+                $lockData['message'] = 'Scan anterior marcado para cancelamento. Reiniciando...';
+                file_put_contents($lockFile, json_encode($lockData, JSON_PRETTY_PRINT));
+                
+                // Delay para o worker antigo ter tempo de perceber o cancelamento e sair.
+                usleep(100000); 
+            }
         }
-    }
-
-    // Verifica se é para forçar nova análise
-    $force = isset($_POST['force']) && $_POST['force'] === 'true';
-    
-    if ($force && file_exists($lockFile)) {
-        unlink($lockFile);
     }
 
     // Conecta ao banco de dados
@@ -110,44 +109,61 @@ try {
     
     file_put_contents($lockFile, json_encode($initialStatus, JSON_PRETTY_PRINT));
     
-    // Executa o scanner diretamente em background
-    $scriptPath = __DIR__ . '/../../bin/run_scanner.php';
-
-    // Cria o comando
+    // 3. EXECUTA O SCANNER DE FORMA SIMPLES E DIRETA
+    $scriptPath = __DIR__ . '/../../bin/run_scanner_real.php';
     $command = "php " . escapeshellarg($scriptPath);
     if ($force) {
         $command .= " --force";
     }
 
-    // Executa o comando em background (MÉTODO FORÇADO)
+    // Log do comando que será executado
+    error_log("Executando comando: " . $command);
+
+    // Método mais simples e direto
     $output = [];
     $returnCode = 0;
-
-    // Para Windows, usa start /B para executar em background
+    
     if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-        $cacheDir = __DIR__ . '/../../cache';
-        $workerLogFile = $cacheDir . '/worker_start.log';
-        // Comando completo para Windows (usando start /B)
-        $command = "start /B " . $command . " > " . escapeshellarg($workerLogFile) . " 2>&1";
+        // Windows: usa start /B para não travar o processo
+        $command = "start /B " . $command . " > NUL 2>&1";
         exec($command, $output, $returnCode);
-        error_log("Comando Windows executado: $command. Código de retorno: $returnCode");
-
+        error_log("Comando Windows executado. Código de retorno: " . $returnCode);
     } else {
-        // Para Linux/Unix: usa redirecionamento e '&' para rodar em background
+        // Linux/Unix: usa '&' para rodar em background e redireciona output
         $command .= " > /dev/null 2>&1 &";
         exec($command, $output, $returnCode);
-        error_log("Comando Unix executado: $command. Código de retorno: $returnCode");
-
-        // Pequeno atraso para dar tempo do processo mudar o status do lockfile
-        usleep(50000); // 0.05 segundos
+        error_log("Comando Unix executado. Código de retorno: " . $returnCode);
     }
 
-    // O frontend (app.php) continuará monitorando o status.
+    // Aguarda um pouco para o processo iniciar
+    sleep(2);
+
+    // Verifica se o worker realmente iniciou
+    $workerStarted = false;
+    if (file_exists($lockFile)) {
+        $statusContent = file_get_contents($lockFile);
+        $statusData = json_decode($statusContent, true);
+        
+        if ($statusData && isset($statusData['status'])) {
+            if ($statusData['status'] === 'running') {
+                $workerStarted = true;
+                error_log("Worker iniciado com sucesso. Status: running");
+            } else {
+                error_log("Worker não mudou para 'running'. Status atual: " . $statusData['status']);
+            }
+        }
+    }
+
+    if (!$workerStarted) {
+        error_log("AVISO: Worker pode não ter iniciado corretamente");
+    }
+
+    // Resposta final ao front-end
     echo json_encode([
         'success' => true,
-        'message' => 'Análise CKAN iniciada com sucesso. O processo deve iniciar em segundos.',
+        'message' => $force ? 'Análise reiniciada com sucesso.' : 'Análise iniciada com sucesso. Processamento em segundo plano.',
         'status' => 'started',
-        'note' => 'A análise foi disparada e está sendo processada em segundo plano.'
+        'worker_started' => $workerStarted
     ], JSON_UNESCAPED_UNICODE);
     
 } catch (Exception $e) {

@@ -4,6 +4,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../config.php';
 
 use App\Worker\CkanScannerService;
+use App\Cpf\CpfRepository;
 use Dotenv\Dotenv;
 
 // --- Configuração ---
@@ -155,6 +156,7 @@ try {
     }
 
     $pdo = conectarBanco();
+    $cpfRepository = new CpfRepository($pdo);
     $scanner = new CkanScannerService(
         CKAN_API_URL,
         CKAN_API_KEY,
@@ -186,8 +188,10 @@ try {
     // Atualiza o status para 'running' imediatamente
     $status['status'] = 'running';
     $status['lastUpdate'] = date('c');
+    $status['message'] = 'Worker iniciado e processando...';
     if ($actualLockFile) {
         @file_put_contents($actualLockFile, json_encode($status, JSON_PRETTY_PRINT));
+        error_log("Status atualizado para 'running' no arquivo: " . $actualLockFile);
     }
     
     $maxIterations = 3000; // Limite de segurança para evitar loop infinito

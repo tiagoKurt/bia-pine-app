@@ -6,6 +6,7 @@ use App\Cpf\Ckan\CkanApiClient;
 use App\Cpf\Scanner\Parser\FileParserFactory;
 use App\Cpf\Scanner\LogicBasedScanner;
 use App\Cpf\CpfVerificationService;
+use App\Cpf\CpfRepository;
 use Exception;
 
 class CkanScannerService
@@ -21,6 +22,7 @@ class CkanScannerService
     private CkanApiClient $ckanClient;
     private LogicBasedScanner $scanner;
     private CpfVerificationService $verificationService;
+    private CpfRepository $cpfRepository;
     private string $tempDir;
     private float $startTime;
     private $progressCallback;
@@ -30,6 +32,7 @@ class CkanScannerService
         $this->ckanClient = new CkanApiClient($ckanUrl, $ckanApiKey, $cacheDir, $maxRetries);
         $this->scanner = new LogicBasedScanner();
         $this->verificationService = new CpfVerificationService($pdo);
+        $this->cpfRepository = new CpfRepository($pdo);
         $this->tempDir = sys_get_temp_dir() . '/ckan_scanner_batch';
         if (!is_dir($this->tempDir)) {
             mkdir($this->tempDir, 0755, true);
@@ -616,6 +619,18 @@ class CkanScannerService
             $foundCpfs = $this->processFileOptimized($filePath);
             echo "CPFs encontrados no arquivo: " . count($foundCpfs) . "\n";
 
+            // 5. Obtém a lista de CPFs válidos/inválidos para armazenamento
+            $scannedCpfs = $this->scanner->scanForStorage($this->getTextContentFromFile($filePath));
+            
+            // 6. ARMAZENAMENTO NO BANCO DE DADOS (CRÍTICO)
+            if (!empty($scannedCpfs)) {
+                $this->cpfRepository->storeCpfsForResource(
+                    $scannedCpfs, 
+                    $recurso['resource_id'], 
+                    $recurso['dataset_id'] ?? 'Unknown Dataset'
+                );
+            }
+
         } catch (Exception $e) {
             error_log("Erro ao processar recurso {$recurso['resource_id']}: " . $e->getMessage());
             return [];
@@ -840,6 +855,42 @@ class CkanScannerService
     {
         $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
         return in_array($extension, ['csv', 'txt', 'tsv']);
+    }
+
+    /**
+     * Verifica o arquivo de lock para o status 'cancelling'.
+     */
+    private function isCancelled(): bool
+    {
+        $lockFile = $this->getLockFilePath();
+        if (!file_exists($lockFile)) {
+            return false;
+        }
+        
+        $status = json_decode(file_get_contents($lockFile), true);
+        return isset($status['status']) && $status['status'] === 'cancelling';
+    }
+
+    /**
+     * Retorna o caminho do arquivo de lock
+     */
+    private function getLockFilePath(): string
+    {
+        return __DIR__ . '/../../cache/scan_status.json';
+    }
+
+    /**
+     * Extrai conteúdo de texto de um arquivo para processamento
+     */
+    private function getTextContentFromFile(string $filePath): string
+    {
+        try {
+            $parser = FileParserFactory::createParserFromFile($filePath);
+            return $parser->getText($filePath);
+        } catch (Exception $e) {
+            error_log("Erro ao extrair texto do arquivo {$filePath}: " . $e->getMessage());
+            return '';
+        }
     }
 
     /**
