@@ -110,58 +110,18 @@ try {
     
     file_put_contents($lockFile, json_encode($initialStatus, JSON_PRETTY_PRINT));
     
-    // Executa o scanner diretamente em background usando popen
-    $scriptPath = __DIR__ . '/../../bin/run_scanner.php';
+    // NOTA: O disparo do worker agora é feito via cron/supervisor
+    // O arquivo scan_status.json foi criado com status 'pending'
+    // O worker (bin/run_scanner.php) deve ser executado via cron job
+    // Exemplo de cron job: * * * * * /usr/bin/php /caminho/para/bin/run_scanner.php >> /caminho/para/logs/cron_run.log 2>&1
     
-    // Cria o comando
-    $command = "php " . escapeshellarg($scriptPath);
-    if ($force) {
-        $command .= " --force";
-    }
-    
-    // Para Windows, usa start /B para executar em background
-    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-        $command = "start /B " . $command . " > NUL 2>&1";
-    } else {
-        $command .= " > /dev/null 2>&1 &";
-    }
-    
-    // Executa o comando em background
-    $handle = popen($command, 'r');
-    if ($handle) {
-        pclose($handle);
-        error_log("Scanner iniciado com sucesso via popen");
-    } else {
-        // Fallback para exec se popen falhar
-        exec($command);
-        error_log("Scanner iniciado via exec (fallback)");
-    }
-    
-    // Aguarda um momento para garantir que o processo iniciou
-    usleep(1000000); // 1 segundo
-    
-    // Verifica se o status foi atualizado para 'running'
-    $maxAttempts = 10;
-    $attempt = 0;
-    $statusUpdated = false;
-    
-    while ($attempt < $maxAttempts && !$statusUpdated) {
-        usleep(200000); // 0.2 segundos
-        if (file_exists($lockFile)) {
-            $lockContent = file_get_contents($lockFile);
-            $lockData = json_decode($lockContent, true);
-            if ($lockData && isset($lockData['status']) && $lockData['status'] === 'running') {
-                $statusUpdated = true;
-            }
-        }
-        $attempt++;
-    }
+    error_log("Arquivo de status criado com status 'pending'. Worker deve ser executado via cron/supervisor.");
     
     echo json_encode([
         'success' => true,
-        'message' => 'Análise CKAN iniciada com sucesso',
-        'status' => 'started',
-        'status_updated' => $statusUpdated
+        'message' => 'Análise CKAN iniciada com sucesso. Worker será executado via cron/supervisor.',
+        'status' => 'pending',
+        'note' => 'O worker será executado automaticamente via cron job em até 1 minuto.'
     ], JSON_UNESCAPED_UNICODE);
     
 } catch (Exception $e) {

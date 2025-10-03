@@ -407,6 +407,12 @@ class CkanScannerService
                 
                 $foundCpfs = $this->_processarRecursoIndividual($recurso);
 
+                // Log detalhado para diagnóstico
+                error_log("Recurso {$recurso['resource_id']} processado. CPFs encontrados: " . count($foundCpfs));
+                if (!empty($foundCpfs)) {
+                    error_log("CPFs encontrados em {$recurso['resource_id']}: " . implode(', ', $foundCpfs));
+                }
+
                 if (!empty($foundCpfs)) {
                     $metadados = [
                         'dataset_id' => $recurso['dataset_id'],
@@ -606,7 +612,9 @@ class CkanScannerService
             }
 
             // 4. Processamento do Arquivo com Streaming Otimizado
+            echo "Processando arquivo: {$filePath} (Tamanho: " . round($fileSize / 1024 / 1024, 2) . "MB)\n";
             $foundCpfs = $this->processFileOptimized($filePath);
+            echo "CPFs encontrados no arquivo: " . count($foundCpfs) . "\n";
 
         } catch (Exception $e) {
             error_log("Erro ao processar recurso {$recurso['resource_id']}: " . $e->getMessage());
@@ -724,8 +732,26 @@ class CkanScannerService
             $parser = FileParserFactory::createParserFromFile($filePath);
             $textContent = $parser->getText($filePath);
             
+            // --- NOVOS LOGS DE DIAGNÓSTICO ---
+            $fileExtension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+            $logMessage = "INFO: Parser {$fileExtension} retornou " . strlen($textContent) . " caracteres.";
+            
+            // O echo vai para o console/log do worker (se configurado)
+            echo $logMessage . "\n";
+            // O error_log vai para o error.log do PHP
+            error_log($logMessage);
+            
+            // Log dos primeiros caracteres APENAS PARA DIAGNÓSTICO
+            error_log("INFO: Preview do conteúdo (primeiros 200 caracteres): " . substr($textContent, 0, 200) . "...");
+            // ----------------------------------
+            
             if (!empty(trim($textContent))) {
                 $foundCpfs = $this->scanner->scan($textContent);
+                error_log("INFO: Scanner encontrou " . count($foundCpfs) . " CPFs neste recurso.");
+                echo "Scanner encontrou " . count($foundCpfs) . " CPFs\n";
+            } else {
+                error_log("WARNING: Parser retornou conteúdo vazio para o arquivo: " . basename($filePath));
+                echo "Arquivo vazio ou sem conteúdo de texto\n";
             }
             
             // Limpeza imediata
@@ -733,7 +759,9 @@ class CkanScannerService
             unset($parser);
             
         } catch (Exception $e) {
-            error_log("Erro no processamento tradicional: " . $e->getMessage());
+            // Log de erro de processamento de arquivo
+            error_log("ERROR: Falha fatal no processamento tradicional de arquivo: " . $e->getMessage());
+            echo "Erro no processamento: " . $e->getMessage() . "\n";
         }
         
         return $foundCpfs;
