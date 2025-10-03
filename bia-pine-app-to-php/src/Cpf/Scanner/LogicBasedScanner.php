@@ -12,6 +12,12 @@ class LogicBasedScanner implements CpfScannerInterface
             return [];
         }
 
+        // Limpeza de separadores fortes, caso usados nos parsers
+        $textContent = str_replace(' |SEPARATOR| ', ' ', $textContent);
+        
+        // Limpeza adicional de caracteres especiais que podem interferir na detecção
+        $textContent = preg_replace('/\s+/', ' ', $textContent); // Normaliza espaços múltiplos
+
         // Padrões mais abrangentes para capturar CPFs em diferentes formatos
         $patterns = [
             // Formato tradicional: 000.000.000-00

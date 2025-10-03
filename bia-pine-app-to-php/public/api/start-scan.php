@@ -110,18 +110,44 @@ try {
     
     file_put_contents($lockFile, json_encode($initialStatus, JSON_PRETTY_PRINT));
     
-    // NOTA: O disparo do worker agora é feito via cron/supervisor
-    // O arquivo scan_status.json foi criado com status 'pending'
-    // O worker (bin/run_scanner.php) deve ser executado via cron job
-    // Exemplo de cron job: * * * * * /usr/bin/php /caminho/para/bin/run_scanner.php >> /caminho/para/logs/cron_run.log 2>&1
-    
-    error_log("Arquivo de status criado com status 'pending'. Worker deve ser executado via cron/supervisor.");
-    
+    // Executa o scanner diretamente em background
+    $scriptPath = __DIR__ . '/../../bin/run_scanner.php';
+
+    // Cria o comando
+    $command = "php " . escapeshellarg($scriptPath);
+    if ($force) {
+        $command .= " --force";
+    }
+
+    // Executa o comando em background (MÉTODO FORÇADO)
+    $output = [];
+    $returnCode = 0;
+
+    // Para Windows, usa start /B para executar em background
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        $cacheDir = __DIR__ . '/../../cache';
+        $workerLogFile = $cacheDir . '/worker_start.log';
+        // Comando completo para Windows (usando start /B)
+        $command = "start /B " . $command . " > " . escapeshellarg($workerLogFile) . " 2>&1";
+        exec($command, $output, $returnCode);
+        error_log("Comando Windows executado: $command. Código de retorno: $returnCode");
+
+    } else {
+        // Para Linux/Unix: usa redirecionamento e '&' para rodar em background
+        $command .= " > /dev/null 2>&1 &";
+        exec($command, $output, $returnCode);
+        error_log("Comando Unix executado: $command. Código de retorno: $returnCode");
+
+        // Pequeno atraso para dar tempo do processo mudar o status do lockfile
+        usleep(50000); // 0.05 segundos
+    }
+
+    // O frontend (app.php) continuará monitorando o status.
     echo json_encode([
         'success' => true,
-        'message' => 'Análise CKAN iniciada com sucesso. Worker será executado via cron/supervisor.',
-        'status' => 'pending',
-        'note' => 'O worker será executado automaticamente via cron job em até 1 minuto.'
+        'message' => 'Análise CKAN iniciada com sucesso. O processo deve iniciar em segundos.',
+        'status' => 'started',
+        'note' => 'A análise foi disparada e está sendo processada em segundo plano.'
     ], JSON_UNESCAPED_UNICODE);
     
 } catch (Exception $e) {

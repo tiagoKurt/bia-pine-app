@@ -29,15 +29,19 @@ class JsonParser implements FileParserInterface
     private function extractStringsRecursive(mixed $data): string
     {
         $text = '';
+        // Use um separador forte e único para garantir que números sejam isolados
+        $separator = " |SEPARATOR| "; 
         
         if (is_array($data)) {
             foreach ($data as $value) {
-                $text .= $this->extractStringsRecursive($value) . ' ';
+                // Garante que a chamada recursiva use o separador
+                $text .= $this->extractStringsRecursive($value); 
             }
         } elseif (is_string($data)) {
-            $text .= $data . ' ';
+            $text .= $data . $separator;
         } elseif (is_numeric($data)) {
-            $text .= (string)$data . ' ';
+            // Envolve o número com o separador para garantir que a Regex o isole
+            $text .= $separator . (string)$data . $separator; 
         }
 
         return $text;

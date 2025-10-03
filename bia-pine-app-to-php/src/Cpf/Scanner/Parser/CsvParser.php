@@ -17,9 +17,13 @@ class CsvParser implements FileParserInterface
         if (($handle = fopen($filePath, "r")) !== false) {
             try {
                 while (($data = fgetcsv($handle)) !== false) {
-                    $textContent .= implode(' ', array_filter($data, function($value) {
+                    // Adiciona separador forte entre campos para melhor detecção
+                    $filteredData = array_filter($data, function($value) {
                         return $value !== null && $value !== '';
-                    })) . "\n";
+                    });
+                    
+                    // Usa separador forte para isolar cada campo
+                    $textContent .= implode(' |SEPARATOR| ', $filteredData) . " |SEPARATOR| \n";
                 }
             } finally {
                 fclose($handle);
