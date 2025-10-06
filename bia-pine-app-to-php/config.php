@@ -1,11 +1,59 @@
 <?php
 
-// Carregar o autoloader do Composer
-require_once __DIR__ . '/vendor/autoload.php';
+// Carregar o autoloader do Composer com verificação robusta
+$autoloadPath = __DIR__ . '/vendor/autoload.php';
 
+if (!file_exists($autoloadPath)) {
+    error_log("ERRO CRÍTICO: Autoloader do Composer não encontrado em: {$autoloadPath}");
+    error_log("Execute 'composer install' ou 'composer dump-autoload' para resolver este problema");
+    
+    // Tentar carregamento manual das classes críticas como último recurso
+    $criticalClasses = [
+        'App\\Bia' => __DIR__ . '/src/Bia.php',
+        'App\\Pine' => __DIR__ . '/src/Pine.php',
+        'App\\RobustAutoloader' => __DIR__ . '/src/RobustAutoloader.php',
+        'App\\AutoloaderDiagnostic' => __DIR__ . '/src/AutoloaderDiagnostic.php'
+    ];
+    
+    foreach ($criticalClasses as $className => $filePath) {
+        if (file_exists($filePath)) {
+            try {
+                require_once $filePath;
+                error_log("Carregamento manual bem-sucedido: {$className}");
+            } catch (Exception $e) {
+                error_log("Erro no carregamento manual de {$className}: " . $e->getMessage());
+            }
+        }
+    }
+} else {
+    try {
+        require_once $autoloadPath;
+        error_log("Autoloader do Composer carregado com sucesso");
+    } catch (Exception $e) {
+        error_log("Erro ao carregar autoloader do Composer: " . $e->getMessage());
+    }
+}
+
+// Carregar variáveis de ambiente
 if (file_exists(__DIR__ . '/.env') && class_exists('Dotenv\Dotenv')) {
-    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
-    $dotenv->load();
+    try {
+        $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+        $dotenv->load();
+    } catch (Exception $e) {
+        error_log("Erro ao carregar arquivo .env: " . $e->getMessage());
+    }
+}
+
+// Inicializar sistema robusto de autoloading se disponível
+if (class_exists('App\RobustAutoloader')) {
+    try {
+        $robustAutoloader = App\RobustAutoloader::getInstance();
+        $robustAutoloader->ensureAutoloaderLoaded();
+        $robustAutoloader->registerFallbackAutoloader();
+        error_log("Sistema robusto de autoloading inicializado");
+    } catch (Exception $e) {
+        error_log("Erro ao inicializar sistema robusto de autoloading: " . $e->getMessage());
+    }
 }
 
 // Configurações do Banco de Dados via variáveis de ambiente
@@ -78,6 +126,25 @@ if (!defined('DB_PASSWORD')) {
 //     UNIQUE KEY `idx_recurso_unique` (`identificador_recurso`),
 //     KEY `idx_dataset` (`identificador_dataset`)
 //   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+
+// banco prod:
+// CREATE TABLE `mpda_recursos_com_cpf` (
+//   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+//   `identificador_recurso` VARCHAR(255) NOT NULL,
+//   `identificador_dataset` VARCHAR(255) NOT NULL,
+//   `orgao` VARCHAR(255) NOT NULL,
+//   `cpfs_encontrados` LONGTEXT NOT NULL,
+//   `quantidade_cpfs` INT UNSIGNED NOT NULL,
+//   `metadados_recurso` LONGTEXT NOT NULL,
+//   `data_verificacao` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+//   PRIMARY KEY (`id`),
+//   UNIQUE KEY `idx_recurso_unique` (`identificador_recurso`),
+//   KEY `idx_dataset` (`identificador_dataset`)
+// ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+
+
 
 
 if (!defined('DEFAULT_CKAN_PORTAL')) {

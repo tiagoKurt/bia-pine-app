@@ -1,6 +1,6 @@
 <?php
 
-require_once __DIR__ . '/../../config.php';
+require_once __DIR__ . '/../config.php';
 
 use App\Cpf\CpfController;
 
@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-require_once __DIR__ . '/../../src/functions.php';
+require_once __DIR__ . '/../src/functions.php';
 
 try {
     $action = $_GET['action'] ?? 'list';

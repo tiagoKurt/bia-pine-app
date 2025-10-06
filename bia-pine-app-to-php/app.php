@@ -9,7 +9,7 @@ header("Expires: 0");
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; img-src 'self' data: https:; connect-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;");
 
 // Carregar configuração e autoloader
-require __DIR__ . '/../config.php';
+require __DIR__ . '/config.php';
 
 // Importar classes necessárias ANTES de verificar se existem
 use App\Bia;
@@ -196,7 +196,7 @@ if (!empty($portalUrl) && $pine) {
 
 
 // Incluir funções de verificação de CPF
-require_once __DIR__ . '/../src/functions.php';
+require_once __DIR__ . '/src/functions.php';
 
 $paginaCpfAtual = isset($_GET['page']) && isset($_GET['tab']) && $_GET['tab'] === 'cpf' ? (int)$_GET['page'] : 1;
 $itensPorPaginaCpf = 10;
@@ -312,7 +312,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $headers = function_exists('getallheaders') ? getallheaders() : [];
                 error_log("BIA: Headers da requisição: " . json_encode($headers));
                 
-                $templateFile = __DIR__ . '/../templates/modelo_bia2_pronto_para_preencher.docx';
+                $templateFile = __DIR__ . '/templates/modelo_bia2_pronto_para_preencher.docx';
                 
                 // Verificar se o template existe
                 if (!file_exists($templateFile)) {

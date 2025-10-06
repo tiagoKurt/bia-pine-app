@@ -29,16 +29,37 @@ class Bia
 
     public function gerarDocumentoComTemplate(string $templatePath, string $titulo, string $descricao, array $colunas, string $outputPath = null): string
     {
+        error_log("BIA: Iniciando gerarDocumentoComTemplate");
+        error_log("BIA: Template path: " . $templatePath);
+        error_log("BIA: Título: " . $titulo);
+        error_log("BIA: Número de colunas: " . count($colunas));
+        
         if (!file_exists($templatePath)) {
+            error_log("BIA: Template não encontrado: " . $templatePath);
             throw new \Exception("Template não encontrado: " . $templatePath);
         }
 
-        $template = new TemplateProcessor($templatePath);
+        error_log("BIA: Criando TemplateProcessor...");
+        try {
+            $template = new TemplateProcessor($templatePath);
+            error_log("BIA: TemplateProcessor criado com sucesso");
+        } catch (\Exception $e) {
+            error_log("BIA: Erro ao criar TemplateProcessor: " . $e->getMessage());
+            throw new \Exception("Erro ao processar template: " . $e->getMessage());
+        }
         
-        $template->setValue('titulo_documento', $titulo);
-        $template->setValue('descricao_base', $descricao);
+        error_log("BIA: Definindo valores no template...");
+        try {
+            $template->setValue('titulo_documento', $titulo);
+            $template->setValue('descricao_base', $descricao);
+            error_log("BIA: Valores básicos definidos");
+        } catch (\Exception $e) {
+            error_log("BIA: Erro ao definir valores básicos: " . $e->getMessage());
+            throw new \Exception("Erro ao definir valores no template: " . $e->getMessage());
+        }
 
         if (!empty($colunas)) {
+            error_log("BIA: Processando " . count($colunas) . " colunas...");
             try {
                 $template->cloneRowAndSetValues('coluna', array_map(function($r) {
                     return [
@@ -47,25 +68,55 @@ class Bia
                         'descricao'  => $r['descricao'],
                     ];
                 }, $colunas));
+                error_log("BIA: Colunas processadas com sucesso (método 1)");
             } catch (\Exception $e) {
-                $template->cloneRowAndSetValues('row', array_map(function($r) {
-                    return [
-                        'coluna'     => $r['coluna'],
-                        'tipo'       => $r['tipo'],
-                        'descricao'  => $r['descricao'],
-                    ];
-                }, $colunas));
+                error_log("BIA: Erro no método 1, tentando método 2: " . $e->getMessage());
+                try {
+                    $template->cloneRowAndSetValues('row', array_map(function($r) {
+                        return [
+                            'coluna'     => $r['coluna'],
+                            'tipo'       => $r['tipo'],
+                            'descricao'  => $r['descricao'],
+                        ];
+                    }, $colunas));
+                    error_log("BIA: Colunas processadas com sucesso (método 2)");
+                } catch (\Exception $e2) {
+                    error_log("BIA: Erro em ambos os métodos: " . $e2->getMessage());
+                    throw new \Exception("Erro ao processar colunas no template: " . $e2->getMessage());
+                }
             }
         }
 
         if ($outputPath === null) {
-            $outputFile = sys_get_temp_dir() . '/' . str_replace(' ', '_', $titulo) . '.docx';
+            // Usar diretório cache do projeto em vez de sys_get_temp_dir()
+            $cacheDir = __DIR__ . '/../cache';
+            if (!is_dir($cacheDir)) {
+                error_log("BIA: Criando diretório cache: " . $cacheDir);
+                mkdir($cacheDir, 0755, true);
+            }
+            
+            $fileName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $titulo);
+            $fileName = substr($fileName, 0, 50); // Limitar tamanho do nome
+            $outputFile = $cacheDir . '/' . $fileName . '_' . date('Y-m-d_H-i-s') . '.docx';
         } else {
             $outputFile = $outputPath;
         }
 
-        $template->saveAs($outputFile);
+        error_log("BIA: Salvando arquivo em: " . $outputFile);
+        try {
+            $template->saveAs($outputFile);
+            error_log("BIA: Arquivo salvo com sucesso");
+        } catch (\Exception $e) {
+            error_log("BIA: Erro ao salvar arquivo: " . $e->getMessage());
+            throw new \Exception("Erro ao salvar documento: " . $e->getMessage());
+        }
 
+        if (!file_exists($outputFile)) {
+            error_log("BIA: Arquivo não foi criado: " . $outputFile);
+            throw new \Exception("Arquivo não foi criado corretamente");
+        }
+
+        error_log("BIA: Documento gerado com sucesso: " . $outputFile);
         return $outputFile;
     }
 
