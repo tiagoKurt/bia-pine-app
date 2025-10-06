@@ -1,7 +1,6 @@
 <?php
 
 require_once __DIR__ . '/../config.php';
-ensureAutoloader();
 
 use App\Worker\CkanScannerService;
 use App\Cpf\Ckan\CkanApiClient;
@@ -34,6 +33,42 @@ function getStatus(string $lockFile): array {
 
 echo "=== WORKER DE ANÁLISE DE CPF (Cron) ===\n";
 echo "Iniciado em: " . date('Y-m-d H:i:s') . "\n";
+
+// PREVENIR MÚLTIPLAS EXECUÇÕES SIMULTÂNEAS
+$pidFile = $cacheDir . '/scanner.pid';
+
+// Verificar se já existe um processo rodando
+if (file_exists($pidFile)) {
+    $pid = file_get_contents($pidFile);
+    
+    // Verificar se o processo ainda está ativo (Windows)
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        exec("tasklist /FI \"PID eq $pid\" 2>NUL", $output);
+        $isRunning = count($output) > 1;
+    } else {
+        // Linux/Unix
+        $isRunning = posix_kill($pid, 0);
+    }
+    
+    if ($isRunning) {
+        echo "AVISO: Já existe uma análise em execução (PID: $pid)\n";
+        echo "Aguardando análise anterior terminar...\n";
+        exit(0);
+    } else {
+        // Processo morto, remover PID antigo
+        @unlink($pidFile);
+    }
+}
+
+// Criar arquivo PID
+file_put_contents($pidFile, getmypid());
+
+// Registrar função para remover PID ao finalizar
+register_shutdown_function(function() use ($pidFile) {
+    if (file_exists($pidFile)) {
+        @unlink($pidFile);
+    }
+});
 
 try {
     $status = getStatus($lockFile);

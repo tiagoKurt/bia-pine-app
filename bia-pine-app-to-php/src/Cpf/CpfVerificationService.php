@@ -25,24 +25,52 @@ class CpfVerificationService
     }
 
     /**
-     * Valida um CPF usando o algoritmo oficial brasileiro.
-     * Esta função pode ser mantida para validação interna, se necessário.
+     * Valida um CPF usando o algoritmo oficial brasileiro com dígitos verificadores.
+     * 
+     * Algoritmo:
+     * 1. Primeiro dígito: multiplica os 9 primeiros dígitos por 10,9,8,7,6,5,4,3,2
+     *    Soma tudo, divide por 11 e pega o resto. Se resto < 2, DV=0, senão DV=11-resto
+     * 2. Segundo dígito: multiplica os 10 primeiros dígitos por 11,10,9,8,7,6,5,4,3,2
+     *    Soma tudo, divide por 11 e pega o resto. Se resto < 2, DV=0, senão DV=11-resto
      */
     public function validarCPF($cpf)
     {
         $cpf = preg_replace('/[^0-9]/is', '', $cpf);
-        if (strlen($cpf) != 11 || preg_match('/(\d)\1{10}/', $cpf)) {
+        
+        // Deve ter exatamente 11 dígitos
+        if (strlen($cpf) != 11) {
             return false;
         }
-        for ($t = 9; $t < 11; $t++) {
-            for ($d = 0, $c = 0; $c < $t; $c++) {
-                $d += $cpf[$c] * (($t + 1) - $c);
-            }
-            $d = ((10 * $d) % 11) % 10;
-            if ($cpf[$c] != $d) {
-                return false;
-            }
+        
+        // Rejeita CPFs com todos os dígitos iguais (111.111.111-11, etc)
+        if (preg_match('/(\d)\1{10}/', $cpf)) {
+            return false;
         }
+        
+        // Validação do primeiro dígito verificador
+        $soma = 0;
+        for ($i = 0; $i < 9; $i++) {
+            $soma += intval($cpf[$i]) * (10 - $i);
+        }
+        $resto = $soma % 11;
+        $digitoVerificador1 = ($resto < 2) ? 0 : 11 - $resto;
+        
+        if (intval($cpf[9]) != $digitoVerificador1) {
+            return false;
+        }
+        
+        // Validação do segundo dígito verificador
+        $soma = 0;
+        for ($i = 0; $i < 10; $i++) {
+            $soma += intval($cpf[$i]) * (11 - $i);
+        }
+        $resto = $soma % 11;
+        $digitoVerificador2 = ($resto < 2) ? 0 : 11 - $resto;
+        
+        if (intval($cpf[10]) != $digitoVerificador2) {
+            return false;
+        }
+        
         return true;
     }
 

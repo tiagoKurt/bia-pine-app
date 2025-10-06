@@ -2,8 +2,6 @@
 
 require_once __DIR__ . '/../../config.php';
 
-// Garantir que o autoloader esteja disponível
-ensureAutoloader();
 require_once __DIR__ . '/../../src/functions.php';
 
 // Headers para API

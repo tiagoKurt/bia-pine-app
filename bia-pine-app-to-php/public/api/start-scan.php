@@ -1,7 +1,6 @@
 <?php
 
 require_once __DIR__ . '/../../config.php';
-ensureAutoloader();
 
 // Headers para API
 header('Content-Type: application/json; charset=utf-8');
@@ -43,7 +42,7 @@ try {
                 http_response_code(409);
                 echo json_encode([
                     'success' => false,
-                    'message' => 'Uma análise já está em execução. Cancele-a antes de iniciar uma nova.',
+                    'message' => 'Uma análise já está em execução. Deseja forçar uma nova análise?',
                     'current_status' => $status
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
@@ -52,45 +51,86 @@ try {
             if (in_array($status, ['running', 'pending']) && $force) {
                 // Se rodando e FOR para forçar, marca o status como 'cancelling'
                 $lockData['status'] = 'cancelling';
-                $lockData['message'] = 'Scan anterior marcado para cancelamento. Reiniciando...';
+                $lockData['message'] = 'Análise anterior cancelada. Iniciando nova análise...';
                 $lockData['lastUpdate'] = date('c');
                 file_put_contents($lockFile, json_encode($lockData, JSON_PRETTY_PRINT));
                 
-                // Aguarda um pouco para o worker antigo sair (opcional, mas ajuda)
-                sleep(1); 
+                // Aguarda para o worker antigo detectar o cancelamento
+                sleep(2);
+                
+                // Remove o arquivo de fila para forçar nova descoberta
+                $queueFile = $cacheDir . '/scan_queue.json';
+                if (file_exists($queueFile)) {
+                    @unlink($queueFile);
+                }
             }
         }
     }
 
     // 2. Cria arquivo de status inicial com 'pending'
     $initialStatus = [
-        'status' => 'pending', // O worker Cron Job iniciará quando vir 'pending'
+        'status' => 'pending',
         'startTime' => date('c'),
         'progress' => [
             'datasets_analisados' => 0,
             'recursos_analisados' => 0,
             'recursos_com_cpfs' => 0,
             'total_cpfs_salvos' => 0,
-            'current_step' => 'Análise agendada e aguardando worker (Cron Job)...'
+            'total_recursos' => 0,
+            'recursos_processados' => 0,
+            'current_step' => $force 
+                ? 'Nova análise iniciada. Preparando ambiente...' 
+                : 'Análise iniciada. Conectando ao portal CKAN...'
         ],
         'lastUpdate' => date('c'),
-        'message' => 'Análise agendada. O worker Cron Job iniciará o processamento em breve.'
+        'message' => $force 
+            ? 'Nova análise forçada. Processamento iniciado.' 
+            : 'Análise iniciada. O worker processará os recursos em breve.'
     ];
     
     // Se for 'force', apaga o arquivo da fila para garantir que a varredura comece do zero
     $queueFile = $cacheDir . '/scan_queue.json';
     if ($force && file_exists($queueFile)) {
         @unlink($queueFile);
+        error_log("Arquivo de fila removido para forçar nova análise");
     }
     
     file_put_contents($lockFile, json_encode($initialStatus, JSON_PRETTY_PRINT));
+    error_log("Arquivo de status criado: " . $lockFile);
     
-    // 3. Resposta final ao front-end
+    // 3. TENTAR INICIAR O WORKER AUTOMATICAMENTE (Fallback se cron não estiver configurado)
+    $workerStarted = false;
+    $workerScript = __DIR__ . '/../../bin/run_scanner.php';
+    
+    if (file_exists($workerScript)) {
+        try {
+            // Tentar executar o worker em background
+            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                // Windows
+                $command = "start /B php " . escapeshellarg($workerScript) . " > NUL 2>&1";
+                pclose(popen($command, 'r'));
+                $workerStarted = true;
+                error_log("Worker iniciado em background (Windows): $command");
+            } else {
+                // Linux/Unix
+                $command = "php " . escapeshellarg($workerScript) . " > /dev/null 2>&1 &";
+                exec($command);
+                $workerStarted = true;
+                error_log("Worker iniciado em background (Linux): $command");
+            }
+        } catch (Exception $e) {
+            error_log("Erro ao tentar iniciar worker automaticamente: " . $e->getMessage());
+            // Não é erro fatal - o cron job pode pegar depois
+        }
+    }
+    
+    // 4. Resposta final ao front-end
     echo json_encode([
         'success' => true,
-        'message' => $force ? 'Análise reiniciada com sucesso. O worker Cron Job está sendo aguardado.' : 'Análise iniciada com sucesso. O worker Cron Job iniciará o processamento.',
+        'message' => $force ? 'Análise reiniciada com sucesso. Processamento iniciado.' : 'Análise iniciada com sucesso. Processamento em andamento.',
         'status' => 'started',
-        'worker_started' => false, // Setado como false pois a inicialização é externa/Cron
+        'worker_started' => $workerStarted,
+        'worker_method' => $workerStarted ? 'automatic' : 'cron_job',
         'lock_file' => $lockFile
     ], JSON_UNESCAPED_UNICODE);
     

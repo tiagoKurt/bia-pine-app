@@ -1,8 +1,6 @@
 <?php
 
 require_once __DIR__ . '/../../config.php';
-// Garantir que o autoloader esteja disponível
-ensureAutoloader();
 
 use App\Bia;
 

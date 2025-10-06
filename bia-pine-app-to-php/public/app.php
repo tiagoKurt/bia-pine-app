@@ -10,8 +10,6 @@ header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-i
 
 require __DIR__ . '/../config.php';
 
-// Garantir que o autoloader esteja disponível
-ensureAutoloader();
 
 // Criar conexão com o banco de dados (apenas se necessário)
 $pdo = null;
@@ -21,9 +19,6 @@ try {
     // Log do erro mas não interrompe a execução para funcionalidades que não dependem do banco
     error_log("Erro de conexão com banco de dados: " . $e->getMessage());
 }
-
-use App\Bia;
-use App\Pine;
 
 // Verificar se as classes estão disponíveis antes de instanciar
 if (!class_exists('App\Bia')) {
@@ -35,6 +30,9 @@ if (!class_exists('App\Pine')) {
     error_log("ERRO: Classe App\Pine não encontrada");
     die('Erro: Classe App\Pine não encontrada. Verifique se o autoloader está configurado corretamente.');
 }
+
+use App\Bia;
+use App\Pine;
 
 try {
     error_log("BIA: Tentando instanciar classe Bia...");
@@ -3569,28 +3567,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (statusData.progress) {
                 const progress = statusData.progress;
                 
+                // Atualizar texto do progresso
                 if (progressText) {
-                    progressText.innerHTML = `<strong>${progress.current_step || 'Processando...'}</strong>`;
+                    let stepText = progress.current_step || 'Processando...';
+                    
+                    // Adicionar informação de progresso se disponível
+                    if (progress.total_recursos && progress.recursos_processados) {
+                        const percent = Math.round((progress.recursos_processados / progress.total_recursos) * 100);
+                        stepText += ` (${percent}%)`;
+                    }
+                    
+                    progressText.innerHTML = `<strong>${stepText}</strong>`;
                 }
                 
+                // Atualizar contadores
                 if (datasetsCount) datasetsCount.textContent = progress.datasets_analisados || 0;
                 if (recursosCount) recursosCount.textContent = progress.recursos_analisados || 0;
                 if (cpfsRecursosCount) cpfsRecursosCount.textContent = progress.recursos_com_cpfs || 0;
                 if (cpfsTotalCount) cpfsTotalCount.textContent = progress.total_cpfs_salvos || 0;
                 
+                // Calcular porcentagem real baseada no progresso
                 let percentage = 0;
-                if (progress.datasets_analisados > 0) {
-                    const estimatedTotal = progress.datasets_analisados * 10;
-                    percentage = Math.min(95, (progress.recursos_analisados / estimatedTotal) * 100);
+                
+                if (progress.total_recursos && progress.recursos_processados) {
+                    // Usar progresso real
+                    percentage = Math.min(99, (progress.recursos_processados / progress.total_recursos) * 100);
+                } else if (progress.recursos_analisados > 0) {
+                    // Fallback: estimativa baseada em recursos analisados
+                    percentage = Math.min(95, (progress.recursos_analisados / 100) * 100);
                 }
                 
                 if (statusData.status === 'completed') {
                     percentage = 100;
                 }
                 
+                // Atualizar barra de progresso
                 if (progressBar) {
                     progressBar.style.width = percentage + '%';
-                    progressBar.setAttribute('aria-valuenow', percentage);
+                    progressBar.setAttribute('aria-valuenow', Math.round(percentage));
+                    
+                    // Adicionar texto de porcentagem na barra
+                    if (percentage > 10) {
+                        progressBar.textContent = Math.round(percentage) + '%';
+                    }
                 }
             }
         }
@@ -3609,35 +3628,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function showForceAnalysisDialog(message, timeout) {
-            const remainingMinutes = Math.ceil(timeout / 60);
-            
             const dialogHtml = `
                 <div class="modal fade" id="forceAnalysisModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
                     <div class="modal-dialog modal-dialog-centered modal-lg">
                         <div class="modal-content">
-                            <div class="modal-header">
+                            <div class="modal-header bg-warning text-dark">
                                 <h5 class="modal-title">
-                                    <i class="fas fa-exclamation-triangle text-warning"></i> Análise em Andamento
+                                    <i class="fas fa-exclamation-triangle"></i> Análise em Andamento
                                 </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                             </div>
                             <div class="modal-body">
-                                <p>${message}</p>
-                                <div class="alert alert-warning">
+                                <div class="alert alert-info mb-3">
                                     <i class="fas fa-info-circle"></i>
-                                    <strong>Atenção:</strong> Forçar uma nova análise irá interromper a análise atual e pode causar perda de dados.
+                                    <strong>Uma análise já está em execução.</strong>
                                 </div>
-                                <p>Você deseja:</p>
-                                <ul>
-                                    <li><strong>Aguardar</strong> a análise atual terminar (recomendado)</li>
-                                    <li><strong>Forçar</strong> uma nova análise (interrompe a atual)</li>
-                                </ul>
+                                
+                                <p class="mb-3">Você tem duas opções:</p>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="card border-success">
+                                            <div class="card-body">
+                                                <h6 class="card-title text-success">
+                                                    <i class="fas fa-clock"></i> Aguardar (Recomendado)
+                                                </h6>
+                                                <p class="card-text small">
+                                                    A análise atual continuará normalmente até ser concluída.
+                                                    Você pode fechar esta janela e acompanhar o progresso.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="card border-warning">
+                                            <div class="card-body">
+                                                <h6 class="card-title text-warning">
+                                                    <i class="fas fa-redo"></i> Forçar Nova Análise
+                                                </h6>
+                                                <p class="card-text small">
+                                                    A análise atual será cancelada e uma nova será iniciada do zero.
+                                                    <strong>Use apenas se necessário.</strong>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             <div class="modal-footer d-flex flex-column flex-md-row gap-2">
-                                <button type="button" class="btn btn-secondary w-100 w-md-auto" data-bs-dismiss="modal">
-                                    <i class="fas fa-clock"></i> Aguardar
+                                <button type="button" class="btn btn-success w-100 w-md-auto" data-bs-dismiss="modal">
+                                    <i class="fas fa-check"></i> Aguardar Análise Atual
                                 </button>
                                 <button type="button" class="btn btn-warning w-100 w-md-auto" onclick="forceNewAnalysis()">
-                                    <i class="fas fa-play"></i> Forçar Nova Análise
+                                    <i class="fas fa-redo"></i> Forçar Nova Análise
                                 </button>
                             </div>
                         </div>
@@ -3657,18 +3700,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function forceNewAnalysis() {
+            // Fechar modal de confirmação
             const modal = document.getElementById('forceAnalysisModal');
             if (modal) {
                 const bootstrapModal = bootstrap.Modal.getInstance(modal);
                 if (bootstrapModal) {
                     bootstrapModal.hide();
                 }
+                // Remover modal após animação
                 setTimeout(() => {
                     modal.remove();
                 }, 300);
             }
             
-            executeScanCkan(true);
+            // Aguardar um pouco para o modal fechar antes de iniciar
+            setTimeout(() => {
+                executeScanCkan(true);
+            }, 400);
         }
 
         // Função para lidar com download automático (CSP-safe)
@@ -3700,8 +3748,229 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // Executar download automático se necessário
+        // ========== ANÁLISE DE CPF CKAN ==========
+        
+        // Variáveis globais para controle da análise
+        let scanStatusInterval = null;
+        let scanInProgress = false;
+
+        // Função principal para executar análise CKAN
+        function executeScanCkan(force = false) {
+            console.log('🔍 Iniciando análise CKAN... Force:', force);
+            
+            // Mostrar modal de progresso imediatamente
+            showAsyncProgressModal();
+            
+            // Atualizar texto inicial do modal
+            const progressText = document.getElementById('async-progress-text');
+            if (progressText) {
+                progressText.innerHTML = force 
+                    ? '<strong>Cancelando análise anterior e iniciando nova...</strong>' 
+                    : '<strong>Iniciando análise...</strong>';
+            }
+            
+            // Fazer requisição para iniciar análise
+            const formData = new FormData();
+            if (force) {
+                formData.append('force', '1');
+            }
+            
+            fetch('api/start-scan.php', {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                
+                if (response.status === 409 && !force) {
+                    // Conflito - análise já em andamento (apenas se não for force)
+                    return response.json().then(data => {
+                        hideAsyncProgressModal();
+                        showForceAnalysisDialog(data.message, 0);
+                        throw new Error('Análise já em andamento');
+                    });
+                }
+                
+                if (!response.ok) {
+                    return response.json().then(errorData => {
+                        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                    });
+                }
+                
+                return response.json();
+            })
+            .then(data => {
+                console.log('✅ Análise iniciada:', data);
+                
+                if (data.success) {
+                    scanInProgress = true;
+                    
+                    // Atualizar modal com mensagem de sucesso
+                    const progressText = document.getElementById('async-progress-text');
+                    if (progressText) {
+                        progressText.innerHTML = '<strong>Análise iniciada! Aguardando worker...</strong>';
+                    }
+                    
+                    // Mostrar notificação de sucesso (pequena, não intrusiva)
+                    showMessage(data.message, 'success');
+                    
+                    // Iniciar monitoramento do progresso após 1 segundo
+                    setTimeout(() => {
+                        startScanStatusMonitoring();
+                    }, 1000);
+                } else {
+                    hideAsyncProgressModal();
+                    showMessage(data.message || 'Erro ao iniciar análise', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Erro ao iniciar análise:', error);
+                if (error.message !== 'Análise já em andamento') {
+                    hideAsyncProgressModal();
+                    showMessage('Erro ao iniciar análise: ' + error.message, 'error');
+                }
+            });
+        }
+
+        // Função para monitorar o status da análise
+        function startScanStatusMonitoring() {
+            console.log('📊 Iniciando monitoramento de status...');
+            
+            // Limpar intervalo anterior se existir
+            if (scanStatusInterval) {
+                clearInterval(scanStatusInterval);
+            }
+            
+            // Verificar status a cada 1 segundo (mais responsivo)
+            scanStatusInterval = setInterval(() => {
+                checkScanStatus();
+            }, 1000);
+            
+            // Verificar imediatamente
+            checkScanStatus();
+        }
+
+        // Função para verificar o status da análise
+        function checkScanStatus() {
+            fetch('api/scan-status.php', {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('📊 Status da análise:', data);
+                
+                if (data.success) {
+                    const status = data.status;
+                    
+                    // Atualizar modal de progresso
+                    updateAsyncProgress(data);
+                    
+                    // Verificar se a análise terminou
+                    if (status === 'completed') {
+                        console.log('✅ Análise concluída!');
+                        scanInProgress = false;
+                        clearInterval(scanStatusInterval);
+                        scanStatusInterval = null;
+                        
+                        // Atualizar modal para mostrar conclusão
+                        const progressText = document.getElementById('async-progress-text');
+                        if (progressText) {
+                            progressText.innerHTML = '<strong class="text-success">✓ Análise concluída com sucesso!</strong>';
+                        }
+                        
+                        // Aguardar 2 segundos antes de fechar e recarregar
+                        setTimeout(() => {
+                            hideAsyncProgressModal();
+                            showMessage('Análise concluída! Recarregando resultados...', 'success');
+                            
+                            // Recarregar página após mais 1 segundo
+                            setTimeout(() => {
+                                window.location.href = '?tab=cpf';
+                            }, 1000);
+                        }, 2000);
+                        
+                    } else if (status === 'failed' || status === 'error') {
+                        console.error('❌ Análise falhou:', data.message);
+                        scanInProgress = false;
+                        clearInterval(scanStatusInterval);
+                        scanStatusInterval = null;
+                        
+                        // Atualizar modal para mostrar erro
+                        const progressText = document.getElementById('async-progress-text');
+                        if (progressText) {
+                            progressText.innerHTML = '<strong class="text-danger">✗ Erro na análise</strong>';
+                        }
+                        
+                        setTimeout(() => {
+                            hideAsyncProgressModal();
+                            showMessage('Erro na análise: ' + (data.message || 'Erro desconhecido'), 'error');
+                        }, 2000);
+                        
+                    } else if (status === 'cancelled' || status === 'stopped') {
+                        console.log('⚠️ Análise cancelada');
+                        scanInProgress = false;
+                        clearInterval(scanStatusInterval);
+                        scanStatusInterval = null;
+                        
+                        hideAsyncProgressModal();
+                        showMessage('Análise cancelada.', 'warning');
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('❌ Erro ao verificar status:', error);
+                // Não para o monitoramento em caso de erro de rede temporário
+            });
+        }
+
+        // Event listener para o botão de análise CKAN
         document.addEventListener('DOMContentLoaded', function() {
+            const btnScanCkan = document.getElementById('btnScanCkan');
+            
+            if (btnScanCkan) {
+                console.log('✅ Botão de análise CKAN encontrado');
+                
+                btnScanCkan.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log('🖱️ Botão de análise CKAN clicado');
+                    
+                    // Verificar se já há uma análise em andamento
+                    fetch('api/scan-status.php', {
+                        method: 'GET',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.inProgress) {
+                            // Análise já em andamento - perguntar se quer forçar
+                            showForceAnalysisDialog(
+                                'Uma análise já está em execução. Deseja forçar uma nova análise?',
+                                0
+                            );
+                        } else {
+                            // Iniciar nova análise
+                            executeScanCkan(false);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erro ao verificar status:', error);
+                        // Se houver erro ao verificar, tenta iniciar mesmo assim
+                        executeScanCkan(false);
+                    });
+                });
+            } else {
+                console.warn('⚠️ Botão de análise CKAN não encontrado');
+            }
+            
+            // Executar download automático se necessário
             handleAutoDownload();
         });
     </script>

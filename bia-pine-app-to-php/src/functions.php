@@ -668,17 +668,29 @@ function getCpfFindingsPaginadoFromNewTable(PDO $pdo, int $pagina = 1, int $iten
                     continue;
                 }
 
+                // Formatar CPFs - garantir que cada item seja string
+                $cpfsFormatados = [];
+                if (is_array($cpfs)) {
+                    foreach ($cpfs as $cpf) {
+                        if (is_string($cpf)) {
+                            $cpfsFormatados[] = formatarCPF($cpf);
+                        } elseif (is_array($cpf) && isset($cpf['cpf'])) {
+                            $cpfsFormatados[] = formatarCPF($cpf['cpf']);
+                        }
+                    }
+                }
+                
                 $findings[] = [
                     'dataset_id' => $result['identificador_dataset'],
                     'dataset_name' => $result['dataset_name'] ?? ($metadados['dataset_name'] ?? 'Dataset Desconhecido'),
                     'dataset_url' => $result['dataset_url'] ?? '#',
-                    'dataset_organization' => $result['orgao'] ?? 'Não informado', // Prioriza o campo orgao da tabela mpda_recursos_com_cpf
+                    'dataset_organization' => $result['orgao'] ?? 'Não informado',
                     'resource_id' => $result['identificador_recurso'],
                     'resource_name' => $metadados['resource_name'] ?? 'Recurso Desconhecido',
                     'resource_url' => $metadados['resource_url'] ?? '#',
                     'resource_format' => $metadados['resource_format'] ?? 'N/A',
                     'cpf_count' => (int) $result['quantidade_cpfs'],
-                    'cpfs' => array_map('formatarCPF', $cpfs),
+                    'cpfs' => $cpfsFormatados,
                     'last_checked' => $result['data_verificacao']
                 ];
             }

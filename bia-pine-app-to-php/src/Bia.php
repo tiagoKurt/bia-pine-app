@@ -3,10 +3,14 @@
 namespace App;
 
 use PhpOffice\PhpWord\TemplateProcessor;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\RequestException;
+use Exception;
 
 class Bia
 {
     private const PORTAL_URL = 'https://dadosabertos.go.gov.br';
+    private Client $httpClient;
     
     public function __construct()
     {
@@ -14,6 +18,13 @@ class Bia
         if (!class_exists('PhpOffice\PhpWord\TemplateProcessor')) {
             throw new \Exception('PhpOffice\PhpWord\TemplateProcessor não está disponível. Verifique se o PhpWord está instalado corretamente.');
         }
+
+        // Instanciar Guzzle
+        $this->httpClient = new Client([
+            'timeout' => 30,
+            'http_errors' => false,
+            'verify' => false // Ajustar conforme o ambiente
+        ]);
     }
 
     public function gerarDocumentoComTemplate(string $templatePath, string $titulo, string $descricao, array $colunas, string $outputPath = null): string
@@ -226,44 +237,54 @@ class Bia
     {
         error_log("BIA: Fazendo requisição para: " . $url);
         
-        $context = stream_context_create([
-            'http' => [
-                'timeout' => 30,
-                'user_agent' => 'BIA-PINE-App/1.0',
-                'method' => 'GET',
-                'header' => [
-                    'Accept: application/json',
-                    'Content-Type: application/json'
+        try {
+            // Usar Guzzle para requisições de API (JSON)
+            $response = $this->httpClient->get($url, [
+                'headers' => [
+                    'Accept' => 'application/json',
+                    'User-Agent' => 'BIA-PINE-App/1.0'
                 ]
-            ]
-        ]);
-        
-        $response = @file_get_contents($url, false, $context);
-        if ($response === false) {
-            $error = error_get_last();
-            $errorMsg = $error ? $error['message'] : 'Erro desconhecido (provavelmente Timeout ou Firewall)';
-            error_log("BIA: ERRO DE CONEXÃO FATAL ao acessar API: " . $errorMsg);
+            ]);
+
+            $statusCode = $response->getStatusCode();
+
+            if ($statusCode >= 400) {
+                // Capturar erros HTTP (4xx ou 5xx)
+                $errorBody = $response->getBody()->getContents();
+                error_log("BIA: ERRO HTTP {$statusCode} ao acessar API: " . $url . " | Corpo: " . substr($errorBody, 0, 100));
+                
+                throw new Exception("Erro de API/Rede ao acessar CKAN. Status: {$statusCode}.");
+            }
             
-            throw new \Exception("Erro de Rede/Firewall ao acessar API CKAN: {$url}. Verifique as permissões de saída HTTP/HTTPS do servidor de homologação. Mensagem: {$errorMsg}");
+            // Obter o corpo da resposta
+            $responseContent = $response->getBody()->getContents();
+            error_log("BIA: Resposta recebida, tamanho: " . strlen($responseContent) . " bytes");
+            
+            $data = json_decode($responseContent, true);
+            
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $jsonError = json_last_error_msg();
+                error_log("BIA: Erro JSON: " . $jsonError);
+                throw new Exception("Erro ao decodificar resposta JSON da API: {$jsonError}");
+            }
+            
+            if (isset($data['error'])) {
+                $errorMsg = $data['error']['message'] ?? 'Erro desconhecido da API';
+                error_log("BIA: API retornou erro: " . $errorMsg);
+                throw new Exception("API retornou erro: {$errorMsg}");
+            }
+            
+            return $data;
+
+        } catch (RequestException $e) {
+            // Erro de rede (timeout, falha de conexão)
+            $errorMsg = $e->getMessage();
+            error_log("BIA: ERRO DE CONEXÃO FATAL ao acessar API: " . $errorMsg);
+            throw new Exception("Erro de Rede ao acessar API CKAN: {$url}. Mensagem: {$errorMsg}");
+        } catch (Exception $e) {
+            // Outras exceções
+            throw $e;
         }
-        
-        error_log("BIA: Resposta recebida, tamanho: " . strlen($response) . " bytes");
-        
-        $data = json_decode($response, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            $jsonError = json_last_error_msg();
-            error_log("BIA: Erro JSON: " . $jsonError);
-            error_log("BIA: Resposta recebida: " . substr($response, 0, 500));
-            throw new \Exception("Erro ao decodificar resposta JSON da API: {$jsonError}");
-        }
-        
-        if (isset($data['error'])) {
-            $errorMsg = $data['error']['message'] ?? 'Erro desconhecido da API';
-            error_log("BIA: API retornou erro: " . $errorMsg);
-            throw new \Exception("API retornou erro: {$errorMsg}");
-        }
-        
-        return $data;
     }
 }
 

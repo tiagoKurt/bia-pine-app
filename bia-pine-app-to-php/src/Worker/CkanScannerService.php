@@ -72,10 +72,8 @@ class CkanScannerService
             $this->scanner = new LogicBasedScanner();
         }
         
-        // Limpa o cliente CKAN se existir
-        if (isset($this->ckanClient)) {
-            unset($this->ckanClient);
-        }
+        // NÃO limpar ckanClient pois é necessário para descobrir recursos
+        // O ckanClient tem cache interno que é útil manter
         
         // Força coleta de lixo múltiplas vezes
         $this->forceGarbageCollection();
@@ -320,11 +318,8 @@ class CkanScannerService
         // Calcula o tempo decorrido desde o início da análise
         $startTimeFromLock = isset($status['startTime']) ? strtotime($status['startTime']) : time();
         
-        echo "=== PROCESSAMENTO EM LOTES OTIMIZADO ===\n";
-        echo "Total de recursos: $totalRecursos\n";
-        echo "Recursos já processados: $indiceInicial\n";
-        echo "Recursos restantes: " . ($totalRecursos - $indiceInicial) . "\n";
-        echo "Tamanho do lote: " . self::BATCH_SIZE . " recursos\n\n";
+        // Log inicial apenas
+        error_log("Iniciando processamento: $totalRecursos recursos, já processados: $indiceInicial");
         
         $recursosProcessadosNesteLote = 0;
         $datasetsProcessados = [];
@@ -332,8 +327,6 @@ class CkanScannerService
         // Processa em lotes de 30 recursos
         for ($i = $indiceInicial; $i < $totalRecursos; $i += self::BATCH_SIZE) {
             $loteAtual = min(self::BATCH_SIZE, $totalRecursos - $i);
-            echo "--- Processando lote: recursos " . ($i + 1) . " a " . ($i + $loteAtual) . " ---\n";
-            
             // Processa o lote atual
             $resultadoLote = $this->processarLoteOtimizado($fila, $i, $loteAtual, $status, $lockFile, $datasetsProcessados, $startTimeFromLock);
             
@@ -341,14 +334,14 @@ class CkanScannerService
             $datasetsProcessados = $resultadoLote['datasets'];
             $status = $resultadoLote['status'];
             
-            echo "Lote processado: {$resultadoLote['processados']} recursos\n";
-            echo "Total processado: " . ($i + $loteAtual) . "/$totalRecursos recursos\n";
-            echo "Memória atual: " . round(memory_get_usage(true) / 1024 / 1024, 2) . "MB\n";
+            // Log apenas a cada 100 recursos
+            if (($i + $loteAtual) % 100 === 0 || ($i + $loteAtual) >= $totalRecursos) {
+                error_log("Progresso: " . ($i + $loteAtual) . "/$totalRecursos recursos processados");
+            }
             
-            // Limpeza automática de arquivos temporários após cada lote de 30
+            // Limpeza automática de arquivos temporários após cada lote
             if (self::CLEANUP_AFTER_BATCH) {
                 $this->cleanupTempFiles();
-                echo "Arquivos temporários limpos após lote de 30 recursos\n";
             }
             
             // Verifica se deve parar APÓS processar o lote
@@ -369,11 +362,10 @@ class CkanScannerService
 
         // Se terminou a fila, marca como concluído
         if ($status['progress']['recursos_processados'] >= $totalRecursos) {
-            echo "=== TODOS OS RECURSOS PROCESSADOS COM SUCESSO! ===\n";
+            error_log("✓ Análise concluída! Total: $totalRecursos recursos processados");
             return ['status' => 'completed', 'message' => 'Análise concluída com sucesso!'];
         }
 
-        echo "Processamento pausado. Continuará na próxima execução.\n";
         return ['status' => 'running', 'message' => "Processados {$recursosProcessadosNesteLote} recursos. Análise continuará na próxima execução."];
     }
 
@@ -389,7 +381,6 @@ class CkanScannerService
             // Verifica se deve parar DENTRO do lote a cada 10 recursos
             if ($recursosProcessados > 0 && $recursosProcessados % 10 === 0) {
                 if ($this->shouldStopForMemoryOrTime($startTimeFromLock)) {
-                    echo "Parando dentro do lote por limite de tempo ou memória.\n";
                     break;
                 }
             }
@@ -434,10 +425,9 @@ class CkanScannerService
                 $recursosProcessados++;
                 $status['progress']['recursos_processados'] = $i + 1;
                 
-                // Salva progresso a cada 5 recursos no lote (mais frequente)
-                if ($recursosProcessados % 5 === 0) {
+                // Salva progresso a cada 10 recursos no lote
+                if ($recursosProcessados % 10 === 0) {
                     @file_put_contents($lockFile, json_encode($status, JSON_PRETTY_PRINT));
-                    echo "Checkpoint: {$recursosProcessados} recursos processados no lote\n";
                 }
                 
                 // Limpeza de memória a cada 10 recursos no lote
@@ -581,11 +571,10 @@ class CkanScannerService
 
     /**
      * Lógica para baixar, analisar e extrair CPFs de um único recurso.
-     * Versão otimizada com streaming de arquivos para reduzir uso de memória.
+     * Versão ULTRA OTIMIZADA - Processa em memória sem salvar arquivos.
      */
     private function _processarRecursoIndividual(array $recurso): array
     {
-        $filePath = $this->tempDir . '/' . uniqid('res_') . '.tmp';
         $foundCpfs = [];
         
         try {
@@ -594,56 +583,148 @@ class CkanScannerService
                 return [];
             }
 
-            echo "Baixando em streaming: {$recurso['url']} para {$filePath}\n";
+            // 2. Baixar e processar EM MEMÓRIA (sem salvar arquivo)
+            $textContent = $this->downloadAndExtractTextInMemory($recurso['url'], $recurso['format'] ?? 'unknown');
             
-            // 2. Download do Arquivo para o Disco (STREAMING OTIMIZADO)
-            $downloadSuccess = $this->downloadFileStreaming($recurso['url'], $filePath);
-            
-            if (!$downloadSuccess || !file_exists($filePath) || filesize($filePath) === 0) {
-                echo "Falha ao baixar ou arquivo vazio: {$recurso['url']}\n";
-                @unlink($filePath);
+            if (empty($textContent)) {
                 return [];
             }
 
-            // 3. Verifica Tamanho do Arquivo (após o download)
-            $fileSize = filesize($filePath);
-            $maxSizeBytes = self::MAX_FILE_SIZE_MB * 1024 * 1024;
-            if ($fileSize > $maxSizeBytes) {
-                error_log("Arquivo muito grande ignorado: {$recurso['resource_id']} (" . round($fileSize / 1024 / 1024, 2) . "MB)");
-                @unlink($filePath);
-                return [];
-            }
-
-            // 4. Processamento do Arquivo com Streaming Otimizado
-            echo "Processando arquivo: {$filePath} (Tamanho: " . round($fileSize / 1024 / 1024, 2) . "MB)\n";
-            $foundCpfs = $this->processFileOptimized($filePath);
-            echo "CPFs encontrados no arquivo: " . count($foundCpfs) . "\n";
-
-            // 5. Obtém a lista de CPFs válidos/inválidos para armazenamento
-            $scannedCpfs = $this->scanner->scanForStorage($this->getTextContentFromFile($filePath));
+            // 3. Escanear CPFs diretamente do texto
+            $foundCpfs = $this->scanner->scan($textContent);
             
-            // 6. ARMAZENAMENTO NO BANCO DE DADOS (CRÍTICO)
-            if (!empty($scannedCpfs)) {
+            // Limpar memória imediatamente
+            unset($textContent);
+            
+            // 4. Se encontrou CPFs, salva no banco
+            if (!empty($foundCpfs)) {
+                $metadados = [
+                    'resource_name' => $recurso['name'] ?? 'Unknown',
+                    'resource_url' => $recurso['url'] ?? '',
+                    'resource_format' => $recurso['format'] ?? 'unknown',
+                    'file_size' => 0
+                ];
+                
                 $this->cpfRepository->storeCpfsForResource(
-                    $scannedCpfs, 
+                    $foundCpfs, 
                     $recurso['resource_id'], 
-                    $recurso['dataset_id'] ?? 'Unknown Dataset'
+                    $recurso['dataset_id'] ?? 'Unknown Dataset',
+                    $recurso['org_name'] ?? 'Não informado',
+                    $metadados
                 );
+                
+                // Log apenas quando encontra CPFs
+                error_log("✓ {$recurso['resource_id']}: " . count($foundCpfs) . " CPFs");
             }
 
         } catch (Exception $e) {
-            error_log("Erro ao processar recurso {$recurso['resource_id']}: " . $e->getMessage());
+            error_log("ERRO {$recurso['resource_id']}: " . $e->getMessage());
             return [];
         } finally {
-            // 5. Limpeza: Remove o arquivo temporário
-            if (file_exists($filePath)) {
-                @unlink($filePath);
-            }
             // Força coleta de lixo agressiva
             $this->forceGarbageCollection();
         }
         
         return $foundCpfs;
+    }
+
+    /**
+     * Baixa e extrai texto EM MEMÓRIA sem salvar arquivo
+     * ULTRA OTIMIZADO para economizar espaço em disco
+     */
+    private function downloadAndExtractTextInMemory(string $url, string $format): string
+    {
+        try {
+            // Limitar tamanho do download
+            $maxSize = self::MAX_FILE_SIZE_MB * 1024 * 1024;
+            
+            // Contexto HTTP otimizado
+            $context = stream_context_create([
+                'http' => [
+                    'timeout' => 30,
+                    'user_agent' => 'CKAN-Scanner/2.0',
+                    'method' => 'GET',
+                    'header' => 'Connection: close'
+                ]
+            ]);
+            
+            // Baixar conteúdo diretamente para memória
+            $content = @file_get_contents($url, false, $context, 0, $maxSize);
+            
+            if ($content === false || empty($content)) {
+                return '';
+            }
+            
+            // Extrair texto baseado no formato
+            $text = $this->extractTextFromContent($content, $format);
+            
+            // Limpar memória
+            unset($content);
+            gc_collect_cycles();
+            
+            return $text;
+            
+        } catch (Exception $e) {
+            error_log("ERRO download em memória: " . $e->getMessage());
+            return '';
+        }
+    }
+    
+    /**
+     * Extrai texto do conteúdo baseado no formato
+     */
+    private function extractTextFromContent(string $content, string $format): string
+    {
+        $format = strtolower($format);
+        
+        try {
+            // Para formatos de texto simples
+            if (in_array($format, ['txt', 'text', 'csv', 'tsv'])) {
+                return $content;
+            }
+            
+            // Para JSON
+            if ($format === 'json') {
+                $data = json_decode($content, true);
+                if ($data) {
+                    return $this->extractTextFromArray($data);
+                }
+            }
+            
+            // Para outros formatos, salvar temporariamente
+            $tempFile = sys_get_temp_dir() . '/' . uniqid('scan_') . '.' . $format;
+            file_put_contents($tempFile, $content);
+            
+            try {
+                $parser = FileParserFactory::createParserFromFile($tempFile);
+                $text = $parser->getText($tempFile);
+            } finally {
+                @unlink($tempFile);
+            }
+            
+            return $text;
+            
+        } catch (Exception $e) {
+            return $content; // Fallback: retorna conteúdo bruto
+        }
+    }
+    
+    /**
+     * Extrai texto recursivamente de arrays (para JSON)
+     */
+    private function extractTextFromArray(array $data): string
+    {
+        $text = '';
+        
+        foreach ($data as $value) {
+            if (is_string($value)) {
+                $text .= $value . ' ';
+            } elseif (is_array($value)) {
+                $text .= $this->extractTextFromArray($value);
+            }
+        }
+        
+        return $text;
     }
 
     /**
@@ -747,26 +828,13 @@ class CkanScannerService
             $parser = FileParserFactory::createParserFromFile($filePath);
             $textContent = $parser->getText($filePath);
             
-            // --- NOVOS LOGS DE DIAGNÓSTICO ---
-            $fileExtension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
-            $logMessage = "INFO: Parser {$fileExtension} retornou " . strlen($textContent) . " caracteres.";
-            
-            // O echo vai para o console/log do worker (se configurado)
-            echo $logMessage . "\n";
-            // O error_log vai para o error.log do PHP
-            error_log($logMessage);
-            
-            // Log dos primeiros caracteres APENAS PARA DIAGNÓSTICO
-            error_log("INFO: Preview do conteúdo (primeiros 200 caracteres): " . substr($textContent, 0, 200) . "...");
-            // ----------------------------------
-            
             if (!empty(trim($textContent))) {
                 $foundCpfs = $this->scanner->scan($textContent);
-                error_log("INFO: Scanner encontrou " . count($foundCpfs) . " CPFs neste recurso.");
-                echo "Scanner encontrou " . count($foundCpfs) . " CPFs\n";
-            } else {
-                error_log("WARNING: Parser retornou conteúdo vazio para o arquivo: " . basename($filePath));
-                echo "Arquivo vazio ou sem conteúdo de texto\n";
+                
+                // Log apenas se encontrar CPFs
+                if (!empty($foundCpfs)) {
+                    error_log("✓ Scanner encontrou " . count($foundCpfs) . " CPFs em " . basename($filePath));
+                }
             }
             
             // Limpeza imediata
@@ -774,9 +842,7 @@ class CkanScannerService
             unset($parser);
             
         } catch (Exception $e) {
-            // Log de erro de processamento de arquivo
-            error_log("ERROR: Falha fatal no processamento tradicional de arquivo: " . $e->getMessage());
-            echo "Erro no processamento: " . $e->getMessage() . "\n";
+            error_log("ERRO ao processar arquivo " . basename($filePath) . ": " . $e->getMessage());
         }
         
         return $foundCpfs;

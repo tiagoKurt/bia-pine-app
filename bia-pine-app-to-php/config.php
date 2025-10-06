@@ -1,5 +1,7 @@
 <?php
 
+// Carregar o autoloader do Composer
+require_once __DIR__ . '/vendor/autoload.php';
 
 if (file_exists(__DIR__ . '/.env') && class_exists('Dotenv\Dotenv')) {
     $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
@@ -169,20 +171,4 @@ function getPdoConnection(): \PDO
     return $pdo;
 }
 
-function ensureAutoloader() {
-    if (class_exists('App\Bia') && class_exists('App\Pine')) {
-        return true;
-    }
-    
-    $autoloadPath = __DIR__ . '/vendor/autoload.php';
-    if (file_exists($autoloadPath)) {
-        require_once $autoloadPath;
-        
-        if (class_exists('App\Bia') && class_exists('App\Pine')) {
-            return true;
-        }
-    }
-    
-    throw new Exception('Classes App\Bia e App\Pine não encontradas. Verifique se o autoloader do Composer está configurado globalmente no servidor.');
-}
 

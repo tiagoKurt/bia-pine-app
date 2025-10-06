@@ -15,7 +15,7 @@ class CpfRepository
 
     /**
      * Armazena CPFs encontrados em um recurso na tabela mpda_recursos_com_cpf.
-     * @param array $cpfs - Array de CPFs encontrados.
+     * @param array $cpfs - Array de CPFs encontrados (apenas strings de CPF).
      * @param string $resourceId - O identificador do recurso.
      * @param string $datasetId - O identificador do dataset.
      * @param string $orgao - O nome do órgão.
@@ -24,6 +24,23 @@ class CpfRepository
     public function storeCpfsForResource(array $cpfs, string $resourceId, string $datasetId, string $orgao, array $metadados): void
     {
         if (empty($cpfs)) {
+            return;
+        }
+
+        // Normalizar CPFs - garantir que sejam apenas strings
+        $cpfsNormalizados = [];
+        foreach ($cpfs as $cpf) {
+            if (is_string($cpf)) {
+                $cpfsNormalizados[] = preg_replace('/[^0-9]/', '', $cpf);
+            } elseif (is_array($cpf) && isset($cpf['cpf'])) {
+                $cpfsNormalizados[] = preg_replace('/[^0-9]/', '', $cpf['cpf']);
+            }
+        }
+        
+        // Remove duplicatas
+        $cpfsNormalizados = array_unique($cpfsNormalizados);
+        
+        if (empty($cpfsNormalizados)) {
             return;
         }
 
@@ -45,12 +62,12 @@ class CpfRepository
                 $resourceId,
                 $datasetId,
                 $orgao,
-                json_encode($cpfs),
-                count($cpfs),
-                json_encode($metadados)
+                json_encode($cpfsNormalizados, JSON_UNESCAPED_UNICODE),
+                count($cpfsNormalizados),
+                json_encode($metadados, JSON_UNESCAPED_UNICODE)
             ]);
         } catch (\PDOException $e) {
-            error_log("Erro durante a inserção de CPFs: " . $e->getMessage());
+            error_log("ERRO ao inserir CPFs no banco: " . $e->getMessage());
             throw $e;
         }
     }
