@@ -1918,6 +1918,187 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             justify-content: center;
             z-index: 10;
         }
+
+        .cpf-status-section .card {
+            border-width: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .cpf-status-section .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .status-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .cpf-controls-section .card {
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow);
+        }
+
+        .cpf-controls-section .card-header {
+            background: linear-gradient(135deg, var(--light-bg) 0%, #e9ecef 100%);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+            height: 100%;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .stat-card.bg-danger {
+            background: linear-gradient(135deg, var(--danger-color) 0%, #dc2626 100%);
+        }
+
+        .stat-card.bg-warning {
+            background: linear-gradient(135deg, var(--warning-color) 0%, #d97706 100%);
+            color: #1f2937;
+        }
+
+        .stat-card.bg-info {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        }
+
+        .stat-icon {
+            font-size: 2rem;
+            opacity: 0.9;
+            flex-shrink: 0;
+        }
+
+        .stat-content h3 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 0;
+            line-height: 1;
+        }
+
+        .stat-content p {
+            font-size: 0.9rem;
+            margin: 0;
+            opacity: 0.9;
+        }
+
+        .cpf-stats-section {
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .cpf-controls-section .row {
+                text-align: center;
+            }
+
+            .cpf-controls-section .col-md-4 {
+                margin-top: 1rem;
+            }
+
+            .stat-card {
+                padding: 1rem;
+                flex-direction: column;
+                text-align: center;
+                gap: 0.5rem;
+            }
+
+            .stat-card .stat-icon {
+                font-size: 1.5rem;
+            }
+
+            .stat-card .stat-content h3 {
+                font-size: 1.5rem;
+            }
+
+            .status-icon {
+                width: 50px;
+                height: 50px;
+                font-size: 1.25rem;
+            }
+        }
+
+        .cpf-results-section .card {
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow);
+        }
+
+        .cpf-results-section .card-header {
+            background: linear-gradient(135deg, var(--light-bg) 0%, #e9ecef 100%);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .cpf-results-section .table thead th {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 1rem;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .cpf-results-section .table tbody td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
+        }
+
+        .cpf-results-section .table tbody tr:hover {
+            background: var(--light-bg);
+        }
+
+        @media (max-width: 576px) {
+            .cpf-status-section .row {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .cpf-status-section .col-auto {
+                margin-bottom: 1rem;
+            }
+
+            .cpf-controls-section .btn-lg {
+                width: 100%;
+                margin-top: 1rem;
+            }
+
+            .stat-card {
+                margin-bottom: 1rem;
+            }
+
+            .cpf-results-section .card-header .d-flex {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .cpf-results-section .card-header .w-md-auto {
+                margin-top: 1rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -2292,163 +2473,220 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             Auditoria de segurança em portais CKAN para detectar vazamentos de CPF em datasets públicos.
                         </p>
 
-                        <?php if (empty($cpfFindings) && ($cpfData['total_resources'] ?? 0) == 0): ?>
-                            <!-- Nenhuma análise executada -->
-                            <div class="stats-card info">
-                                <div class="d-flex align-items-center">
-                                    <i class="fas fa-info-circle icon me-3" style="font-size: 2rem;"></i>
-                                    <div>
-                                        <h4 class="mb-1">Nenhuma análise executada</h4>
-                                        <p class="mb-0">Execute a análise CKAN para verificar vazamentos de CPF nos recursos do portal de dados abertos.</p>
+                        <!-- Status da Análise -->
+                        <div class="cpf-status-section mb-4">
+                            <?php if (empty($cpfFindings) && ($cpfData['total_resources'] ?? 0) == 0): ?>
+                                <!-- Nenhuma análise executada -->
+                                <div class="card border-info">
+                                    <div class="card-body">
+                                        <div class="row align-items-center">
+                                            <div class="col-auto">
+                                                <div class="status-icon bg-info">
+                                                    <i class="fas fa-info-circle"></i>
+                                                </div>
+                                            </div>
+                                            <div class="col">
+                                                <h5 class="card-title mb-1 text-info">Pronto para Análise</h5>
+                                                <p class="card-text mb-0">Execute a análise CKAN para verificar vazamentos de CPF nos recursos do portal de dados abertos.</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        <?php elseif ($lastScanInfo && empty($cpfFindings) && ($cpfData['total_resources'] ?? 0) == 0): ?>
-                            <!-- Análise executada mas sem CPFs encontrados -->
-                            <div class="stats-card success">
-                                <div class="d-flex align-items-center">
-                                    <i class="fas fa-check-circle icon me-3" style="font-size: 2rem;"></i>
-                                    <div>
-                                        <h4 class="mb-1">Análise realizada - Nenhum CPF encontrado</h4>
-                                        <p class="mb-2">A última análise foi executada em <?= date('d/m/Y H:i', strtotime($lastScanInfo['lastScan'])) ?> e não encontrou CPFs nos recursos analisados.</p>
-                                        <?php if ($lastScanInfo['lastResults']): ?>
-                                            <small class="text-light">
-                                                <i class="fas fa-chart-bar"></i> 
-                                                <?= $lastScanInfo['lastResults']['datasets_analisados'] ?? 0 ?> datasets, 
-                                                <?= $lastScanInfo['lastResults']['recursos_analisados'] ?? 0 ?> recursos analisados
-                                            </small>
-                                        <?php endif; ?>
+                            <?php elseif ($lastScanInfo && empty($cpfFindings) && ($cpfData['total_resources'] ?? 0) == 0): ?>
+                                <!-- Análise executada mas sem CPFs encontrados -->
+                                <div class="card border-success">
+                                    <div class="card-body">
+                                        <div class="row align-items-center">
+                                            <div class="col-auto">
+                                                <div class="status-icon bg-success">
+                                                    <i class="fas fa-check-circle"></i>
+                                                </div>
+                                            </div>
+                                            <div class="col">
+                                                <h5 class="card-title mb-1 text-success">Análise Concluída - Nenhum CPF Encontrado</h5>
+                                                <p class="card-text mb-2">A última análise foi executada em <?= date('d/m/Y H:i', strtotime($lastScanInfo['lastScan'])) ?> e não encontrou CPFs nos recursos analisados.</p>
+                                                <?php if ($lastScanInfo['lastResults']): ?>
+                                                    <small class="text-muted">
+                                                        <i class="fas fa-chart-bar"></i> 
+                                                        <?= $lastScanInfo['lastResults']['datasets_analisados'] ?? 0 ?> datasets, 
+                                                        <?= $lastScanInfo['lastResults']['recursos_analisados'] ?? 0 ?> recursos analisados
+                                                    </small>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        <?php elseif (!empty($cpfFindings) || ($cpfData['total_resources'] ?? 0) > 0): ?>
-                            <!-- Dados existentes no banco - mostrar mesmo sem análise completa -->
-                            <div class="stats-card warning">
-                                <div class="d-flex align-items-center">
-                                    <i class="fas fa-database icon me-3" style="font-size: 2rem;"></i>
-                                    <div>
-                                        <h4 class="mb-1">Dados de CPF encontrados no banco</h4>
-                                        <p class="mb-2">
-                                            <?php if ($lastScanInfo): ?>
-                                                Última análise: <?= date('d/m/Y H:i', strtotime($lastScanInfo['lastScan'])) ?>
-                                            <?php else: ?>
-                                                Dados históricos disponíveis no banco de dados
-                                            <?php endif; ?>
-                                        </p>
-                                        <small class="text-light">
-                                            <i class="fas fa-exclamation-triangle"></i> 
-                                            <?= number_format($cpfData['total_resources'] ?? 0, 0, ',', '.') ?> recursos com CPFs encontrados
-                                        </small>
+                            <?php elseif (!empty($cpfFindings) || ($cpfData['total_resources'] ?? 0) > 0): ?>
+                                <!-- Dados existentes no banco -->
+                                <div class="card border-warning">
+                                    <div class="card-body">
+                                        <div class="row align-items-center">
+                                            <div class="col-auto">
+                                                <div class="status-icon bg-warning">
+                                                    <i class="fas fa-exclamation-triangle"></i>
+                                                </div>
+                                            </div>
+                                            <div class="col">
+                                                <h5 class="card-title mb-1 text-warning">CPFs Detectados</h5>
+                                                <p class="card-text mb-2">
+                                                    <?php if ($lastScanInfo): ?>
+                                                        Última análise: <?= date('d/m/Y H:i', strtotime($lastScanInfo['lastScan'])) ?>
+                                                    <?php else: ?>
+                                                        Dados históricos disponíveis no banco de dados
+                                                    <?php endif; ?>
+                                                </p>
+                                                <small class="text-muted">
+                                                    <i class="fas fa-database"></i> 
+                                                    <?= number_format($cpfData['total_resources'] ?? 0, 0, ',', '.') ?> recursos com CPFs encontrados
+                                                </small>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                        <?php else: ?>
-                            <!-- Dados encontrados - mostrar estatísticas -->
-                            <div class="stats-card success">
-                                <div class="d-flex align-items-center">
-                                    <i class="fas fa-shield-alt icon me-3" style="font-size: 2rem;"></i>
-                                    <div>
-                                        <h4 class="mb-1">Análise de CPF - Dados Encontrados</h4>
-                                        <p class="mb-2">Foram encontrados CPFs em recursos do portal de dados abertos.</p>
-                                        <small class="text-light">
-                                            <i class="fas fa-chart-bar"></i> 
-                                            Total de recursos: <?= $cpfData['total_resources'] ?? 0 ?> | 
-                                            Página <?= $cpfData['pagina_atual'] ?? 1 ?> de <?= $cpfData['total_paginas'] ?? 1 ?>
-                                        </small>
-                                    </div>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-                            
-                            <?php if ($lastScanInfo): ?>
-                                <!-- Mostrar quando próxima análise pode ser executada -->
-                                <?php 
-                                $lastScanTime = strtotime($lastScanInfo['lastScan']);
-                                $nextScanTime = $lastScanTime + (4 * 3600); // 4 horas
-                                $canScanNow = time() >= $nextScanTime;
-                                ?>
-                                
-                                <?php if ($canScanNow): ?>
-                                    <div class="text-center mt-4">
-                                        <button id="btnScanCkan" class="btn btn-warning btn-lg">
-                                            <i class="fas fa-search icon"></i>
-                                            Executar Nova Análise CKAN
-                                        </button>
-                                    </div>
-                                <?php else: ?>
-                                    <div class="alert alert-info mt-4">
-                                        <i class="fas fa-clock icon"></i>
-                                        <strong>Próxima análise disponível em:</strong> <?= date('d/m/Y H:i', $nextScanTime) ?>
-                                        <br><small>Para evitar sobrecarga do servidor, análises só podem ser executadas a cada 4 horas.</small>
-                                    </div>
-                                <?php endif; ?>
-                            <?php else: ?>
-                                <div class="text-center mt-4">
-                                    <button id="btnScanCkan" class="btn btn-warning btn-lg">
-                                        <i class="fas fa-search icon"></i>
-                                        Executar Análise CKAN
-                                    </button>
                                 </div>
                             <?php endif; ?>
-                        
+                        </div>
+
+                        <!-- Controles de Análise -->
+                        <div class="cpf-controls-section mb-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="card-title mb-0">
+                                        <i class="fas fa-cogs"></i> Controles de Análise
+                                    </h5>
+                                </div>
+                                <div class="card-body">
+                                    <?php if ($lastScanInfo): ?>
+                                        <?php 
+                                        $lastScanTime = strtotime($lastScanInfo['lastScan']);
+                                        $nextScanTime = $lastScanTime + (4 * 3600); // 4 horas
+                                        $canScanNow = time() >= $nextScanTime;
+                                        ?>
+                                        
+                                        <div class="row align-items-center">
+                                            <div class="col-md-8">
+                                                <?php if ($canScanNow): ?>
+                                                    <div class="d-flex align-items-center">
+                                                        <div class="status-indicator bg-success me-3"></div>
+                                                        <div>
+                                                            <h6 class="mb-1">Nova Análise Disponível</h6>
+                                                            <p class="mb-0 text-muted">Você pode executar uma nova análise agora.</p>
+                                                        </div>
+                                                    </div>
+                                                <?php else: ?>
+                                                    <div class="d-flex align-items-center">
+                                                        <div class="status-indicator bg-warning me-3"></div>
+                                                        <div>
+                                                            <h6 class="mb-1">Aguardando Intervalo</h6>
+                                                            <p class="mb-1 text-muted">Próxima análise disponível em: <strong><?= date('d/m/Y H:i', $nextScanTime) ?></strong></p>
+                                                            <small class="text-muted">Para evitar sobrecarga do servidor, análises só podem ser executadas a cada 4 horas.</small>
+                                                        </div>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="col-md-4 text-end">
+                                                <button id="btnScanCkan" class="btn btn-primary btn-lg" <?= !$canScanNow ? 'disabled' : '' ?>>
+                                                    <i class="fas fa-search me-2"></i>
+                                                    <?= $canScanNow ? 'Executar Nova Análise' : 'Aguardar Intervalo' ?>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="row align-items-center">
+                                            <div class="col-md-8">
+                                                <div class="d-flex align-items-center">
+                                                    <div class="status-indicator bg-primary me-3"></div>
+                                                    <div>
+                                                        <h6 class="mb-1">Primeira Análise</h6>
+                                                        <p class="mb-0 text-muted">Execute sua primeira análise CKAN para detectar CPFs nos datasets.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4 text-end">
+                                                <button id="btnScanCkan" class="btn btn-primary btn-lg">
+                                                    <i class="fas fa-search me-2"></i>
+                                                    Executar Análise
+                                                </button>
+                                            </div>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+
                         <?php if ($lastScanInfo || !empty($cpfFindings) || ($cpfData['total_resources'] ?? 0) > 0): ?>
-                            <!-- Resumo dos resultados -->
-                            <div class="stats-card">
-                                <div class="row">
-                                    <div class="col-md-4 text-center">
-                                        <i class="fas fa-exclamation-triangle icon mb-2" style="font-size: 2rem;"></i>
-                                        <h3><?= number_format($cpfData['total_resources'] ?? 0, 0, ',', '.') ?></h3>
-                                        <p class="mb-0">Recursos com CPFs</p>
+                            <!-- Estatísticas -->
+                            <div class="cpf-stats-section mb-4">
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <div class="stat-card bg-danger">
+                                            <div class="stat-icon">
+                                                <i class="fas fa-exclamation-triangle"></i>
+                                            </div>
+                                            <div class="stat-content">
+                                                <h3><?= number_format($cpfData['total_resources'] ?? 0, 0, ',', '.') ?></h3>
+                                                <p>Recursos com CPFs</p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="col-md-4 text-center">
-                                        <i class="fas fa-file-alt icon mb-2" style="font-size: 2rem;"></i>
-                                        <h3><?= number_format($estatisticas['total'] ?? 0, 0, ',', '.') ?></h3>
-                                        <p class="mb-0">Total de CPFs encontrados</p>
+                                    <div class="col-md-4">
+                                        <div class="stat-card bg-warning">
+                                            <div class="stat-icon">
+                                                <i class="fas fa-id-card"></i>
+                                            </div>
+                                            <div class="stat-content">
+                                                <h3><?= number_format($estatisticas['total'] ?? 0, 0, ',', '.') ?></h3>
+                                                <p>Total de CPFs</p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <!-- <div class="col-md-3 text-center">
-                                        <i class="fas fa-database icon mb-2" style="font-size: 2rem;"></i>
-                                        <h3><?= number_format($estatisticas['total_recursos'] ?? 0, 0, ',', '.') ?></h3>
-                                        <p class="mb-0">Recursos analisados</p>
-                                    </div> -->
-                                    <div class="col-md-4 text-center">
-                                        <i class="fas fa-clock icon mb-2" style="font-size: 2rem;"></i>
-                                        <h3><?= $lastScanInfo ? date('H:i', strtotime($lastScanInfo['lastScan'])) : '--:--' ?></h3>
-                                        <p class="mb-0">Última verificação</p>
+                                    <div class="col-md-4">
+                                        <div class="stat-card bg-info">
+                                            <div class="stat-icon">
+                                                <i class="fas fa-clock"></i>
+                                            </div>
+                                            <div class="stat-content">
+                                                <h3><?= $lastScanInfo ? date('H:i', strtotime($lastScanInfo['lastScan'])) : '--:--' ?></h3>
+                                                <p>Última Verificação</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
                             <!-- Tabela de resultados -->
-                            <div class="mt-4">
-                                <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
-                                    <h3 class="mb-0">
-                                        <i class="fas fa-list icon"></i>
-                                        Recursos com CPFs Detectados
-                                    </h3>
-                                    <div class="w-100 w-md-auto">
-                                        <form method="POST" class="d-inline w-100">
-                                            <input type="hidden" name="action" value="export_cpf_csv">
-                                            <button type="submit" class="btn btn-success w-100 w-md-auto">
-                                                <i class="fas fa-download icon"></i> Exportar CSV
-                                            </button>
-                                        </form>
+                            <div class="cpf-results-section">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+                                            <h5 class="card-title mb-0">
+                                                <i class="fas fa-list icon"></i>
+                                                Recursos com CPFs Detectados
+                                            </h5>
+                                            <div class="w-100 w-md-auto">
+                                                <form method="POST" class="d-inline w-100">
+                                                    <input type="hidden" name="action" value="export_cpf_csv">
+                                                    <button type="submit" class="btn btn-success w-100 w-md-auto">
+                                                        <i class="fas fa-download icon"></i> Exportar CSV
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+                                    <div class="card-body p-0">
 
-                                <div class="table-responsive">
-                                    <table class="table table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>Dataset</th>
-                                                <!-- <th>Órgão</th> -->
-                                                <th>Recurso</th>
-                                                <th>Formato</th>
-                                                <th>CPFs</th>
-                                                <th>Verificado</th>
-                                                <th>Ações</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
+                                        <div class="table-responsive">
+                                            <table class="table table-hover mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Dataset</th>
+                                                        <th>Recurso</th>
+                                                        <th>Formato</th>
+                                                        <th>CPFs</th>
+                                                        <th>Verificado</th>
+                                                        <th>Ações</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
                                             <?php foreach ($cpfFindings as $index => $finding): ?>
                                                 <tr>
                                                     <td>
@@ -2512,8 +2750,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                     </td>
                                                 </tr>
                                             <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 </div>
                                 
                                 <?php if (isset($cpfData['total_paginas']) && $cpfData['total_paginas'] > 1): ?>
@@ -3886,6 +4126,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function executeScanCkan(force = false) {
             console.log('🔍 Iniciando análise CKAN... Force:', force);
             
+            // Atualizar botão para mostrar que está processando
+            const btnScanCkan = document.getElementById('btnScanCkan');
+            if (btnScanCkan) {
+                btnScanCkan.disabled = true;
+                btnScanCkan.innerHTML = force 
+                    ? '<i class="fas fa-spinner fa-spin me-2"></i>Reiniciando Análise...'
+                    : '<i class="fas fa-spinner fa-spin me-2"></i>Iniciando Análise...';
+            }
+            
             // Mostrar modal de progresso imediatamente
             showAsyncProgressModal();
             
@@ -3960,8 +4209,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (error.message !== 'Análise já em andamento') {
                     hideAsyncProgressModal();
                     showMessage('Erro ao iniciar análise: ' + error.message, 'error');
+                    
+                    // Restaurar botão
+                    const btnScanCkan = document.getElementById('btnScanCkan');
+                    if (btnScanCkan) {
+                        btnScanCkan.disabled = false;
+                        btnScanCkan.innerHTML = '<i class="fas fa-search me-2"></i>Executar Análise';
+                    }
                 }
             });
+        }
+
+        // Função para restaurar o estado do botão de análise
+        function restoreScanButton() {
+            const btnScanCkan = document.getElementById('btnScanCkan');
+            if (btnScanCkan) {
+                btnScanCkan.disabled = false;
+                btnScanCkan.innerHTML = '<i class="fas fa-search me-2"></i>Executar Nova Análise';
+            }
         }
 
         // Função para monitorar o status da análise
@@ -4014,6 +4279,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             progressText.innerHTML = '<strong class="text-success">✓ Análise concluída com sucesso!</strong>';
                         }
                         
+                        // Restaurar botão
+                        restoreScanButton();
+                        
                         // Aguardar 2 segundos antes de fechar e recarregar
                         setTimeout(() => {
                             hideAsyncProgressModal();
@@ -4037,6 +4305,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             progressText.innerHTML = '<strong class="text-danger">✗ Erro na análise</strong>';
                         }
                         
+                        // Restaurar botão
+                        restoreScanButton();
+                        
                         setTimeout(() => {
                             hideAsyncProgressModal();
                             showMessage('Erro na análise: ' + (data.message || 'Erro desconhecido'), 'error');
@@ -4047,6 +4318,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         scanInProgress = false;
                         clearInterval(scanStatusInterval);
                         scanStatusInterval = null;
+                        
+                        // Restaurar botão
+                        restoreScanButton();
                         
                         hideAsyncProgressModal();
                         showMessage('Análise cancelada.', 'warning');
@@ -4070,6 +4344,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     e.preventDefault();
                     console.log('🖱️ Botão de análise CKAN clicado');
                     
+                    // Verificar se o botão está desabilitado
+                    if (btnScanCkan.disabled) {
+                        console.log('⚠️ Botão está desabilitado - análise não pode ser executada agora');
+                        return;
+                    }
+                    
+                    // Desabilitar botão temporariamente para evitar cliques múltiplos
+                    btnScanCkan.disabled = true;
+                    const originalText = btnScanCkan.innerHTML;
+                    btnScanCkan.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Verificando...';
+                    
                     // Verificar se já há uma análise em andamento
                     const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
                     fetch(`${baseUrl}api/scan-status.php`, {
@@ -4081,10 +4366,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     .then(response => response.json())
                     .then(data => {
                         if (data.inProgress) {
-                            // Análise já em andamento - perguntar se quer forçar
-                            showForceAnalysisDialog(
-                                'Uma análise já está em execução. Deseja forçar uma nova análise?',
-                                0
+                            // Análise já em andamento - mostrar dialog de confirmação
+                            btnScanCkan.disabled = false;
+                            btnScanCkan.innerHTML = originalText;
+                            
+                            showConfirmDialog(
+                                'Análise em Andamento',
+                                'Uma análise já está sendo executada no momento. Deseja cancelar a análise anterior e iniciar uma nova?',
+                                'Sim, iniciar nova análise',
+                                'Cancelar',
+                                () => {
+                                    executeScanCkan(true); // Forçar nova análise
+                                },
+                                () => {
+                                    // Usuário cancelou - não fazer nada
+                                }
                             );
                         } else {
                             // Iniciar nova análise
@@ -4093,7 +4389,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     })
                     .catch(error => {
                         console.error('Erro ao verificar status:', error);
-                        // Se houver erro ao verificar, tenta iniciar mesmo assim
+                        // Se houver erro ao verificar, restaurar botão e tentar iniciar
+                        btnScanCkan.disabled = false;
+                        btnScanCkan.innerHTML = originalText;
                         executeScanCkan(false);
                     });
                 });
