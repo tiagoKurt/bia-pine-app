@@ -169,7 +169,7 @@ class OptimizedCkanScanner
                             "resource_id" => $r['id'],
                             "resource_name" => $r['name'], 
                             "url" => $url,
-                            "format" => strtoupper($r['format'] ?? "unknown"),
+                            "format" => mb_strtoupper($r['format'] ?? "unknown", 'UTF-8'),
                         ];
                     }
                 }

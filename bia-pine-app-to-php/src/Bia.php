@@ -50,8 +50,12 @@ class Bia
         
         error_log("BIA: Definindo valores no template...");
         try {
-            $template->setValue('titulo_documento', $titulo);
-            $template->setValue('descricao_base', $descricao);
+            // Garantir que os valores estão em UTF-8
+            $tituloUtf8 = mb_convert_encoding($titulo, 'UTF-8', 'UTF-8');
+            $descricaoUtf8 = mb_convert_encoding($descricao, 'UTF-8', 'UTF-8');
+            
+            $template->setValue('titulo_documento', $tituloUtf8);
+            $template->setValue('descricao_base', $descricaoUtf8);
             error_log("BIA: Valores básicos definidos");
         } catch (\Exception $e) {
             error_log("BIA: Erro ao definir valores básicos: " . $e->getMessage());
@@ -63,9 +67,9 @@ class Bia
             try {
                 $template->cloneRowAndSetValues('coluna', array_map(function($r) {
                     return [
-                        'coluna'     => $r['coluna'],
-                        'tipo'       => $r['tipo'],
-                        'descricao'  => $r['descricao'],
+                        'coluna'     => mb_convert_encoding($r['coluna'], 'UTF-8', 'UTF-8'),
+                        'tipo'       => mb_convert_encoding($r['tipo'], 'UTF-8', 'UTF-8'),
+                        'descricao'  => mb_convert_encoding($r['descricao'], 'UTF-8', 'UTF-8'),
                     ];
                 }, $colunas));
                 error_log("BIA: Colunas processadas com sucesso (método 1)");
@@ -74,9 +78,9 @@ class Bia
                 try {
                     $template->cloneRowAndSetValues('row', array_map(function($r) {
                         return [
-                            'coluna'     => $r['coluna'],
-                            'tipo'       => $r['tipo'],
-                            'descricao'  => $r['descricao'],
+                            'coluna'     => mb_convert_encoding($r['coluna'], 'UTF-8', 'UTF-8'),
+                            'tipo'       => mb_convert_encoding($r['tipo'], 'UTF-8', 'UTF-8'),
+                            'descricao'  => mb_convert_encoding($r['descricao'], 'UTF-8', 'UTF-8'),
                         ];
                     }, $colunas));
                     error_log("BIA: Colunas processadas com sucesso (método 2)");
@@ -95,8 +99,10 @@ class Bia
                 mkdir($cacheDir, 0755, true);
             }
             
-            $fileName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $titulo);
-            $fileName = substr($fileName, 0, 50); // Limitar tamanho do nome
+            // Remover acentos para nome de arquivo seguro, mas preservar caracteres válidos
+            $fileName = $this->removerAcentos($titulo);
+            $fileName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $fileName);
+            $fileName = mb_substr($fileName, 0, 50, 'UTF-8'); // Limitar tamanho do nome
             $outputFile = $cacheDir . '/' . $fileName . '_' . date('Y-m-d_H-i-s') . '.docx';
         } else {
             $outputFile = $outputPath;
@@ -215,7 +221,7 @@ class Bia
             return $datasetInfo['notes'];
         }
         
-        return "DADOS DA BASE: " . strtoupper($datasetInfo['title'] ?? '');
+        return "DADOS DA BASE: " . mb_strtoupper($datasetInfo['title'] ?? '', 'UTF-8');
     }
 
     private function buscarDadosRecurso(string $resourceId): array
@@ -233,7 +239,7 @@ class Bia
         $colunasInfo = [];
         foreach ($colunas as $coluna) {
             $tipoDado = $this->detectarTipoColuna($records, $coluna);
-            $descricao = strtoupper(str_replace(['_', '/'], ' ', $coluna));
+            $descricao = mb_strtoupper(str_replace(['_', '/'], ' ', $coluna), 'UTF-8');
             
             $colunasInfo[] = [
                 'coluna' => $coluna,
@@ -257,7 +263,8 @@ class Bia
             if ($valor === null) continue;
             
             $valorStr = (string) $valor;
-            if (preg_match('/[a-zA-Z]/', $valorStr)) {
+            // Detectar letras incluindo acentos e cedilha usando Unicode
+            if (preg_match('/\p{L}/u', $valorStr)) {
                 $temLetras = true;
             }
             if (preg_match('/[0-9]/', $valorStr)) {
@@ -278,10 +285,31 @@ class Bia
     {
         $nomeLimpo = preg_replace('/\b(20\d{2}|\d{1,2}|janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/i', '', $nomeBase);
         
-        $nomeSomenteLetras = preg_replace('/[^a-zA-Z\s]/', '', $nomeLimpo);
+        // Permitir letras com acentos, cedilha e espaços - usando Unicode
+        $nomeSomenteLetras = preg_replace('/[^\p{L}\s]/u', '', $nomeLimpo);
         $nomeSomenteLetras = preg_replace('/\s+/', ' ', trim($nomeSomenteLetras));
         
-        return "DICIONÁRIO DE DADOS " . strtoupper($nomeSomenteLetras);
+        return "DICIONÁRIO DE DADOS " . mb_strtoupper($nomeSomenteLetras, 'UTF-8');
+    }
+
+    private function removerAcentos(string $texto): string
+    {
+        $acentos = [
+            'á' => 'a', 'à' => 'a', 'ã' => 'a', 'â' => 'a', 'ä' => 'a',
+            'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e',
+            'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i',
+            'ó' => 'o', 'ò' => 'o', 'õ' => 'o', 'ô' => 'o', 'ö' => 'o',
+            'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u',
+            'ç' => 'c',
+            'Á' => 'A', 'À' => 'A', 'Ã' => 'A', 'Â' => 'A', 'Ä' => 'A',
+            'É' => 'E', 'È' => 'E', 'Ê' => 'E', 'Ë' => 'E',
+            'Í' => 'I', 'Ì' => 'I', 'Î' => 'I', 'Ï' => 'I',
+            'Ó' => 'O', 'Ò' => 'O', 'Õ' => 'O', 'Ô' => 'O', 'Ö' => 'O',
+            'Ú' => 'U', 'Ù' => 'U', 'Û' => 'U', 'Ü' => 'U',
+            'Ç' => 'C'
+        ];
+        
+        return strtr($texto, $acentos);
     }
 
     private function fazerRequisicao(string $url): array
@@ -311,7 +339,12 @@ class Bia
             $responseContent = $response->getBody()->getContents();
             error_log("BIA: Resposta recebida, tamanho: " . strlen($responseContent) . " bytes");
             
-            $data = json_decode($responseContent, true);
+            // Garantir que o conteúdo está em UTF-8
+            if (!mb_check_encoding($responseContent, 'UTF-8')) {
+                $responseContent = mb_convert_encoding($responseContent, 'UTF-8', 'auto');
+            }
+            
+            $data = json_decode($responseContent, true, 512, JSON_UNESCAPED_UNICODE);
             
             if (json_last_error() !== JSON_ERROR_NONE) {
                 $jsonError = json_last_error_msg();
