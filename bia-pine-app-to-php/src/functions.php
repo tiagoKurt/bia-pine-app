@@ -623,14 +623,38 @@ function getCpfFindingsFromNewTable(PDO $pdo): array {
 
 /**
  * Busca dados de CPF paginados da nova tabela otimizada
+ * Versão robusta que lida com diferentes tipos de dados JSON/LONGTEXT
  */
 function getCpfFindingsPaginadoFromNewTable(PDO $pdo, int $pagina = 1, int $itensPorPagina = 10): array {
     $offset = ($pagina - 1) * $itensPorPagina;
 
     try {
+        // Verificar se a tabela existe
+        $tableCheck = $pdo->query("SHOW TABLES LIKE 'mpda_recursos_com_cpf'");
+        if ($tableCheck->rowCount() === 0) {
+            error_log("Tabela mpda_recursos_com_cpf não existe");
+            return [
+                'findings' => [],
+                'total_resources' => 0,
+                'total_paginas' => 1,
+                'pagina_atual' => $pagina,
+            ];
+        }
+
         $totalStmt = $pdo->query("SELECT COUNT(*) as total FROM mpda_recursos_com_cpf");
         $totalResources = $totalStmt->fetchColumn() ?: 0;
 
+        if ($totalResources == 0) {
+            error_log("Nenhum registro encontrado na tabela mpda_recursos_com_cpf");
+            return [
+                'findings' => [],
+                'total_resources' => 0,
+                'total_paginas' => 1,
+                'pagina_atual' => $pagina,
+            ];
+        }
+
+        // Query mais robusta que funciona com diferentes collations
         $sql = "
             SELECT 
                 r.identificador_recurso,
@@ -645,7 +669,7 @@ function getCpfFindingsPaginadoFromNewTable(PDO $pdo, int $pagina = 1, int $iten
                 d.organization as dataset_organization
             FROM 
                 mpda_recursos_com_cpf r
-            LEFT JOIN mpda_datasets d ON r.identificador_dataset COLLATE utf8mb4_unicode_ci = d.dataset_id COLLATE utf8mb4_unicode_ci
+            LEFT JOIN mpda_datasets d ON r.identificador_dataset = d.dataset_id
             ORDER BY 
                 r.data_verificacao DESC
             LIMIT :limit OFFSET :offset
@@ -661,10 +685,31 @@ function getCpfFindingsPaginadoFromNewTable(PDO $pdo, int $pagina = 1, int $iten
 
         if ($results) {
             foreach ($results as $result) {
-                $metadados = json_decode($result['metadados_recurso'], true);
-                $cpfs = json_decode($result['cpfs_encontrados'], true);
+                // Decodificação robusta de JSON que funciona com LONGTEXT e JSON
+                $metadados = [];
+                $cpfs = [];
                 
-                if (json_last_error() !== JSON_ERROR_NONE || !is_array($cpfs)) {
+                // Tentar decodificar metadados
+                if (!empty($result['metadados_recurso'])) {
+                    $metadados = json_decode($result['metadados_recurso'], true);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        error_log("Erro ao decodificar metadados JSON para recurso {$result['identificador_recurso']}: " . json_last_error_msg());
+                        $metadados = [];
+                    }
+                }
+                
+                // Tentar decodificar CPFs
+                if (!empty($result['cpfs_encontrados'])) {
+                    $cpfs = json_decode($result['cpfs_encontrados'], true);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        error_log("Erro ao decodificar CPFs JSON para recurso {$result['identificador_recurso']}: " . json_last_error_msg());
+                        $cpfs = [];
+                    }
+                }
+                
+                // Se não conseguiu decodificar CPFs, pular este registro
+                if (!is_array($cpfs) || empty($cpfs)) {
+                    error_log("CPFs inválidos ou vazios para recurso {$result['identificador_recurso']}");
                     continue;
                 }
 
@@ -681,20 +726,22 @@ function getCpfFindingsPaginadoFromNewTable(PDO $pdo, int $pagina = 1, int $iten
                 }
                 
                 $findings[] = [
-                    'dataset_id' => $result['identificador_dataset'],
+                    'dataset_id' => $result['identificador_dataset'] ?? 'N/A',
                     'dataset_name' => $result['dataset_name'] ?? ($metadados['dataset_name'] ?? 'Dataset Desconhecido'),
                     'dataset_url' => $result['dataset_url'] ?? '#',
                     'dataset_organization' => $result['orgao'] ?? 'Não informado',
-                    'resource_id' => $result['identificador_recurso'],
+                    'resource_id' => $result['identificador_recurso'] ?? 'N/A',
                     'resource_name' => $metadados['resource_name'] ?? 'Recurso Desconhecido',
                     'resource_url' => $metadados['resource_url'] ?? '#',
                     'resource_format' => $metadados['resource_format'] ?? 'N/A',
                     'cpf_count' => (int) $result['quantidade_cpfs'],
                     'cpfs' => $cpfsFormatados,
-                    'last_checked' => $result['data_verificacao']
+                    'last_checked' => $result['data_verificacao'] ?? null
                 ];
             }
         }
+
+        error_log("getCpfFindingsPaginadoFromNewTable: Retornando " . count($findings) . " findings de " . $totalResources . " recursos totais");
 
         return [
             'findings' => $findings,
@@ -705,6 +752,15 @@ function getCpfFindingsPaginadoFromNewTable(PDO $pdo, int $pagina = 1, int $iten
 
     } catch (PDOException $e) {
         error_log("Erro ao buscar dados de CPF paginados da nova tabela: " . $e->getMessage());
+        error_log("SQL State: " . $e->getCode());
+        return [
+            'findings' => [],
+            'total_resources' => 0,
+            'total_paginas' => 1,
+            'pagina_atual' => $pagina,
+        ];
+    } catch (Exception $e) {
+        error_log("Erro geral ao buscar dados de CPF: " . $e->getMessage());
         return [
             'findings' => [],
             'total_resources' => 0,

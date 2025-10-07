@@ -2395,22 +2395,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <!-- Resumo dos resultados -->
                             <div class="stats-card">
                                 <div class="row">
-                                    <div class="col-md-3 text-center">
+                                    <div class="col-md-4 text-center">
                                         <i class="fas fa-exclamation-triangle icon mb-2" style="font-size: 2rem;"></i>
                                         <h3><?= number_format($cpfData['total_resources'] ?? 0, 0, ',', '.') ?></h3>
                                         <p class="mb-0">Recursos com CPFs</p>
                                     </div>
-                                    <div class="col-md-3 text-center">
+                                    <div class="col-md-4 text-center">
                                         <i class="fas fa-file-alt icon mb-2" style="font-size: 2rem;"></i>
                                         <h3><?= number_format($estatisticas['total'] ?? 0, 0, ',', '.') ?></h3>
                                         <p class="mb-0">Total de CPFs encontrados</p>
                                     </div>
-                                    <div class="col-md-3 text-center">
+                                    <!-- <div class="col-md-3 text-center">
                                         <i class="fas fa-database icon mb-2" style="font-size: 2rem;"></i>
                                         <h3><?= number_format($estatisticas['total_recursos'] ?? 0, 0, ',', '.') ?></h3>
                                         <p class="mb-0">Recursos analisados</p>
-                                    </div>
-                                    <div class="col-md-3 text-center">
+                                    </div> -->
+                                    <div class="col-md-4 text-center">
                                         <i class="fas fa-clock icon mb-2" style="font-size: 2rem;"></i>
                                         <h3><?= $lastScanInfo ? date('H:i', strtotime($lastScanInfo['lastScan'])) : '--:--' ?></h3>
                                         <p class="mb-0">Última verificação</p>

@@ -56,7 +56,7 @@ class CpfController
             $totalStmt->execute($params);
             $totalRegistros = (int) $totalStmt->fetchColumn();
 
-            // Buscar dados paginados
+            // Buscar dados paginados - query mais robusta
             $sql = "
                 SELECT 
                     r.id,
@@ -72,7 +72,7 @@ class CpfController
                     d.organization as dataset_organization
                 FROM 
                     mpda_recursos_com_cpf r
-                LEFT JOIN mpda_datasets d ON r.identificador_dataset COLLATE utf8mb4_unicode_ci = d.dataset_id COLLATE utf8mb4_unicode_ci
+                LEFT JOIN mpda_datasets d ON r.identificador_dataset = d.dataset_id
                 WHERE {$whereClause}
                 ORDER BY 
                     r.data_verificacao DESC
@@ -87,10 +87,31 @@ class CpfController
 
             if ($results) {
                 foreach ($results as $result) {
-                    $metadados = json_decode($result['metadados_recurso'], true);
-                    $cpfs = json_decode($result['cpfs_encontrados'], true);
+                    // Decodificação robusta de JSON
+                    $metadados = [];
+                    $cpfs = [];
                     
-                    if (json_last_error() !== JSON_ERROR_NONE || !is_array($cpfs)) {
+                    // Tentar decodificar metadados
+                    if (!empty($result['metadados_recurso'])) {
+                        $metadados = json_decode($result['metadados_recurso'], true);
+                        if (json_last_error() !== JSON_ERROR_NONE) {
+                            error_log("CpfController: Erro ao decodificar metadados JSON para recurso {$result['identificador_recurso']}: " . json_last_error_msg());
+                            $metadados = [];
+                        }
+                    }
+                    
+                    // Tentar decodificar CPFs
+                    if (!empty($result['cpfs_encontrados'])) {
+                        $cpfs = json_decode($result['cpfs_encontrados'], true);
+                        if (json_last_error() !== JSON_ERROR_NONE) {
+                            error_log("CpfController: Erro ao decodificar CPFs JSON para recurso {$result['identificador_recurso']}: " . json_last_error_msg());
+                            $cpfs = [];
+                        }
+                    }
+                    
+                    // Se não conseguiu decodificar CPFs, pular este registro
+                    if (!is_array($cpfs) || empty($cpfs)) {
+                        error_log("CpfController: CPFs inválidos ou vazios para recurso {$result['identificador_recurso']}");
                         continue;
                     }
 
@@ -108,17 +129,17 @@ class CpfController
                     
                     $findings[] = [
                         'id' => (int) $result['id'],
-                        'dataset_id' => $result['identificador_dataset'],
+                        'dataset_id' => $result['identificador_dataset'] ?? 'N/A',
                         'dataset_name' => $result['dataset_name'] ?? ($metadados['dataset_name'] ?? 'Dataset Desconhecido'),
                         'dataset_url' => $result['dataset_url'] ?? '#',
                         'dataset_organization' => $result['orgao'] ?? 'Não informado',
-                        'resource_id' => $result['identificador_recurso'],
+                        'resource_id' => $result['identificador_recurso'] ?? 'N/A',
                         'resource_name' => $metadados['resource_name'] ?? 'Recurso Desconhecido',
                         'resource_url' => $metadados['resource_url'] ?? '#',
                         'resource_format' => $metadados['resource_format'] ?? 'N/A',
                         'cpf_count' => (int) $result['quantidade_cpfs'],
                         'cpfs' => $cpfsFormatados,
-                        'last_checked' => $result['data_verificacao']
+                        'last_checked' => $result['data_verificacao'] ?? null
                     ];
                 }
             }

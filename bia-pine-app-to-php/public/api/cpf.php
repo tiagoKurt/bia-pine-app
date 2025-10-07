@@ -1,8 +1,18 @@
 <?php
 
+// Start output buffering to prevent any unwanted output
+ob_start();
+
 require_once __DIR__ . '/../../config.php';
 
 use App\Cpf\CpfController;
+
+// Clean any output that might have been generated during config loading
+$unwantedOutput = ob_get_contents();
+if (!empty($unwantedOutput)) {
+    error_log("CPF API: Cleaned unwanted output: " . substr($unwantedOutput, 0, 100));
+}
+ob_clean();
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -24,43 +34,86 @@ try {
     $pdo = conectarBanco();
     
     // Tentar usar o novo controller, com fallback para funções antigas
-    $useNewController = class_exists('App\Cpf\CpfController');
+    $useNewController = false;
     $cpfController = null;
     
-    if ($useNewController) {
+    // Check if class exists and can be instantiated
+    if (class_exists('App\Cpf\CpfController')) {
         try {
             $cpfController = new CpfController($pdo);
+            $useNewController = true;
+            error_log("CPF API: Using CpfController");
         } catch (Exception $e) {
-            error_log("Erro ao instanciar CpfController: " . $e->getMessage());
+            error_log("CPF API: Error instantiating CpfController: " . $e->getMessage());
             $useNewController = false;
+            $cpfController = null;
         }
+    } else {
+        error_log("CPF API: CpfController class not found, using fallback");
     }
     
     switch ($action) {
         case 'list':
+            // Build filters
+            $filtros = [];
+            if (!empty($_GET['orgao'])) {
+                $filtros['orgao'] = $_GET['orgao'];
+            }
+            if (!empty($_GET['dataset'])) {
+                $filtros['dataset'] = $_GET['dataset'];
+            }
+            if (!empty($_GET['data_inicio'])) {
+                $filtros['data_inicio'] = $_GET['data_inicio'];
+            }
+            if (!empty($_GET['data_fim'])) {
+                $filtros['data_fim'] = $_GET['data_fim'];
+            }
+            
             if ($useNewController && $cpfController) {
-                // Usar novo controller
-                $filtros = [];
-                if (!empty($_GET['orgao'])) {
-                    $filtros['orgao'] = $_GET['orgao'];
-                }
-                if (!empty($_GET['dataset'])) {
-                    $filtros['dataset'] = $_GET['dataset'];
-                }
-                if (!empty($_GET['data_inicio'])) {
-                    $filtros['data_inicio'] = $_GET['data_inicio'];
-                }
-                if (!empty($_GET['data_fim'])) {
-                    $filtros['data_fim'] = $_GET['data_fim'];
+                // Use new controller
+                error_log("CPF API: Using CpfController for list action");
+                
+                try {
+                    $result = $cpfController->getCpfFindingsPaginado($page, $perPage, $filtros);
+                    
+                    // Ensure clean output before JSON
+                    if (ob_get_level()) {
+                        ob_clean();
+                    }
+                    
+                    echo json_encode($result, JSON_UNESCAPED_UNICODE);
+                    
+                } catch (Exception $e) {
+                    error_log("CPF API: Error in CpfController: " . $e->getMessage());
+                    
+                    // Fallback to old function on error
+                    $cpfData = getCpfFindingsPaginadoFromNewTable($pdo, $page, $perPage);
+                    
+                    $result = [
+                        'success' => true,
+                        'findings' => $cpfData['findings'] ?? [],
+                        'total' => $cpfData['total_resources'] ?? 0,
+                        'page' => $page,
+                        'per_page' => $perPage,
+                        'total_pages' => $cpfData['total_paginas'] ?? 1,
+                        'has_next' => $page < ($cpfData['total_paginas'] ?? 1),
+                        'has_prev' => $page > 1
+                    ];
+                    
+                    if (ob_get_level()) {
+                        ob_clean();
+                    }
+                    
+                    echo json_encode($result, JSON_UNESCAPED_UNICODE);
                 }
                 
-                $result = $cpfController->getCpfFindingsPaginado($page, $perPage, $filtros);
-                echo json_encode($result, JSON_UNESCAPED_UNICODE);
             } else {
-                // Fallback para função antiga
+                // Use fallback function
+                error_log("CPF API: Using fallback function for list action");
+                
                 $cpfData = getCpfFindingsPaginadoFromNewTable($pdo, $page, $perPage);
                 
-                echo json_encode([
+                $result = [
                     'success' => true,
                     'findings' => $cpfData['findings'] ?? [],
                     'total' => $cpfData['total_resources'] ?? 0,
@@ -69,7 +122,14 @@ try {
                     'total_pages' => $cpfData['total_paginas'] ?? 1,
                     'has_next' => $page < ($cpfData['total_paginas'] ?? 1),
                     'has_prev' => $page > 1
-                ], JSON_UNESCAPED_UNICODE);
+                ];
+                
+                // Ensure clean output before JSON
+                if (ob_get_level()) {
+                    ob_clean();
+                }
+                
+                echo json_encode($result, JSON_UNESCAPED_UNICODE);
             }
             break;
             
@@ -162,6 +222,11 @@ try {
     error_log("Erro na API CPF: " . $e->getMessage());
     error_log("Stack trace: " . $e->getTraceAsString());
     
+    // Clean any output buffer before sending error response
+    if (ob_get_level()) {
+        ob_clean();
+    }
+    
     http_response_code(500);
     echo json_encode([
         'success' => false,
@@ -169,8 +234,17 @@ try {
         'debug' => [
             'action' => $action ?? 'unknown',
             'controller_available' => $useNewController ?? false,
+            'controller_class_exists' => class_exists('App\Cpf\CpfController'),
+            'fallback_function_exists' => function_exists('getCpfFindingsPaginadoFromNewTable'),
             'file' => $e->getFile(),
-            'line' => $e->getLine()
+            'line' => $e->getLine(),
+            'php_version' => PHP_VERSION,
+            'autoloader_functions' => count(spl_autoload_functions())
         ]
     ], JSON_UNESCAPED_UNICODE);
+}
+
+// End output buffering and flush
+if (ob_get_level()) {
+    ob_end_flush();
 }

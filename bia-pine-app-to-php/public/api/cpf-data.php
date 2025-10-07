@@ -1,8 +1,14 @@
 <?php
 
+// Start output buffering to prevent any unwanted output
+ob_start();
+
 require_once __DIR__ . '/../../config.php';
 
 use App\Cpf\CpfController;
+
+// Clean any output that might have been generated during config loading
+ob_clean();
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -54,6 +60,11 @@ try {
     error_log("Erro na API CPF Data: " . $e->getMessage());
     error_log("Stack trace: " . $e->getTraceAsString());
     
+    // Clean any output buffer before sending error response
+    if (ob_get_level()) {
+        ob_clean();
+    }
+    
     http_response_code(500);
     echo json_encode([
         'success' => false,
@@ -67,4 +78,9 @@ try {
         'has_next' => false,
         'has_prev' => false
     ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+}
+
+// End output buffering and flush
+if (ob_get_level()) {
+    ob_end_flush();
 }
