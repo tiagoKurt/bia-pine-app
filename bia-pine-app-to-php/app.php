@@ -90,7 +90,7 @@ if (!class_exists('App\Bia')) {
     
     if (!$loaded && !class_exists('App\Bia')) {
         // Tentar carregamento manual direto como último recurso
-        $biaPath = __DIR__ . '/../src/Bia.php';
+        $biaPath = __DIR__ . '/src/Bia.php';
         if (file_exists($biaPath)) {
             error_log("Tentando carregamento direto do arquivo: {$biaPath}");
             try {
@@ -139,7 +139,7 @@ if (!class_exists('App\Pine')) {
     diagnosticarProblemaAutoloader('App\Pine');
     
     // Tentar carregamento manual direto
-    $pinePath = __DIR__ . '/../src/Pine.php';
+    $pinePath = __DIR__ . '/src/Pine.php';
     if (file_exists($pinePath)) {
         try {
             require_once $pinePath;
@@ -3214,7 +3214,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             console.log('URL:', window.location.href);
             console.log('FormData:', Object.fromEntries(formData));
             
-            fetch('api/bia.php', {
+            const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
+            fetch(`${baseUrl}api/bia.php`, {
                 method: 'POST',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest'
@@ -3406,7 +3407,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             console.log('Iniciando análise CKAN...', { force: force });
             
-            fetch('api/start-scan.php', {
+            const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
+            fetch(`${baseUrl}api/start-scan.php`, {
                 method: 'POST',
                 body: formData
             })
@@ -3464,7 +3466,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             pollingInterval = setInterval(() => {
-                fetch('api/scan-status.php')
+                const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
+                fetch(`${baseUrl}api/scan-status.php`)
                     .then(response => response.json())
                     .then(statusData => {
                         updateAsyncProgress(statusData);
@@ -3895,7 +3898,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 formData.append('force', '1');
             }
             
-            fetch('api/start-scan.php', {
+            const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
+            fetch(`${baseUrl}api/start-scan.php`, {
                 method: 'POST',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest'
@@ -3975,7 +3979,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Função para verificar o status da análise
         function checkScanStatus() {
-            fetch('api/scan-status.php', {
+            const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
+            fetch(`${baseUrl}api/scan-status.php`, {
                 method: 'GET',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest'
@@ -4061,7 +4066,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     console.log('🖱️ Botão de análise CKAN clicado');
                     
                     // Verificar se já há uma análise em andamento
-                    fetch('api/scan-status.php', {
+                    const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
+                    fetch(`${baseUrl}api/scan-status.php`, {
                         method: 'GET',
                         headers: {
                             'X-Requested-With': 'XMLHttpRequest'
@@ -4135,7 +4141,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ...filters
             });
             
-            const url = `/api/cpf.php?action=list&${params}`;
+            // Usar caminho correto baseado na estrutura atual
+            const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
+            const url = `${baseUrl}api/cpf.php?action=list&${params}`;
             console.log('🌐 URL da requisição:', url);
             
             // Mostrar loading

@@ -19,7 +19,7 @@ require_once __DIR__ . '/../../src/functions.php';
 try {
     $action = $_GET['action'] ?? 'list';
     $page = (int)($_GET['page'] ?? 1);
-    $perPage = min((int)($_GET['per_page'] ?? 10), 50); // Limitar a 50 itens por página
+    $perPage = min((int)($_GET['per_page'] ?? 10), 50);
     
     $pdo = conectarBanco();
     
