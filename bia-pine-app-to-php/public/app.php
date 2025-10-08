@@ -482,6 +482,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 }
+if ($action === 'get_total_recursos') {
+        try {
+            $stmt = $pdo->query("SELECT COUNT(*) as total FROM mpda_recursos_com_cpf");
+            $total = $stmt->fetchColumn() ?: 0;
+            
+            if ($isAjax) {
+                echo json_encode([
+                    'success' => true,
+                    'total' => (int) $total
+                ]);
+                exit;
+            }
+        } catch (Exception $e) {
+            error_log("Erro ao buscar total de recursos: " . $e->getMessage());
+            if ($isAjax) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Erro ao buscar total de recursos'
+                ]);
+                exit;
+            }
+        }
+    }
+
+
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -2071,6 +2096,570 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: var(--light-bg);
         }
 
+        .orgao-cell {
+            min-width: 150px;
+        }
+
+        .orgao-badge {
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: inline-block;
+            font-size: 0.8rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%) !important;
+            border: none;
+            cursor: help;
+        }
+
+        .orgao-badge:hover {
+            transform: scale(1.05);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        @media (max-width: 768px) {
+            .orgao-badge {
+                max-width: 120px;
+                font-size: 0.75rem;
+                padding: 0.4rem 0.6rem;
+            }
+        }
+
+        /* Estilos para tabela compacta de CPF */
+        .cpf-table-compact {
+            font-size: 0.9rem;
+        }
+
+        .cpf-table-compact .compact-cell {
+            padding: 0.75rem 0.5rem;
+            vertical-align: middle;
+        }
+
+        .cpf-table-compact .cell-content {
+            line-height: 1.3;
+        }
+
+        .cpf-table-compact .dataset-name,
+        .cpf-table-compact .resource-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .cpf-table-compact .orgao-badge-compact {
+            font-size: 0.75rem;
+            padding: 0.4rem 0.6rem;
+            border-radius: 4px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%) !important;
+            border: none;
+            cursor: help;
+            max-width: 100%;
+            display: inline-block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .cpf-table-compact .format-badge {
+            font-size: 0.7rem;
+            padding: 0.3rem 0.5rem;
+            border-radius: 3px;
+        }
+
+        .cpf-table-compact .cpf-badge {
+            font-size: 0.8rem;
+            padding: 0.4rem 0.6rem;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .cpf-table-compact .resource-actions {
+            margin-top: 0.25rem;
+        }
+
+        .cpf-table-compact .resource-actions a {
+            font-size: 0.75rem;
+            color: var(--primary-color);
+        }
+
+        .cpf-table-compact .resource-actions a:hover {
+            color: var(--primary-dark);
+        }
+
+        /* Dropdown de filtro melhorado */
+        .dropdown-menu {
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            border: 1px solid var(--border-color);
+        }
+
+        .dropdown-item {
+            padding: 0.75rem 1rem;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+
+        .dropdown-item:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .dropdown-item .badge {
+            font-size: 0.75rem;
+        }
+
+        /* Melhorias no filtro de órgão */
+        #filtroOrgaoDropdown {
+            border: 2px solid var(--primary-color);
+            color: var(--primary-color);
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        #filtroOrgaoDropdown:hover,
+        #filtroOrgaoDropdown:focus {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        #filtroOrgaoDropdown.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        #contadorOrgao {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.4rem;
+        }
+
+        /* Responsividade da tabela compacta */
+        @media (max-width: 768px) {
+            .cpf-table-compact {
+                font-size: 0.8rem;
+            }
+            
+            .cpf-table-compact .compact-cell {
+                padding: 0.5rem 0.25rem;
+            }
+            
+            .cpf-table-compact .dataset-name,
+            .cpf-table-compact .resource-name {
+                font-size: 0.8rem;
+            }
+            
+            .cpf-table-compact .orgao-badge-compact {
+                font-size: 0.7rem;
+                padding: 0.3rem 0.5rem;
+            }
+        }
+
+        /* Estilos para tabela PINE compacta */
+        .pine-table-compact {
+            font-size: 0.9rem;
+        }
+
+        .pine-table-compact .compact-cell {
+            padding: 0.75rem 0.5rem;
+            vertical-align: middle;
+        }
+
+        .pine-table-compact .dataset-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1.3;
+        }
+
+        .pine-table-compact .orgao-name {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .pine-table-compact .update-info {
+            font-size: 0.8rem;
+            line-height: 1.2;
+        }
+
+        .pine-table-compact .status-badge {
+            font-size: 0.75rem;
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        .pine-table-compact .resource-count {
+            font-size: 0.8rem;
+            padding: 0.3rem 0.6rem;
+            border-radius: 3px;
+        }
+
+        /* Melhorias nos cards de estatísticas */
+        .stats-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .stats-card .stat-icon {
+            transition: transform 0.3s ease;
+        }
+
+        .stats-card:hover .stat-icon {
+            transform: scale(1.1);
+        }
+
+        /* Melhorias nos filtros PINE */
+        .pine-filters-enhanced .form-control,
+        .pine-filters-enhanced .form-select {
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .pine-filters-enhanced .form-control:focus,
+        .pine-filters-enhanced .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(61, 107, 53, 0.1);
+        }
+
+        .pine-filters-enhanced .btn-group .btn {
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .pine-filters-enhanced .btn-group .btn:hover {
+            transform: translateY(-1px);
+        }
+
+        /* Indicadores visuais aprimorados */
+        .filter-active {
+            position: relative;
+        }
+
+        .filter-active::after {
+            content: '';
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 8px;
+            height: 8px;
+            background: var(--warning-color);
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+
+        /* Loading states melhorados */
+        .loading-skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Tooltips personalizados */
+        .custom-tooltip {
+            position: relative;
+            cursor: help;
+        }
+
+        .custom-tooltip:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            z-index: 1000;
+        }
+
+
+
+        /* Melhorias nos botões */
+        .btn-group-enhanced .btn {
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-group-enhanced .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn-group-enhanced .btn:hover::before {
+            left: 100%;
+        }
+
+        /* Feedback visual melhorado */
+        .form-control.is-valid {
+            border-color: var(--success-color);
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%23198754' d='m2.3 6.73.94-.94 1.44 1.44L7.4 4.5l.94.94L4.66 9.12z'/%3e%3c/svg%3e");
+        }
+
+        .form-control.is-invalid {
+            border-color: var(--danger-color);
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath d='m5.8 4.6 1.4 1.4M7.2 4.6l-1.4 1.4'/%3e%3c/svg%3e");
+        }
+
+        /* Animações de entrada */
+        .fade-in {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Toast notifications */
+        .toast {
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .toast-body {
+            font-weight: 500;
+        }
+
+        /* Botões de ação separados na tabela CPF */
+        .cpf-table-compact .d-flex.gap-1 {
+            gap: 0.25rem !important;
+        }
+
+        .cpf-table-compact .btn-sm {
+            padding: 0.375rem 0.5rem;
+            font-size: 0.8rem;
+            border-radius: 4px;
+        }
+
+        .cpf-table-compact .btn-outline-info {
+            border-color: #0dcaf0;
+            color: #0dcaf0;
+        }
+
+        .cpf-table-compact .btn-outline-info:hover {
+            background-color: #0dcaf0;
+            color: white;
+        }
+
+        /* Melhorias visuais gerais */
+        .loading-pulse {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .success-animation {
+            animation: successBounce 0.6s ease;
+        }
+
+        @keyframes successBounce {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        /* Indicadores visuais aprimorados */
+        .status-indicator-enhanced {
+            position: relative;
+            display: inline-block;
+        }
+
+        .status-indicator-enhanced::after {
+            content: '';
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--success-color);
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* Melhorias nos cards */
+        .card {
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Melhorias nos formulários */
+        .form-control:focus {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(61, 107, 53, 0.15);
+        }
+
+        /* Melhorias nos botões */
+        .btn {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        /* Melhorias responsivas */
+        @media (max-width: 768px) {
+            .pine-table-compact,
+            .cpf-table-compact {
+                font-size: 0.8rem;
+            }
+            
+            .dropdown-menu {
+                font-size: 0.85rem;
+            }
+            
+            .cpf-table-compact .d-flex.gap-1 {
+                flex-direction: column;
+                gap: 0.25rem !important;
+            }
+            
+            .cpf-table-compact .btn-sm {
+                padding: 0.25rem 0.4rem;
+                font-size: 0.75rem;
+            }
+        }
+
+        /* Estilos para o modal de confirmação */
+        #confirmDeleteModal .modal-content {
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        #confirmDeleteModal .modal-header {
+            border-radius: 16px 16px 0 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        #confirmDeleteModal .modal-body {
+            padding: 2rem;
+        }
+
+        #confirmDeleteModal .modal-footer {
+            border-top: 1px solid var(--border-color);
+            padding: 1.5rem 2rem;
+            border-radius: 0 0 16px 16px;
+        }
+
+        #confirmDeleteModal .btn {
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        #confirmDeleteModal .btn-danger {
+            background: linear-gradient(135deg, var(--danger-color) 0%, #dc2626 100%);
+            border: none;
+        }
+
+        #confirmDeleteModal .btn-danger:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+        }
+
+        #confirmDeleteModal .btn-secondary {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+            border: none;
+        }
+
+        #confirmDeleteModal .btn-secondary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
+        }
+
+        @media (max-width: 576px) {
+            #confirmDeleteModal .modal-body {
+                padding: 1.5rem;
+            }
+            
+            #confirmDeleteModal .modal-footer {
+                padding: 1rem 1.5rem;
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            #confirmDeleteModal .btn {
+                width: 100%;
+            }
+            
+            /* Responsividade do filtro */
+            .cpf-results-section .card-header .d-flex {
+                flex-direction: column;
+                align-items: stretch !important;
+                gap: 1rem;
+            }
+            
+            .cpf-results-section .card-header .d-flex > div {
+                width: 100%;
+            }
+            
+            .cpf-results-section .card-header select {
+                min-width: auto !important;
+            }
+            
+            #contadorRecursos {
+                display: block;
+                margin-top: 0.5rem;
+                margin-left: 0 !important;
+            }
+        }
+
         @media (max-width: 576px) {
             .cpf-status-section .row {
                 flex-direction: column;
@@ -2418,22 +3007,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <span id="datasets-title">Lista de Datasets</span>
                                     </h3>
                                     <div class="w-100 w-md-auto">
-                                    <button type="button" class="btn btn-success w-100 w-md-auto" id="export-csv">
-                                                <i class="fas fa-download icon"></i> Exportar CSV
+                                        <form method="POST" class="d-inline w-100">
+                                            <input type="hidden" name="action" value="export_pine_excel">
+                                            <button type="submit" class="btn btn-success w-100 w-md-auto">
+                                                <i class="fas fa-file-excel icon"></i> Exportar Excel
                                             </button>
+                                        </form>
                                     </div>
                                 </div>
 
                                 <div class="table-responsive">
-                                <table class="table table-hover" id="datasets-table">
+                                <table class="table table-hover pine-table-compact" id="datasets-table">
                                         <thead>
                                             <tr>
-                                                <th>Dataset</th>
-                                                <th>Órgão</th>
-                                                <th>Última Atualização</th>
-                                                <th>Status</th>
-                                                <th>Recursos</th>
-                                                <th>Ações</th>
+                                                <th style="width: 30%;">Dataset</th>
+                                                <th style="width: 20%;">Órgão</th>
+                                                <th style="width: 15%;">Última Atualização</th>
+                                                <th style="width: 12%;">Status</th>
+                                                <th style="width: 8%;">Recursos</th>
+                                                <th style="width: 15%;">Ações</th>
                                             </tr>
                                         </thead>
                                     <tbody id="datasets-tbody">
@@ -2661,12 +3253,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             <h5 class="card-title mb-0">
                                                 <i class="fas fa-list icon"></i>
                                                 Recursos com CPFs Detectados
+                                                <span class="badge bg-secondary ms-2" id="contadorRecursos">
+                                                    <?= number_format($cpfData['total_resources'] ?? 0, 0, ',', '.') ?> recursos
+                                                </span>
                                             </h5>
-                                            <div class="w-100 w-md-auto">
-                                                <form method="POST" class="d-inline w-100">
-                                                    <input type="hidden" name="action" value="export_cpf_csv">
-                                                    <button type="submit" class="btn btn-success w-100 w-md-auto">
-                                                        <i class="fas fa-download icon"></i> Exportar CSV
+                                            <div class="d-flex flex-column flex-md-row gap-2 w-100 w-md-auto align-items-start align-items-md-center">
+                                                <div class="d-flex gap-2 align-items-center flex-wrap">
+                                                    <div class="dropdown">
+                                                        <button class="btn btn-outline-primary dropdown-toggle btn-sm d-flex align-items-center" type="button" 
+                                                                id="filtroOrgaoDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="min-width: 180px;">
+                                                            <i class="fas fa-building me-2"></i>
+                                                            <span id="orgaoSelecionadoText">Todos os órgãos</span>
+                                                            <span id="contadorOrgao" class="badge bg-secondary ms-2 d-none">0</span>
+                                                        </button>
+                                                        <ul class="dropdown-menu" aria-labelledby="filtroOrgaoDropdown" style="max-height: 300px; overflow-y: auto;">
+                                                            <li>
+                                                                <a class="dropdown-item" href="#" onclick="selecionarOrgao('', 'Todos os órgãos')">
+                                                                    <i class="fas fa-list me-2"></i>
+                                                                    Todos os órgãos
+                                                                </a>
+                                                            </li>
+                                                            <li><hr class="dropdown-divider"></li>
+                                                            <?php
+                                                            // Buscar todos os órgãos únicos com contagem
+                                                            $orgaosComContagem = [];
+                                                            if ($pdo) {
+                                                                try {
+                                                                    $stmt = $pdo->query("
+                                                                        SELECT orgao, COUNT(*) as total 
+                                                                        FROM mpda_recursos_com_cpf 
+                                                                        WHERE orgao IS NOT NULL AND orgao != '' 
+                                                                        GROUP BY orgao 
+                                                                        ORDER BY orgao
+                                                                    ");
+                                                                    $orgaosComContagem = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                                                                } catch (Exception $e) {
+                                                                    error_log("Erro ao buscar órgãos com contagem: " . $e->getMessage());
+                                                                }
+                                                            }
+                                                            foreach ($orgaosComContagem as $orgaoData): ?>
+                                                                <li>
+                                                                    <a class="dropdown-item d-flex justify-content-between align-items-center" 
+                                                                       href="#" onclick="selecionarOrgao('<?= htmlspecialchars($orgaoData['orgao']) ?>', '<?= htmlspecialchars($orgaoData['orgao']) ?>', <?= $orgaoData['total'] ?>)">
+                                                                        <span>
+                                                                            <i class="fas fa-building me-2 text-primary"></i>
+                                                                            <?= htmlspecialchars($orgaoData['orgao']) ?>
+                                                                        </span>
+                                                                        <span class="badge bg-info"><?= $orgaoData['total'] ?></span>
+                                                                    </a>
+                                                                </li>
+                                                            <?php endforeach; ?>
+                                                        </ul>
+                                                    </div>
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnLimparFiltro" onclick="limparFiltro()" title="Limpar filtro" style="display: none;">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                </div>
+                                                <form method="POST" class="d-inline">
+                                                    <input type="hidden" name="action" value="export_cpf_excel">
+                                                    <button type="submit" class="btn btn-success btn-sm">
+                                                        <i class="fas fa-file-excel icon"></i> Exportar Excel
                                                     </button>
                                                 </form>
                                             </div>
@@ -2675,60 +3321,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <div class="card-body p-0">
 
                                         <div class="table-responsive">
-                                            <table class="table table-hover mb-0">
+                                            <table class="table table-hover mb-0 cpf-table-compact">
                                                 <thead>
                                                     <tr>
-                                                        <th>Dataset</th>
-                                                        <th>Recurso</th>
-                                                        <th>Formato</th>
-                                                        <th>CPFs</th>
-                                                        <th>Verificado</th>
-                                                        <th>Ações</th>
+                                                        <th style="width: 25%;">Dataset</th>
+                                                        <th style="width: 15%;">Órgão</th>
+                                                        <th style="width: 25%;">Recurso</th>
+                                                        <th style="width: 8%;">Formato</th>
+                                                        <th style="width: 8%;">CPFs</th>
+                                                        <th style="width: 12%;">Verificado</th>
+                                                        <th style="width: 7%;">Ações</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                             <?php foreach ($cpfFindings as $index => $finding): ?>
                                                 <tr>
-                                                    <td>
-                                                        <div>
-                                                            <strong><?= htmlspecialchars($finding['dataset_name']) ?></strong>
-                                                            <br>
-                                                            <small class="text-muted">ID: <?= htmlspecialchars($finding['dataset_id']) ?></small>
+                                                    <td class="compact-cell">
+                                                        <div class="cell-content">
+                                                            <strong class="dataset-name" title="<?= htmlspecialchars($finding['dataset_name']) ?>">
+                                                                <?= htmlspecialchars(strlen($finding['dataset_name']) > 40 ? substr($finding['dataset_name'], 0, 40) . '...' : $finding['dataset_name']) ?>
+                                                            </strong>
+                                                            <small class="text-muted d-block">ID: <?= htmlspecialchars(substr($finding['dataset_id'], 0, 8)) ?>...</small>
                                                         </div>
                                                     </td>
-                                                    <!-- <td>
-                                                        <span class="badge bg-info"><?= htmlspecialchars($finding['dataset_organization']) ?></span>
-                                                    </td> -->
-                                                    <td>
-                                                        <div>
-                                                            <strong><?= htmlspecialchars($finding['resource_name']) ?></strong>
-                                                            <br>
-                                                            <small class="text-muted">ID: <?= htmlspecialchars($finding['resource_id']) ?></small>
-                                                            <br>
-                                                            <a href="<?= htmlspecialchars($finding['resource_url']) ?>" target="_blank" class="text-decoration-none">
-                                                                <small><i class="fas fa-external-link-alt"></i> Ver recurso</small>
-                                                            </a>
-                                                        </div>
+                                                    <td class="compact-cell">
+                                                        <span class="badge bg-primary orgao-badge-compact" title="<?= htmlspecialchars($finding['dataset_organization']) ?>">
+                                                            <i class="fas fa-building me-1"></i>
+                                                            <?= htmlspecialchars(strlen($finding['dataset_organization']) > 15 ? substr($finding['dataset_organization'], 0, 15) . '...' : $finding['dataset_organization']) ?>
+                                                        </span>
                                                     </td>
-                                                    <td>
-                                                        <span class="badge bg-secondary"><?= strtoupper($finding['resource_format']) ?></span>
-                                                    </td>
-                                                    <td>
-                                                        <span class="badge bg-danger"><?= $finding['cpf_count'] ?> CPFs</span>
-                                                    </td>
-                                                    <td>
-                                                        <small><?= date('d/m/Y H:i', strtotime($finding['last_checked'])) ?></small>
-                                                    </td>
-                                                    <td>
-                                                        <div class="btn-group" role="group">
-                                                            <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#collapse<?= $index ?>" aria-expanded="false">
-                                                                <i class="fas fa-eye icon"></i> Ver CPFs
-                                                            </button>
-                                                            <?php if (!empty($finding['dataset_url']) && $finding['dataset_url'] !== '#'): ?>
-                                                                <a href="<?= htmlspecialchars($finding['dataset_url']) ?>" target="_blank" class="btn btn-outline-success btn-sm">
-                                                                    <i class="fas fa-external-link-alt icon"></i> Dataset
+                                                    <td class="compact-cell">
+                                                        <div class="cell-content">
+                                                            <strong class="resource-name" title="<?= htmlspecialchars($finding['resource_name']) ?>">
+                                                                <?= htmlspecialchars(strlen($finding['resource_name']) > 35 ? substr($finding['resource_name'], 0, 35) . '...' : $finding['resource_name']) ?>
+                                                            </strong>
+                                                            <div class="resource-actions mt-1">
+                                                                <a href="<?= htmlspecialchars($finding['resource_url']) ?>" target="_blank" class="text-decoration-none">
+                                                                    <small><i class="fas fa-external-link-alt"></i> Ver</small>
                                                                 </a>
-                                                            <?php endif; ?>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <span class="badge bg-secondary format-badge"><?= strtoupper($finding['resource_format']) ?></span>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <span class="badge bg-danger cpf-badge"><?= $finding['cpf_count'] ?></span>
+                                                    </td>
+                                                    <td class="compact-cell">
+                                                        <small class="text-muted"><?= date('d/m/y', strtotime($finding['last_checked'])) ?></small>
+                                                        <small class="text-muted d-block"><?= date('H:i', strtotime($finding['last_checked'])) ?></small>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <div class="d-flex gap-1 justify-content-center">
+                                                            <button class="btn btn-outline-info btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#collapse<?= $index ?>" aria-expanded="false" title="Ver CPFs">
+                                                                <i class="fas fa-eye"></i>
+                                                            </button>
+                                                            <div class="dropdown">
+                                                                <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Ações">
+                                                                    <i class="fas fa-cog"></i>
+                                                                </button>
+                                                                <ul class="dropdown-menu">
+                                                                    <?php if (!empty($finding['dataset_url']) && $finding['dataset_url'] !== '#'): ?>
+                                                                        <li>
+                                                                            <a class="dropdown-item" href="<?= htmlspecialchars($finding['dataset_url']) ?>" target="_blank">
+                                                                                <i class="fas fa-external-link-alt me-2"></i> Ver Dataset
+                                                                            </a>
+                                                                        </li>
+                                                                        <li><hr class="dropdown-divider"></li>
+                                                                    <?php endif; ?>
+                                                                    <li>
+                                                                        <button class="dropdown-item text-danger" onclick="excluirRecurso('<?= htmlspecialchars($finding['resource_id']) ?>', '<?= htmlspecialchars($finding['resource_name']) ?>')">
+                                                                            <i class="fas fa-trash me-2"></i> Excluir
+                                                                        </button>
+                                                                    </li>
+                                                                </ul>
+                                                            </div>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -3152,49 +3820,108 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td colspan="6" class="text-center text-muted py-4">
-                        <i class="fas fa-inbox icon"></i><br>
-                        Nenhum dataset encontrado
+                        <div class="py-4">
+                            <i class="fas fa-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
+                            <h5 class="mt-3 text-muted">Nenhum dataset encontrado</h5>
+                            <p class="text-muted">Tente ajustar os filtros ou execute uma nova análise.</p>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(row);
                 return;
             }
 
-            datasets.forEach(dataset => {
+            datasets.forEach((dataset, index) => {
+                const datasetName = dataset.name.length > 50 ? dataset.name.substring(0, 50) + '...' : dataset.name;
+                const orgName = dataset.organization.length > 25 ? dataset.organization.substring(0, 25) + '...' : dataset.organization;
+                const datasetId = dataset.dataset_id.substring(0, 8) + '...';
+                
                 const row = document.createElement('tr');
+                row.className = 'dataset-row';
                 row.innerHTML = `
-                    <td>
-                        <div>
-                            <strong>${escapeHtml(dataset.name)}</strong><br>
-                            <small class="text-muted">ID: ${escapeHtml(dataset.dataset_id)}</small>
+                    <td class="compact-cell">
+                        <div class="cell-content">
+                            <strong class="dataset-title custom-tooltip" title="${escapeHtml(dataset.name)}" data-tooltip="${escapeHtml(dataset.name)}">
+                                ${escapeHtml(datasetName)}
+                            </strong>
+                            <small class="text-muted d-block">ID: ${escapeHtml(datasetId)}</small>
                         </div>
                     </td>
-                    <td>
-                        <span class="text-muted">${escapeHtml(dataset.organization)}</span>
+                    <td class="compact-cell">
+                        <span class="orgao-name custom-tooltip" title="${escapeHtml(dataset.organization)}" data-tooltip="${escapeHtml(dataset.organization)}">
+                            <i class="fas fa-building me-1 text-primary"></i>
+                            ${escapeHtml(orgName)}
+                        </span>
                     </td>
-                    <td>
-                        <div>
-                            <strong>${dataset.last_updated ? formatDate(dataset.last_updated) : 'N/A'}</strong><br>
-                            <small class="text-muted">
-                                ${dataset.days_since_update !== 2147483647 ? dataset.days_since_update + ' dias atrás' : 'Sem data'}
+                    <td class="compact-cell">
+                        <div class="update-info">
+                            <strong class="text-${dataset.status === 'Atualizado' ? 'success' : 'danger'}">
+                                ${dataset.last_updated ? formatDateCompact(dataset.last_updated) : 'N/A'}
+                            </strong>
+                            <small class="text-muted d-block">
+                                ${dataset.days_since_update !== 2147483647 ? 
+                                    (dataset.days_since_update === 0 ? 'Hoje' : 
+                                     dataset.days_since_update === 1 ? 'Ontem' : 
+                                     dataset.days_since_update + ' dias') : 'Sem data'}
                             </small>
                         </div>
                     </td>
-                    <td>
-                        ${dataset.status === 'Atualizado' 
-                            ? '<span class="badge bg-success"><i class="fas fa-check icon"></i> Atualizado</span>'
-                            : '<span class="badge bg-danger"><i class="fas fa-exclamation-triangle icon"></i> Desatualizado</span>'
-                        }
+                    <td class="text-center">
+                        <span class="badge status-badge ${dataset.status === 'Atualizado' ? 'bg-success' : 'bg-danger'}">
+                            <i class="fas fa-${dataset.status === 'Atualizado' ? 'check' : 'exclamation-triangle'} me-1"></i>
+                            ${dataset.status === 'Atualizado' ? 'OK' : 'Desatualizado'}
+                        </span>
                     </td>
-                    <td><span class="badge bg-secondary">${dataset.resources_count}</span></td>
-                    <td>
-                        <a href="${escapeHtml(dataset.url)}" target="_blank" class="btn btn-outline-primary btn-sm">
-                            <i class="fas fa-external-link-alt icon"></i> Ver
-                        </a>
+                    <td class="text-center">
+                        <span class="badge bg-secondary resource-count">${dataset.resources_count}</span>
+                    </td>
+                    <td class="text-center">
+                        <div class="dropdown">
+                            <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li>
+                                    <a class="dropdown-item" href="${escapeHtml(dataset.url)}" target="_blank">
+                                        <i class="fas fa-external-link-alt me-2"></i> Ver Dataset
+                                    </a>
+                                </li>
+                                <li>
+                                    <button class="dropdown-item" onclick="copiarLink('${escapeHtml(dataset.url)}')">
+                                        <i class="fas fa-copy me-2"></i> Copiar Link
+                                    </button>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <button class="dropdown-item" onclick="mostrarDetalhesDataset('${escapeHtml(dataset.dataset_id)}')">
+                                        <i class="fas fa-info-circle me-2"></i> Detalhes
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(row);
+                
+                // Adicionar animação de entrada
+                setTimeout(() => {
+                    row.classList.add('fade-in');
+                }, index * 50);
             });
+        }
+
+        // Função para copiar link
+        function copiarLink(url) {
+            navigator.clipboard.writeText(url).then(() => {
+                showToast('Link copiado para a área de transferência!', 'success');
+            }).catch(() => {
+                showToast('Erro ao copiar link', 'error');
+            });
+        }
+
+        // Função para mostrar detalhes do dataset
+        function mostrarDetalhesDataset(datasetId) {
+            showToast('Funcionalidade em desenvolvimento', 'info');
         }
 
         // Atualizar paginação
@@ -3399,6 +4126,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 timeout = setTimeout(later, wait);
             };
         }
+
+
 
         // Script para carregamento no botão de geração de dicionário BIA
         document.getElementById('dicionario-form').addEventListener('submit', function(e) {
@@ -4496,6 +5225,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
+        // Mostrar loading com mensagem personalizada
+        function showCpfLoadingWithMessage(message) {
+            const cpfContent = document.querySelector('#cpf .table-responsive');
+            if (cpfContent) {
+                cpfContent.innerHTML = `
+                    <div class="text-center p-5">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                        <h5>${escapeHtml(message)}</h5>
+                        <p class="text-muted">Aguarde enquanto processamos sua solicitação.</p>
+                    </div>
+                `;
+            }
+        }
+        
         // Esconder loading na seção CPF
         function hideCpfLoading() {
             // O loading será substituído pelo conteúdo real
@@ -4518,65 +5263,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             let tableHtml = `
-                <table class="table table-hover">
+                <table class="table table-hover cpf-table-compact">
                     <thead>
                         <tr>
-                            <th>Dataset</th>
-                            <th>Recurso</th>
-                            <th>Formato</th>
-                            <th>CPFs</th>
-                            <th>Verificado</th>
-                            <th>Ações</th>
+                            <th style="width: 25%;">Dataset</th>
+                            <th style="width: 15%;">Órgão</th>
+                            <th style="width: 25%;">Recurso</th>
+                            <th style="width: 8%;">Formato</th>
+                            <th style="width: 8%;">CPFs</th>
+                            <th style="width: 12%;">Verificado</th>
+                            <th style="width: 7%;">Ações</th>
                         </tr>
                     </thead>
                     <tbody>
             `;
             
             data.findings.forEach((finding, index) => {
+                const datasetName = finding.dataset_name.length > 40 ? finding.dataset_name.substring(0, 40) + '...' : finding.dataset_name;
+                const resourceName = finding.resource_name.length > 35 ? finding.resource_name.substring(0, 35) + '...' : finding.resource_name;
+                const orgaoName = finding.dataset_organization.length > 15 ? finding.dataset_organization.substring(0, 15) + '...' : finding.dataset_organization;
+                const datasetId = finding.dataset_id.substring(0, 8) + '...';
+                
                 tableHtml += `
                     <tr>
-                        <td>
-                            <div>
-                                <strong>${escapeHtml(finding.dataset_name)}</strong>
-                                <br>
-                                <small class="text-muted">ID: ${escapeHtml(finding.dataset_id)}</small>
+                        <td class="compact-cell">
+                            <div class="cell-content">
+                                <strong class="dataset-name" title="${escapeHtml(finding.dataset_name)}">
+                                    ${escapeHtml(datasetName)}
+                                </strong>
+                                <small class="text-muted d-block">ID: ${escapeHtml(datasetId)}</small>
                             </div>
                         </td>
-                        <td>
-                            <div>
-                                <strong>${escapeHtml(finding.resource_name)}</strong>
-                                <br>
-                                <small class="text-muted">ID: ${escapeHtml(finding.resource_id)}</small>
-                                <br>
-                                <a href="${escapeHtml(finding.resource_url)}" target="_blank" class="text-decoration-none">
-                                    <small><i class="fas fa-external-link-alt"></i> Ver recurso</small>
-                                </a>
+                        <td class="compact-cell">
+                            <span class="badge bg-primary orgao-badge-compact" title="${escapeHtml(finding.dataset_organization)}">
+                                <i class="fas fa-building me-1"></i>
+                                ${escapeHtml(orgaoName)}
+                            </span>
+                        </td>
+                        <td class="compact-cell">
+                            <div class="cell-content">
+                                <strong class="resource-name" title="${escapeHtml(finding.resource_name)}">
+                                    ${escapeHtml(resourceName)}
+                                </strong>
+                                <div class="resource-actions mt-1">
+                                    <a href="${escapeHtml(finding.resource_url)}" target="_blank" class="text-decoration-none">
+                                        <small><i class="fas fa-external-link-alt"></i> Ver</small>
+                                    </a>
+                                </div>
                             </div>
                         </td>
-                        <td>
-                            <span class="badge bg-secondary">${finding.resource_format.toUpperCase()}</span>
+                        <td class="text-center">
+                            <span class="badge bg-secondary format-badge">${finding.resource_format.toUpperCase()}</span>
                         </td>
-                        <td>
-                            <span class="badge bg-danger">${finding.cpf_count} CPFs</span>
+                        <td class="text-center">
+                            <span class="badge bg-danger cpf-badge">${finding.cpf_count}</span>
                         </td>
-                        <td>
-                            <small>${formatDate(finding.last_checked)}</small>
+                        <td class="compact-cell">
+                            <small class="text-muted">${formatDateCompact(finding.last_checked)}</small>
                         </td>
-                        <td>
-                            <div class="btn-group" role="group">
-                                <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${index}" aria-expanded="false">
-                                    <i class="fas fa-eye icon"></i> Ver CPFs
+                        <td class="text-center">
+                            <div class="d-flex gap-1 justify-content-center">
+                                <button class="btn btn-outline-info btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${index}" aria-expanded="false" title="Ver CPFs">
+                                    <i class="fas fa-eye"></i>
                                 </button>
-                                ${finding.dataset_url && finding.dataset_url !== '#' ? 
-                                    `<a href="${escapeHtml(finding.dataset_url)}" target="_blank" class="btn btn-outline-success btn-sm">
-                                        <i class="fas fa-external-link-alt icon"></i> Dataset
-                                    </a>` : ''
-                                }
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Ações">
+                                        <i class="fas fa-cog"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        ${finding.dataset_url && finding.dataset_url !== '#' ? 
+                                            `<li>
+                                                <a class="dropdown-item" href="${escapeHtml(finding.dataset_url)}" target="_blank">
+                                                    <i class="fas fa-external-link-alt me-2"></i> Ver Dataset
+                                                </a>
+                                            </li>
+                                            <li><hr class="dropdown-divider"></li>` : ''
+                                        }
+                                        <li>
+                                            <button class="dropdown-item text-danger" onclick="excluirRecurso('${escapeHtml(finding.resource_id)}', '${escapeHtml(finding.resource_name)}')">
+                                                <i class="fas fa-trash me-2"></i> Excluir
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
                             </div>
                         </td>
                     </tr>
                     <tr>
-                        <td colspan="6" class="p-0">
+                        <td colspan="7" class="p-0">
                             <div class="collapse" id="collapse${index}">
                                 <div class="p-3 bg-light">
                                     <h6 class="mb-3">
@@ -4599,6 +5373,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             `;
             
             tableContainer.innerHTML = tableHtml;
+            
+            // Atualizar contador se não estiver filtrado
+            const contador = document.getElementById('contadorRecursos');
+            if (contador && !contador.classList.contains('bg-info')) {
+                contador.textContent = `${data.total_resources} recursos`;
+                contador.classList.remove('bg-info');
+                contador.classList.add('bg-secondary');
+            }
         }
         
         // Atualizar paginação de CPF
@@ -4675,6 +5457,356 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const date = new Date(dateString);
             return date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
         }
+
+        // Função auxiliar para formatar data compacta
+        function formatDateCompact(dateString) {
+            const date = new Date(dateString);
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const year = date.getFullYear().toString().substr(-2);
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            return `${day}/${month}/${year}<br>${hours}:${minutes}`;
+        }
+        
+        // Variáveis globais para controle do filtro
+        let filtroAtivo = false;
+        let orgaoAtual = '';
+
+        // Função para selecionar órgão no dropdown
+        function selecionarOrgao(valor, texto, total = null) {
+            orgaoAtual = valor;
+            
+            // Atualizar texto do botão
+            const botaoTexto = document.getElementById('orgaoSelecionadoText');
+            const contadorOrgao = document.getElementById('contadorOrgao');
+            const botaoDropdown = document.getElementById('filtroOrgaoDropdown');
+            const btnLimpar = document.getElementById('btnLimparFiltro');
+            
+            if (botaoTexto) {
+                botaoTexto.textContent = texto;
+            }
+            
+            if (valor === '') {
+                // Limpar filtro
+                filtroAtivo = false;
+                contadorOrgao.classList.add('d-none');
+                botaoDropdown.classList.remove('active');
+                btnLimpar.style.display = 'none';
+                
+                // Recarregar dados normais
+                loadCpfData(1);
+                
+                // Resetar título e contador
+                const titulo = document.querySelector('#cpf .card-title');
+                if (titulo) {
+                    // Buscar o total real de recursos
+                    fetch(window.location.pathname, {
+                        method: 'POST',
+                        body: new URLSearchParams({
+                            'action': 'get_total_recursos'
+                        }),
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        const contadorRecursos = document.getElementById('contadorRecursos');
+                        if (contadorRecursos && data.success) {
+                            contadorRecursos.textContent = `${data.total} recursos`;
+                            contadorRecursos.classList.remove('bg-info');
+                            contadorRecursos.classList.add('bg-secondary');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erro ao buscar total de recursos:', error);
+                    });
+                }
+                
+                // Mostrar paginação
+                mostrarPaginacao(true);
+            } else {
+                // Aplicar filtro
+                filtroAtivo = true;
+                contadorOrgao.textContent = total || '...';
+                contadorOrgao.classList.remove('d-none');
+                botaoDropdown.classList.add('active');
+                btnLimpar.style.display = 'inline-block';
+                
+                // Filtrar dados
+                filtrarPorOrgao(valor, texto, total);
+                
+                // Ocultar paginação quando filtrado
+                mostrarPaginacao(false);
+            }
+        }
+
+        // Função para filtrar por órgão
+        function filtrarPorOrgao(orgao, nomeOrgao, totalRecursos) {
+            // Mostrar loading com mensagem específica
+            showCpfLoadingWithMessage(`Filtrando dados por: ${nomeOrgao}`);
+            
+            // Fazer requisição AJAX para buscar dados filtrados
+            const formData = new FormData();
+            formData.append('action', 'filtrar_cpf_orgao');
+            formData.append('orgao', orgao);
+            
+            fetch(window.location.pathname, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateCpfDisplay(data.data);
+                    
+                    const contadorOrgao = document.getElementById('contadorOrgao');
+                    if (contadorOrgao) {
+                        contadorOrgao.textContent = data.data.total_resources;
+                    }
+                    
+                    const contador = document.getElementById('contadorRecursos');
+                    if (contador) {
+                        contador.textContent = `${data.data.total_resources} recursos`;
+                        contador.classList.remove('bg-secondary');
+                        contador.classList.add('bg-info');
+                    }
+                    
+                    showToast(`Filtro aplicado: ${data.data.total_resources} recursos encontrados`, 'success');
+                } else {
+                    showCpfError(data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao filtrar por órgão:', error);
+                showCpfError('Erro ao filtrar dados. Tente novamente.');
+            });
+        }
+        
+        function limparFiltro() {
+            selecionarOrgao('', 'Todos os órgãos');
+        }
+
+        function mostrarPaginacao(mostrar) {
+            const paginacao = document.querySelector('#cpf nav[aria-label="Navegação da página de CPFs"]');
+            if (paginacao) {
+                paginacao.style.display = mostrar ? 'block' : 'none';
+            }
+        }
+
+        // Função para mostrar toast (notificação discreta)
+        function showToast(message, type = 'info') {
+            // Remover toast anterior se existir
+            const existingToast = document.getElementById('cpfToast');
+            if (existingToast) {
+                existingToast.remove();
+            }
+
+            const toastClass = type === 'success' ? 'bg-success' : 
+                             type === 'warning' ? 'bg-warning' : 
+                             type === 'error' ? 'bg-danger' : 'bg-info';
+
+            const toast = document.createElement('div');
+            toast.id = 'cpfToast';
+            toast.className = `toast align-items-center text-white ${toastClass} border-0`;
+            toast.setAttribute('role', 'alert');
+            toast.setAttribute('aria-live', 'assertive');
+            toast.setAttribute('aria-atomic', 'true');
+            toast.style.position = 'fixed';
+            toast.style.top = '20px';
+            toast.style.right = '20px';
+            toast.style.zIndex = '9999';
+            
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <i class="fas fa-${type === 'success' ? 'check' : 'info'}-circle me-2"></i>
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+
+            document.body.appendChild(toast);
+            
+            const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+            bsToast.show();
+            
+            // Remover do DOM após ser ocultado
+            toast.addEventListener('hidden.bs.toast', () => {
+                toast.remove();
+            });
+        }
+        
+        // Variáveis globais para controle da exclusão
+        let currentDeleteResourceId = null;
+        let currentDeleteButton = null;
+
+        // Função para excluir recurso
+        function excluirRecurso(resourceId, resourceName) {
+            // Armazenar dados para uso no modal
+            currentDeleteResourceId = resourceId;
+            currentDeleteButton = event.target.closest('button');
+            
+            // Atualizar conteúdo do modal
+            document.getElementById('deleteResourceName').innerHTML = `
+                <strong>Recurso:</strong> ${escapeHtml(resourceName)}<br>
+                <small class="text-muted">ID: ${escapeHtml(resourceId)}</small>
+            `;
+            
+            // Mostrar modal
+            const modal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
+            modal.show();
+        }
+
+        // Event listener para o botão de confirmação no modal
+        document.addEventListener('DOMContentLoaded', function() {
+            const confirmBtn = document.getElementById('confirmDeleteBtn');
+            if (confirmBtn) {
+                confirmBtn.addEventListener('click', function() {
+                    if (!currentDeleteResourceId || !currentDeleteButton) return;
+                    
+                    // Fechar modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal'));
+                    modal.hide();
+                    
+                    // Mostrar loading no botão
+                    const originalText = currentDeleteButton.innerHTML;
+                    currentDeleteButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Excluindo...';
+                    currentDeleteButton.disabled = true;
+                    
+                    // Fazer requisição AJAX
+                    const formData = new FormData();
+                    formData.append('action', 'excluir_recurso');
+                    formData.append('resource_id', currentDeleteResourceId);
+                    
+                    fetch(window.location.pathname, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Remover a linha da tabela com animação
+                            const row = currentDeleteButton.closest('tr');
+                            const detailsRow = row.nextElementSibling;
+                            
+                            // Animação de fade out
+                            row.style.transition = 'all 0.3s ease';
+                            row.style.opacity = '0';
+                            row.style.transform = 'translateX(-20px)';
+                            
+                            setTimeout(() => {
+                                row.remove();
+                                if (detailsRow && detailsRow.querySelector('.collapse')) {
+                                    detailsRow.remove();
+                                }
+                                
+                                // Mostrar mensagem de sucesso
+                                showAlert(data.message, data.type);
+                                
+                                // Recarregar dados se a tabela ficou vazia
+                                const remainingRows = document.querySelectorAll('#cpf .table tbody tr:not([style*="display: none"])');
+                                if (remainingRows.length === 0) {
+                                    loadCpfData();
+                                }
+                            }, 300);
+                        } else {
+                            showAlert(data.message, data.type);
+                            currentDeleteButton.innerHTML = originalText;
+                            currentDeleteButton.disabled = false;
+                        }
+                        
+                        // Limpar variáveis
+                        currentDeleteResourceId = null;
+                        currentDeleteButton = null;
+                    })
+                    .catch(error => {
+                        console.error('Erro ao excluir recurso:', error);
+                        showAlert('Erro ao excluir recurso. Tente novamente.', 'error');
+                        currentDeleteButton.innerHTML = originalText;
+                        currentDeleteButton.disabled = false;
+                        
+                        // Limpar variáveis
+                        currentDeleteResourceId = null;
+                        currentDeleteButton = null;
+                    });
+                });
+            }
+        });
+        
+        // Função para mostrar alertas
+        function showAlert(message, type) {
+            const alertContainer = document.querySelector('.alert-container') || document.querySelector('#cpf');
+            const alertClass = type === 'success' ? 'alert-success' : 
+                             type === 'warning' ? 'alert-warning' : 'alert-danger';
+            
+            const alert = document.createElement('div');
+            alert.className = `alert ${alertClass} alert-dismissible fade show`;
+            alert.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            alertContainer.insertBefore(alert, alertContainer.firstChild);
+            
+            // Auto-remover após 5 segundos
+            setTimeout(() => {
+                if (alert.parentNode) {
+                    alert.remove();
+                }
+            }, 5000);
+        }
     </script>
+
+    <!-- Modal de Confirmação de Exclusão -->
+    <div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="confirmDeleteModalLabel">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Confirmar Exclusão
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex align-items-start">
+                        <div class="flex-shrink-0 me-3">
+                            <div class="bg-danger bg-opacity-10 rounded-circle p-3">
+                                <i class="fas fa-trash-alt text-danger" style="font-size: 1.5rem;"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-2">Tem certeza que deseja excluir este recurso?</h6>
+                            <p class="mb-2" id="deleteResourceName"></p>
+                            <div class="alert alert-warning d-flex align-items-center mb-0">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <small>Esta ação não pode ser desfeita. Todos os dados relacionados a este recurso serão removidos permanentemente.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                        <i class="fas fa-trash me-1"></i>
+                        Excluir Recurso
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

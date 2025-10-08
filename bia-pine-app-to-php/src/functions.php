@@ -771,6 +771,149 @@ function getCpfFindingsPaginadoFromNewTable(PDO $pdo, int $pagina = 1, int $iten
 }
 
 /**
+ * Busca dados de CPF com filtro por órgão
+ */
+function getCpfFindingsPaginadoComFiltro(PDO $pdo, int $pagina = 1, int $itensPorPagina = 10, string $orgao = ''): array {
+    $offset = ($pagina - 1) * $itensPorPagina;
+
+    try {
+        // Verificar se a tabela existe
+        $tableCheck = $pdo->query("SHOW TABLES LIKE 'mpda_recursos_com_cpf'");
+        if ($tableCheck->rowCount() === 0) {
+            error_log("Tabela mpda_recursos_com_cpf não existe");
+            return [
+                'findings' => [],
+                'total_resources' => 0,
+                'total_paginas' => 1,
+                'pagina_atual' => $pagina,
+            ];
+        }
+
+        // Construir WHERE clause para filtro
+        $whereClause = '';
+        $params = [];
+        
+        if (!empty($orgao)) {
+            $whereClause = 'WHERE r.orgao = ?';
+            $params[] = $orgao;
+        }
+
+        // Contar total com filtro
+        $countSql = "SELECT COUNT(*) as total FROM mpda_recursos_com_cpf r $whereClause";
+        $countStmt = $pdo->prepare($countSql);
+        $countStmt->execute($params);
+        $totalResources = $countStmt->fetchColumn() ?: 0;
+
+        if ($totalResources == 0) {
+            return [
+                'findings' => [],
+                'total_resources' => 0,
+                'total_paginas' => 1,
+                'pagina_atual' => $pagina,
+            ];
+        }
+
+        // Query principal com filtro
+        $sql = "
+            SELECT 
+                r.identificador_recurso,
+                r.identificador_dataset,
+                r.orgao,
+                r.cpfs_encontrados,
+                r.quantidade_cpfs,
+                r.metadados_recurso,
+                r.data_verificacao,
+                d.name as dataset_name,
+                d.url as dataset_url,
+                d.organization as dataset_organization
+            FROM 
+                mpda_recursos_com_cpf r
+            LEFT JOIN mpda_datasets d ON r.identificador_dataset = d.dataset_id
+            $whereClause
+            ORDER BY 
+                r.data_verificacao DESC
+            LIMIT ? OFFSET ?
+        ";
+
+        $stmt = $pdo->prepare($sql);
+        $params[] = $itensPorPagina;
+        $params[] = $offset;
+        $stmt->execute($params);
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $findings = [];
+
+        if ($results) {
+            foreach ($results as $result) {
+                // Decodificação robusta de JSON
+                $metadados = [];
+                $cpfs = [];
+                
+                if (!empty($result['metadados_recurso'])) {
+                    $metadados = json_decode($result['metadados_recurso'], true);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        $metadados = [];
+                    }
+                }
+                
+                if (!empty($result['cpfs_encontrados'])) {
+                    $cpfs = json_decode($result['cpfs_encontrados'], true);
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        $cpfs = [];
+                    }
+                }
+                
+                if (!is_array($cpfs) || empty($cpfs)) {
+                    continue;
+                }
+
+                // Formatar CPFs
+                $cpfsFormatados = [];
+                if (is_array($cpfs)) {
+                    foreach ($cpfs as $cpf) {
+                        if (is_string($cpf)) {
+                            $cpfsFormatados[] = formatarCPF($cpf);
+                        } elseif (is_array($cpf) && isset($cpf['cpf'])) {
+                            $cpfsFormatados[] = formatarCPF($cpf['cpf']);
+                        }
+                    }
+                }
+                
+                $findings[] = [
+                    'dataset_id' => $result['identificador_dataset'] ?? 'N/A',
+                    'dataset_name' => $result['dataset_name'] ?? ($metadados['dataset_name'] ?? 'Dataset Desconhecido'),
+                    'dataset_url' => $result['dataset_url'] ?? '#',
+                    'dataset_organization' => $result['orgao'] ?? 'Não informado',
+                    'resource_id' => $result['identificador_recurso'] ?? 'N/A',
+                    'resource_name' => $metadados['resource_name'] ?? 'Recurso Desconhecido',
+                    'resource_url' => $metadados['resource_url'] ?? '#',
+                    'resource_format' => $metadados['resource_format'] ?? 'N/A',
+                    'cpf_count' => (int) $result['quantidade_cpfs'],
+                    'cpfs' => $cpfsFormatados,
+                    'last_checked' => $result['data_verificacao'] ?? null
+                ];
+            }
+        }
+
+        return [
+            'findings' => $findings,
+            'total_resources' => (int) $totalResources,
+            'total_paginas' => (int) ceil($totalResources / $itensPorPagina),
+            'pagina_atual' => $pagina,
+        ];
+
+    } catch (PDOException $e) {
+        error_log("Erro ao buscar dados de CPF com filtro: " . $e->getMessage());
+        return [
+            'findings' => [],
+            'total_resources' => 0,
+            'total_paginas' => 1,
+            'pagina_atual' => $pagina,
+        ];
+    }
+}
+
+/**
  * Obtém estatísticas da nova tabela otimizada
  */
 function obterEstatisticasVerificacoesFromNewTable(PDO $pdo): array {

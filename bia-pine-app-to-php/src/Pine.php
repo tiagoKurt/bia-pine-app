@@ -386,4 +386,35 @@ class Pine
             'total_pages' => ceil($totalRegistros / $porPagina)
         ];
     }
+
+    public function getDatasetInfo(string $portalUrl, string $datasetId): ?array
+    {
+        try {
+            $baseUrl = rtrim($portalUrl, '/') . '/api/3/action';
+            $url = $baseUrl . '/package_show?id=' . urlencode($datasetId);
+            
+            $response = $this->httpClient->get($url);
+            
+            if ($response->getStatusCode() !== 200) {
+                error_log("Erro ao buscar dataset {$datasetId}. Status: " . $response->getStatusCode());
+                return null;
+            }
+            
+            $data = json_decode($response->getBody()->getContents(), true);
+            
+            if (!isset($data['success']) || $data['success'] !== true || !isset($data['result'])) {
+                error_log("Resposta inválida ao buscar dataset {$datasetId}");
+                return null;
+            }
+            
+            return $data['result'];
+            
+        } catch (RequestException $e) {
+            error_log("Erro ao buscar informações do dataset {$datasetId}: " . $e->getMessage());
+            return null;
+        } catch (Exception $e) {
+            error_log("Erro inesperado ao buscar dataset {$datasetId}: " . $e->getMessage());
+            return null;
+        }
+    }
 }
