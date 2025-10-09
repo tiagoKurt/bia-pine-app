@@ -537,8 +537,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Erro de conexão com banco de dados');
             }
             
-            // Verificar se o recurso existe na tabela cpf_findings
-            $checkStmt = $pdo->prepare("SELECT COUNT(*) as count FROM cpf_findings WHERE resource_id = ?");
+            // Verificar se o recurso existe na tabela mpda_recursos_com_cpf
+            $checkStmt = $pdo->prepare("SELECT COUNT(*) as count FROM mpda_recursos_com_cpf WHERE identificador_recurso = ?");
             $checkStmt->execute([$resourceId]);
             $checkResult = $checkStmt->fetch(PDO::FETCH_ASSOC);
             
@@ -549,47 +549,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Recurso não encontrado na base de dados');
             }
             
-            $tableCheckStmt = $pdo->prepare("SHOW TABLES LIKE 'cpf_details'");
-            $tableCheckStmt->execute();
-            $tableExists = $tableCheckStmt->fetch();
-            
-            if ($tableExists) {
-                $stmt = $pdo->prepare("
-                    SELECT 
-                        cf.dataset_name,
-                        cf.dataset_organization,
-                        cf.resource_name,
-                        cf.resource_format,
-                        cf.cpf_count,
-                        cf.last_checked,
-                        cf.dataset_url,
-                        cf.resource_url,
-                        cd.cpf_number,
-                        cd.line_number,
-                        cd.column_name
-                    FROM cpf_findings cf
-                    LEFT JOIN cpf_details cd ON cf.resource_id = cd.resource_id
-                    WHERE cf.resource_id = ?
-                    ORDER BY cd.line_number, cd.column_name
-                ");
-            } else {
-                $stmt = $pdo->prepare("
-                    SELECT 
-                        dataset_name,
-                        dataset_organization,
-                        resource_name,
-                        resource_format,
-                        cpf_count,
-                        last_checked,
-                        dataset_url,
-                        resource_url,
-                        NULL as cpf_number,
-                        NULL as line_number,
-                        NULL as column_name
-                    FROM cpf_findings
-                    WHERE resource_id = ?
-                ");
-            }
+            // Buscar dados do recurso na tabela mpda_recursos_com_cpf
+            $stmt = $pdo->prepare("
+                SELECT 
+                    identificador_recurso,
+                    identificador_dataset,
+                    orgao,
+                    cpfs_encontrados,
+                    quantidade_cpfs,
+                    metadados_recurso,
+                    data_verificacao
+                FROM mpda_recursos_com_cpf
+                WHERE identificador_recurso = ?
+            ");
             
             $stmt->execute([$resourceId]);
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -611,47 +583,171 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             require_once __DIR__ . '/vendor/autoload.php';
             
+            // Função para validar CPF
+            function validarCPF($cpf) {
+                $cpf = preg_replace('/[^0-9]/', '', $cpf);
+                
+                if (strlen($cpf) != 11 || preg_match('/(\d)\1{10}/', $cpf)) {
+                    return false;
+                }
+                
+                for ($t = 9; $t < 11; $t++) {
+                    for ($d = 0, $c = 0; $c < $t; $c++) {
+                        $d += $cpf[$c] * (($t + 1) - $c);
+                    }
+                    $d = ((10 * $d) % 11) % 10;
+                    if ($cpf[$c] != $d) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            
             $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
             
             $sheet1 = $spreadsheet->getActiveSheet();
             $sheet1->setTitle('Informações Gerais');
             
             $resourceInfo = $results[0];
+            
+            // Decodificar metadados JSON
+            $metadados = json_decode($resourceInfo['metadados_recurso'], true);
+            $cpfsArray = json_decode($resourceInfo['cpfs_encontrados'], true);
+            
+            // Cabeçalho principal
             $sheet1->setCellValue('A1', 'RELATÓRIO DE CPFs DETECTADOS');
-            $sheet1->setCellValue('A3', 'Dataset:');
-            $sheet1->setCellValue('B3', $resourceInfo['dataset_name']);
-            $sheet1->setCellValue('A4', 'Órgão:');
-            $sheet1->setCellValue('B4', $resourceInfo['dataset_organization']);
-            $sheet1->setCellValue('A5', 'Recurso:');
-            $sheet1->setCellValue('B5', $resourceInfo['resource_name']);
-            $sheet1->setCellValue('A6', 'Formato:');
-            $sheet1->setCellValue('B6', $resourceInfo['resource_format']);
-            $sheet1->setCellValue('A7', 'Total de CPFs:');
-            $sheet1->setCellValue('B7', $resourceInfo['cpf_count']);
-            $sheet1->setCellValue('A8', 'Data da Verificação:');
-            $sheet1->setCellValue('B8', $resourceInfo['last_checked']);
-            $sheet1->setCellValue('A9', 'URL do Dataset:');
-            $sheet1->setCellValue('B9', $resourceInfo['dataset_url']);
-            $sheet1->setCellValue('A10', 'URL do Recurso:');
-            $sheet1->setCellValue('B10', $resourceInfo['resource_url']);
+            $sheet1->getStyle('A1')->getFont()->setBold(true)->setSize(16);
+            $sheet1->getStyle('A1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                    ->getStartColor()->setRGB('4472C4');
+            $sheet1->getStyle('A1')->getFont()->getColor()->setRGB('FFFFFF');
+            $sheet1->mergeCells('A1:B1');
+            
+            // Data de geração
+            $sheet1->setCellValue('A2', 'Gerado em: ' . date('d/m/Y H:i:s'));
+            $sheet1->getStyle('A2')->getFont()->setItalic(true);
+            $sheet1->mergeCells('A2:B2');
+            
+            // Informações do recurso
+            $sheet1->setCellValue('A4', 'Dataset:');
+            $sheet1->setCellValue('B4', $metadados['dataset_id'] ?? $resourceInfo['identificador_dataset']);
+            $sheet1->setCellValue('A5', 'Órgão:');
+            $sheet1->setCellValue('B5', $resourceInfo['orgao']);
+            $sheet1->setCellValue('A6', 'Recurso:');
+            $sheet1->setCellValue('B6', $metadados['resource_name'] ?? 'N/A');
+            $sheet1->setCellValue('A7', 'Formato:');
+            $sheet1->setCellValue('B7', $metadados['resource_format'] ?? 'N/A');
+            $sheet1->setCellValue('A8', 'Total de CPFs:');
+            $sheet1->setCellValue('B8', $resourceInfo['quantidade_cpfs']);
+            $sheet1->setCellValue('A9', 'Data da Verificação:');
+            $sheet1->setCellValue('B9', date('d/m/Y H:i:s', strtotime($resourceInfo['data_verificacao'])));
+            $sheet1->setCellValue('A10', 'URL do Dataset:');
+            $sheet1->setCellValue('B10', 'https://dadosabertos.go.gov.br/dataset/' . $resourceInfo['identificador_dataset']);
+            $sheet1->setCellValue('A11', 'URL do Recurso:');
+            $sheet1->setCellValue('B11', $metadados['resource_url'] ?? 'N/A');
+            
+            // Formatação das células de informações
+            $sheet1->getStyle('A4:A11')->getFont()->setBold(true);
+            $sheet1->getStyle('A4:B11')->getBorders()->getAllBorders()
+                    ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+            
+            // Ajustar largura das colunas
+            $sheet1->getColumnDimension('A')->setWidth(20);
+            $sheet1->getColumnDimension('B')->setWidth(50);
             
             $sheet2 = $spreadsheet->createSheet();
             $sheet2->setTitle('CPFs Detectados');
             
-            $headers = ['CPF', 'Linha', 'Coluna'];
-            $sheet2->fromArray($headers, null, 'A1');
+            // Cabeçalho da segunda aba
+            $sheet2->setCellValue('A1', 'LISTA DE CPFs DETECTADOS');
+            $sheet2->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+            $sheet2->getStyle('A1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                    ->getStartColor()->setRGB('70AD47');
+            $sheet2->getStyle('A1')->getFont()->getColor()->setRGB('FFFFFF');
+            $sheet2->mergeCells('A1:D1');
             
-            $row = 2;
-            foreach ($results as $result) {
-                if (!empty($result['cpf_number'])) {
-                    $sheet2->setCellValue('A' . $row, $result['cpf_number']);
-                    $sheet2->setCellValue('B' . $row, $result['line_number']);
-                    $sheet2->setCellValue('C' . $row, $result['column_name']);
+            // Cabeçalhos das colunas
+            $headers = ['#', 'CPF', 'CPF Formatado', 'Status'];
+            $sheet2->fromArray($headers, null, 'A3');
+            $sheet2->getStyle('A3:D3')->getFont()->setBold(true);
+            $sheet2->getStyle('A3:D3')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                    ->getStartColor()->setRGB('E2EFDA');
+            
+            $row = 4;
+            if (is_array($cpfsArray) && !empty($cpfsArray)) {
+                foreach ($cpfsArray as $index => $cpf) {
+                    // Limpar CPF (remover caracteres especiais)
+                    $cpfLimpo = preg_replace('/[^0-9]/', '', $cpf);
+                    
+                    // Formatar CPF (XXX.XXX.XXX-XX)
+                    $cpfFormatado = '';
+                    if (strlen($cpfLimpo) === 11) {
+                        $cpfFormatado = substr($cpfLimpo, 0, 3) . '.' . 
+                                       substr($cpfLimpo, 3, 3) . '.' . 
+                                       substr($cpfLimpo, 6, 3) . '-' . 
+                                       substr($cpfLimpo, 9, 2);
+                    }
+                    
+                    // Validar CPF
+                    $status = validarCPF($cpfLimpo) ? 'Válido' : 'Inválido';
+                    $statusColor = validarCPF($cpfLimpo) ? '70AD47' : 'C5504B';
+                    
+                    $sheet2->setCellValue('A' . $row, $index + 1);
+                    $sheet2->setCellValue('B' . $row, $cpfLimpo);
+                    $sheet2->setCellValue('C' . $row, $cpfFormatado);
+                    $sheet2->setCellValue('D' . $row, $status);
+                    
+                    // Colorir status
+                    $sheet2->getStyle('D' . $row)->getFont()->getColor()->setRGB($statusColor);
+                    $sheet2->getStyle('D' . $row)->getFont()->setBold(true);
+                    
                     $row++;
                 }
+                
+                // Adicionar bordas à tabela
+                $sheet2->getStyle('A3:D' . ($row - 1))->getBorders()->getAllBorders()
+                        ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+                
+                // Resumo no final
+                $totalCpfs = count($cpfsArray);
+                $cpfsValidos = 0;
+                foreach ($cpfsArray as $cpf) {
+                    $cpfLimpo = preg_replace('/[^0-9]/', '', $cpf);
+                    if (validarCPF($cpfLimpo)) {
+                        $cpfsValidos++;
+                    }
+                }
+                $cpfsInvalidos = $totalCpfs - $cpfsValidos;
+                
+                $row += 2;
+                $sheet2->setCellValue('A' . $row, 'RESUMO:');
+                $sheet2->getStyle('A' . $row)->getFont()->setBold(true);
+                $row++;
+                $sheet2->setCellValue('A' . $row, 'Total de CPFs:');
+                $sheet2->setCellValue('B' . $row, $totalCpfs);
+                $row++;
+                $sheet2->setCellValue('A' . $row, 'CPFs Válidos:');
+                $sheet2->setCellValue('B' . $row, $cpfsValidos);
+                $sheet2->getStyle('B' . $row)->getFont()->getColor()->setRGB('70AD47');
+                $row++;
+                $sheet2->setCellValue('A' . $row, 'CPFs Inválidos:');
+                $sheet2->setCellValue('B' . $row, $cpfsInvalidos);
+                $sheet2->getStyle('B' . $row)->getFont()->getColor()->setRGB('C5504B');
+                
+            } else {
+                $sheet2->setCellValue('A4', 'Nenhum CPF encontrado neste recurso.');
+                $sheet2->getStyle('A4')->getFont()->setItalic(true);
             }
             
-            $filename = 'relatorio_cpf_' . preg_replace('/[^a-zA-Z0-9]/', '_', $resourceInfo['resource_name']) . '_' . date('Y-m-d_H-i-s') . '.xlsx';
+            // Ajustar largura das colunas
+            $sheet2->getColumnDimension('A')->setWidth(8);
+            $sheet2->getColumnDimension('B')->setWidth(15);
+            $sheet2->getColumnDimension('C')->setWidth(18);
+            $sheet2->getColumnDimension('D')->setWidth(12);
+            
+            $resourceName = $metadados['resource_name'] ?? $resourceInfo['identificador_recurso'];
+            $orgaoLimpo = preg_replace('/[^a-zA-Z0-9]/', '_', $resourceInfo['orgao']);
+            $resourceNameLimpo = preg_replace('/[^a-zA-Z0-9]/', '_', $resourceName);
+            $filename = 'Relatorio_CPF_' . $orgaoLimpo . '_' . $resourceNameLimpo . '_' . date('Y-m-d_H-i-s') . '.xlsx';
             
             error_log("DEBUG: Enviando arquivo Excel: " . $filename);
             
@@ -681,15 +777,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ob_clean();
             }
             
-            // Retornar erro em formato JSON para requisições AJAX ou mostrar erro na página
-            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
-                header('Content-Type: application/json');
+            // Verificar se é uma requisição AJAX
+            $isAjaxRequest = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+                             strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') ||
+                             (isset($_SERVER['HTTP_ACCEPT']) && 
+                             strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+            
+            if ($isAjaxRequest) {
+                // Retornar erro em formato JSON para requisições AJAX
+                header('Content-Type: application/json; charset=utf-8');
                 http_response_code(500);
                 echo json_encode([
                     'success' => false,
                     'message' => 'Erro ao gerar relatório: ' . $e->getMessage(),
                     'type' => 'error'
-                ]);
+                ], JSON_UNESCAPED_UNICODE);
                 exit;
             } else {
                 // Para requisições normais, mostrar erro na página
@@ -3300,6 +3402,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 margin-top: 1rem;
             }
         }
+        
+        /* Estilo para botão em processamento */
+        .btn-processing {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn-processing::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 1.5s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
     </style>
 </head>
 <body>
@@ -3996,7 +4120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                                     <i class="fas fa-cog"></i>
                                                                 </button>
                                                                 <div class="dropdown-menu">
-                                                                    <button class="dropdown-item" type="button" onclick="gerarRelatorioCpf('<?= htmlspecialchars($finding['resource_id']) ?>', '<?= htmlspecialchars($finding['resource_name']) ?>'); return false;">
+                                                                    <button class="dropdown-item" type="button" onclick="return gerarRelatorioCpf('<?= htmlspecialchars($finding['resource_id']) ?>', '<?= htmlspecialchars($finding['resource_name']) ?>', event);">
                                                                         <i class="fas fa-file-excel me-2 text-success"></i> Gerar Relatório
                                                                     </button>
                                                                     <?php if (!empty($finding['dataset_url']) && $finding['dataset_url'] !== '#'): ?>
@@ -5916,7 +6040,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <i class="fas fa-cog"></i>
                                     </button>
                                     <div class="dropdown-menu">
-                                        <button class="dropdown-item" type="button" onclick="gerarRelatorioCpf('${escapeHtml(finding.resource_id)}', '${escapeHtml(finding.resource_name)}'); return false;">
+                                        <button class="dropdown-item" type="button" onclick="return gerarRelatorioCpf('${escapeHtml(finding.resource_id)}', '${escapeHtml(finding.resource_name)}', event);">
                                             <i class="fas fa-file-excel me-2 text-success"></i> Gerar Relatório
                                         </button>
                                         ${finding.dataset_url && finding.dataset_url !== '#' ? 
@@ -6215,10 +6339,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             toast.style.right = '20px';
             toast.style.zIndex = '9999';
             
+            const iconClass = type === 'success' ? 'check-circle' : 
+                             type === 'warning' ? 'exclamation-triangle' : 
+                             type === 'error' ? 'exclamation-circle' : 'info-circle';
+            
             toast.innerHTML = `
                 <div class="d-flex">
                     <div class="toast-body">
-                        <i class="fas fa-${type === 'success' ? 'check' : 'info'}-circle me-2"></i>
+                        <i class="fas fa-${iconClass} me-2"></i>
                         ${message}
                     </div>
                     <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
@@ -6227,7 +6355,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             document.body.appendChild(toast);
             
-            const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+            // Delay maior para mensagens de sucesso e erro
+            const delay = (type === 'success' || type === 'error') ? 5000 : 3000;
+            const bsToast = new bootstrap.Toast(toast, { delay: delay });
             bsToast.show();
             
             // Remover do DOM após ser ocultado
@@ -6241,19 +6371,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         let currentDeleteButton = null;
 
         // Função auxiliar para controlar loading de botões
-        function setButtonLoading(button, isLoading, originalText = null) {
+        function setButtonLoading(button, isLoading, textOrOriginal = null) {
             if (isLoading) {
                 button.disabled = true;
-                button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Processando...';
+                const loadingText = textOrOriginal || 'Processando...';
+                button.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i> ${loadingText}`;
+                button.setAttribute('data-original-text', button.innerHTML);
             } else {
                 button.disabled = false;
-                button.innerHTML = originalText || button.innerHTML.replace('<i class="fas fa-spinner fa-spin me-1"></i> Processando...', '');
+                if (textOrOriginal) {
+                    // textOrOriginal é o texto original para restaurar
+                    button.innerHTML = textOrOriginal;
+                } else {
+                    // Tentar restaurar do atributo data ou limpar o loading
+                    const originalText = button.getAttribute('data-original-text');
+                    if (originalText) {
+                        button.innerHTML = originalText;
+                        button.removeAttribute('data-original-text');
+                    } else {
+                        // Fallback: remover apenas o spinner
+                        button.innerHTML = button.innerHTML.replace(/<i class="fas fa-spinner fa-spin[^>]*><\/i>\s*[^<]*/, '');
+                    }
+                }
             }
         }
 
         // Função para gerar relatório de CPF específico
-        function gerarRelatorioCpf(resourceId, resourceName) {
+        function gerarRelatorioCpf(resourceId, resourceName, evt) {
             console.log('📊 Gerando relatório de CPF para recurso:', resourceId);
+            
+            // Usar o event passado como parâmetro ou o global
+            const currentEvent = evt || event;
             
             if (!resourceId) {
                 showToast('Erro: ID do recurso não encontrado', 'error');
@@ -6261,69 +6409,113 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             // Prevenir comportamento padrão
-            if (event) {
-                event.preventDefault();
-                event.stopPropagation();
+            if (currentEvent) {
+                currentEvent.preventDefault();
+                currentEvent.stopPropagation();
             }
             
             // Mostrar loading no botão
-            const button = event ? event.target.closest('button') : null;
+            const button = currentEvent ? currentEvent.target.closest('button') : 
+                          document.querySelector(`button[onclick*="${resourceId}"]`);
+            
             if (!button) {
                 console.error('Botão não encontrado');
+                showToast('Erro interno: botão não encontrado', 'error');
                 return false;
             }
             
             const originalText = button.innerHTML;
-            setButtonLoading(button, true);
+            setButtonLoading(button, true, 'Gerando relatório...');
             
-            try {
-                // Mostrar feedback imediato
-                showToast(`Gerando relatório para "${resourceName}"...`, 'info');
+            // Mostrar feedback imediato
+            showToast(`Iniciando geração do relatório para "${resourceName}"...`, 'info');
+            
+            // Adicionar classe visual ao botão para indicar processamento
+            button.classList.add('btn-processing');
+            
+            // Usar fetch para requisição AJAX
+            const formData = new FormData();
+            formData.append('action', 'export_cpf_recurso_excel');
+            formData.append('resource_id', resourceId);
+            
+            fetch(window.location.pathname, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                console.log('📥 Resposta recebida:', response.status, response.statusText);
                 
-                // Criar formulário para download (método mais confiável)
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = window.location.pathname;
-                form.style.display = 'none';
-                form.target = '_blank'; // Abrir em nova aba para não interferir na página atual
+                if (!response.ok) {
+                    throw new Error(`Erro HTTP: ${response.status} - ${response.statusText}`);
+                }
                 
-                // Adicionar campos
-                const actionField = document.createElement('input');
-                actionField.type = 'hidden';
-                actionField.name = 'action';
-                actionField.value = 'export_cpf_recurso_excel';
-                form.appendChild(actionField);
+                // Verificar se é um arquivo Excel
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) {
+                    // É um arquivo Excel, fazer download
+                    return response.blob().then(blob => {
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        
+                        // Tentar extrair nome do arquivo do header
+                        const contentDisposition = response.headers.get('content-disposition');
+                        let filename = 'relatorio_cpf.xlsx';
+                        if (contentDisposition) {
+                            const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+                            if (filenameMatch) {
+                                filename = filenameMatch[1];
+                            }
+                        }
+                        
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+                        
+                        showToast('Relatório gerado e baixado com sucesso!', 'success');
+                        return { success: true };
+                    });
+                } else {
+                    // Pode ser uma resposta JSON com erro
+                    return response.text().then(text => {
+                        try {
+                            return JSON.parse(text);
+                        } catch (e) {
+                            throw new Error('Resposta inválida do servidor: ' + text.substring(0, 100));
+                        }
+                    });
+                }
+            })
+            .then(result => {
+                if (result && !result.success) {
+                    throw new Error(result.message || 'Erro desconhecido ao gerar relatório');
+                }
+                console.log('✅ Relatório processado com sucesso');
+            })
+            .catch(error => {
+                console.error('❌ Erro ao gerar relatório:', error);
+                let errorMessage = 'Erro ao gerar relatório';
                 
-                const resourceField = document.createElement('input');
-                resourceField.type = 'hidden';
-                resourceField.name = 'resource_id';
-                resourceField.value = resourceId;
-                form.appendChild(resourceField);
+                if (error.message) {
+                    errorMessage += ': ' + error.message;
+                } else if (error.toString) {
+                    errorMessage += ': ' + error.toString();
+                }
                 
-                console.log('📋 Formulário criado com resource_id:', resourceId);
-                
-                // Adicionar ao DOM e submeter
-                document.body.appendChild(form);
-                form.submit();
-                
-                // Remover formulário após submissão
-                setTimeout(() => {
-                    if (document.body.contains(form)) {
-                        document.body.removeChild(form);
-                    }
-                }, 1000);
-                
-                // Restaurar botão após delay
-                setTimeout(() => {
-                    setButtonLoading(button, false, originalText);
-                    showToast('Se o download não iniciou, verifique se há dados para este recurso', 'warning');
-                }, 3000);
-                
-            } catch (error) {
-                console.error('Erro ao gerar relatório:', error);
-                showToast('Erro ao gerar relatório: ' + error.message, 'error');
+                showToast(errorMessage, 'error');
+            })
+            .finally(() => {
+                // Restaurar botão
                 setButtonLoading(button, false, originalText);
-            }
+                button.classList.remove('btn-processing');
+                console.log('🔄 Botão restaurado');
+            });
             
             return false;
         }
