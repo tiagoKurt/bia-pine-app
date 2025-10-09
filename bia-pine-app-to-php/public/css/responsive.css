@@ -1,0 +1,713 @@
+/* ========================================
+   MEDIA QUERIES E RESPONSIVIDADE
+   ======================================== */
+
+/* MOBILE PEQUENO (até 375px) */
+@media (max-width: 375px) {
+    .system-title {
+        font-size: 1rem;
+    }
+
+    .welcome-banner h2 {
+        font-size: 1.2rem;
+    }
+
+    .tab-pane h2 {
+        font-size: 1.2rem;
+    }
+
+    .nav-tabs .nav-link {
+        padding: 0.5rem 0.6rem;
+        font-size: 0.75rem;
+    }
+
+    .btn-primary, .btn-success {
+        padding: 0.6rem 1.25rem;
+        font-size: 0.85rem;
+    }
+}
+
+/* MOBILE (até 576px) */
+@media (max-width: 576px) {
+    .header {
+        padding: 1rem 0;
+    }
+
+    .header-content {
+        flex-direction: column;
+        gap: 0.75rem;
+        text-align: center;
+    }
+
+    .system-title {
+        font-size: 1.1rem;
+        line-height: 1.2;
+    }
+
+    .system-subtitle {
+        font-size: 0.75rem;
+    }
+
+    .logo-image {
+        max-height: 60px;
+    }
+
+    .main-content {
+        padding: 1rem 0;
+    }
+
+    .welcome-banner {
+        padding: 1.5rem 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .welcome-banner h2 {
+        font-size: 1.3rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .welcome-banner p {
+        font-size: 0.9rem;
+    }
+
+    .tab-content {
+        padding: 1rem;
+        border-radius: 12px;
+    }
+
+    .tab-pane h2 {
+        font-size: 1.4rem;
+        margin-bottom: 1rem;
+    }
+
+    .nav-tabs-container {
+        margin-bottom: 1.5rem;
+    }
+
+    .nav-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 0.5rem;
+    }
+
+    .nav-tabs .nav-link {
+        margin-right: 0.25rem;
+        margin-bottom: 0;
+        padding: 0.6rem 0.8rem;
+        font-size: 0.8rem;
+        border-radius: 6px;
+        flex: 0 0 auto;
+        min-width: 80px;
+        text-align: center;
+        white-space: nowrap;
+    }
+
+    .form-control {
+        padding: 0.75rem 1rem;
+        font-size: 0.9rem;
+    }
+
+    .btn-primary, .btn-success {
+        padding: 0.75rem 1.5rem;
+        font-size: 0.9rem;
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+
+    .btn-outline-primary {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.8rem;
+    }
+
+    .table-responsive {
+        font-size: 0.8rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .table {
+        min-width: 600px;
+    }
+
+    .table thead th {
+        padding: 0.75rem 0.5rem;
+        font-size: 0.8rem;
+        white-space: nowrap;
+    }
+
+    .table tbody td {
+        padding: 0.75rem 0.5rem;
+        vertical-align: top;
+    }
+
+    .badge {
+        font-size: 0.75rem;
+        padding: 0.4rem 0.8rem;
+    }
+
+    .stats-card {
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .stats-card h3 {
+        font-size: 1.5rem;
+    }
+
+    .cpf-item {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.4rem;
+        margin: 0.15rem;
+    }
+
+    .footer {
+        padding: 1rem 0;
+    }
+
+    .footer-content {
+        flex-direction: column;
+        gap: 0.75rem;
+        text-align: center;
+    }
+
+    .pagination {
+        font-size: 0.8rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .page-item {
+        margin: 0.125rem;
+    }
+
+    .page-link {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.8rem;
+        border-radius: 6px;
+    }
+
+    .alert {
+        padding: 1rem;
+        font-size: 0.9rem;
+    }
+
+    .description-text {
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+    }
+
+    .module-access h3 {
+        font-size: 1.1rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .btn-group {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .btn-group .btn {
+        margin-bottom: 0.25rem;
+        border-radius: 6px !important;
+    }
+
+    .btn-group .btn:last-child {
+        margin-bottom: 0;
+    }
+
+    .modal-dialog {
+        margin: 0.5rem;
+        max-width: calc(100% - 1rem);
+    }
+
+    .modal-content {
+        border-radius: 12px;
+    }
+
+    .modal-header, .modal-body, .modal-footer {
+        padding: 1rem;
+    }
+
+    .modal-title {
+        font-size: 1.1rem;
+    }
+
+    .icon {
+        font-size: 1em;
+    }
+
+    .system-logo i {
+        font-size: 1.5rem;
+    }
+
+    .w-md-auto {
+        width: 100% !important;
+    }
+
+    /* CPF específico mobile */
+    .cpf-status-section .row {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .cpf-status-section .col-auto {
+        margin-bottom: 1rem;
+    }
+
+    .cpf-controls-section .btn-lg {
+        width: 100%;
+        margin-top: 1rem;
+    }
+
+    .stat-card {
+        padding: 1rem;
+        flex-direction: column;
+        text-align: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .stat-card .stat-icon {
+        font-size: 1.5rem;
+    }
+
+    .stat-card .stat-content h3 {
+        font-size: 1.5rem;
+    }
+
+    .status-icon {
+        width: 50px;
+        height: 50px;
+        font-size: 1.25rem;
+    }
+
+    .cpf-results-section .card-header .d-flex {
+        flex-direction: column;
+        align-items: stretch !important;
+        gap: 1rem;
+    }
+
+    .cpf-results-section .card-header .d-flex > div {
+        width: 100%;
+    }
+
+    .cpf-results-section .card-header select {
+        min-width: auto !important;
+    }
+
+    #contadorRecursos {
+        display: block;
+        margin-top: 0.5rem;
+        margin-left: 0 !important;
+    }
+
+    #confirmDeleteModal .modal-body {
+        padding: 1.5rem;
+    }
+
+    #confirmDeleteModal .modal-footer {
+        padding: 1rem 1.5rem;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    #confirmDeleteModal .btn {
+        width: 100%;
+    }
+
+    /* PINE específico mobile */
+    #pine-filters .card-body {
+        padding: 1rem;
+    }
+
+    #pine-filters .card-title {
+        font-size: 1.1rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .form-select, .form-control {
+        padding: 0.75rem 1rem;
+        font-size: 0.9rem;
+    }
+
+    #datasets-table {
+        font-size: 0.8rem;
+    }
+
+    #datasets-table thead th {
+        padding: 0.75rem 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    #datasets-table tbody td {
+        padding: 0.75rem 0.5rem;
+    }
+
+    .cpf-table-compact {
+        font-size: 0.75rem;
+    }
+
+    .cpf-table-compact th,
+    .cpf-table-compact td {
+        padding: 0.5rem 0.25rem;
+        font-size: 0.8rem;
+    }
+
+    .cpf-table-compact .dataset-name,
+    .cpf-table-compact .resource-name {
+        font-size: 0.75rem;
+    }
+
+    .cpf-table-compact .badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.4rem;
+    }
+
+    .cpf-table-compact th:nth-child(2),
+    .cpf-table-compact td:nth-child(2) {
+        display: none;
+    }
+
+    .cpf-table-compact th:nth-child(6),
+    .cpf-table-compact td:nth-child(6) {
+        display: none;
+    }
+
+    .cpf-table-compact .d-flex.gap-1 {
+        flex-direction: column;
+        gap: 0.25rem !important;
+    }
+
+    .cpf-table-compact .btn-sm {
+        padding: 0.25rem 0.4rem;
+        font-size: 0.75rem;
+    }
+}
+
+/* MOBILE LANDSCAPE */
+@media (max-width: 576px) and (orientation: landscape) {
+    .header {
+        padding: 0.75rem 0;
+    }
+
+    .main-content {
+        padding: 0.75rem 0;
+    }
+
+    .welcome-banner {
+        padding: 1rem;
+    }
+
+    .tab-content {
+        padding: 0.75rem;
+    }
+
+    .modal-dialog {
+        margin: 0.25rem;
+    }
+}
+
+/* TABLET PEQUENO (577px - 768px) */
+@media (min-width: 577px) and (max-width: 768px) {
+    .header-content {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .system-title {
+        font-size: 1.3rem;
+    }
+
+    .system-subtitle {
+        font-size: 0.85rem;
+    }
+
+    .logo-image {
+        max-height: 70px;
+    }
+
+    .tab-content {
+        padding: 1.75rem;
+    }
+
+    .nav-tabs-container {
+        margin-bottom: 1.75rem;
+    }
+
+    .nav-tabs .nav-link {
+        margin-right: 0.5rem;
+        margin-bottom: 0;
+        padding: 0.8rem 1.2rem;
+        font-size: 0.9rem;
+        flex: 0 0 auto;
+        min-width: 100px;
+    }
+
+    .welcome-banner h2 {
+        font-size: 1.6rem;
+    }
+
+    .table-responsive {
+        font-size: 0.85rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .table {
+        min-width: 700px;
+    }
+
+    .table thead th {
+        padding: 0.85rem 0.75rem;
+        font-size: 0.85rem;
+    }
+
+    .table tbody td {
+        padding: 0.85rem 0.75rem;
+    }
+
+    .btn-primary, .btn-success {
+        padding: 0.85rem 1.75rem;
+    }
+
+    .stats-card {
+        padding: 1.25rem;
+    }
+
+    .stats-card h3 {
+        font-size: 1.8rem;
+    }
+
+    .cpf-table-compact {
+        font-size: 0.8rem;
+    }
+
+    .cpf-table-compact .compact-cell {
+        padding: 0.5rem 0.25rem;
+    }
+
+    .cpf-table-compact .dataset-name,
+    .cpf-table-compact .resource-name {
+        font-size: 0.8rem;
+    }
+
+    .cpf-table-compact .orgao-badge-compact {
+        font-size: 0.7rem;
+        padding: 0.3rem 0.5rem;
+    }
+
+    .table-dropdown .dropdown-menu {
+        min-width: 150px;
+        font-size: 0.8rem;
+    }
+
+    .table-dropdown .dropdown-item {
+        padding: 0.25rem 0.75rem;
+    }
+}
+
+/* TABLET (769px - 992px) */
+@media (min-width: 769px) and (max-width: 992px) {
+    .header-content {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .system-title {
+        font-size: 1.4rem;
+    }
+
+    .tab-content {
+        padding: 2rem;
+    }
+
+    .nav-tabs .nav-link {
+        padding: 0.9rem 1.3rem;
+        font-size: 0.95rem;
+    }
+
+    .table-responsive {
+        font-size: 0.9rem;
+    }
+
+    #pine-filters .row .col-lg-4,
+    #pine-filters .row .col-lg-3,
+    #pine-filters .row .col-lg-2 {
+        margin-bottom: 1rem;
+    }
+
+    #pine-filters .row .col-lg-2:last-child {
+        margin-bottom: 0;
+    }
+
+    .btn-group .btn {
+        font-size: 0.875rem;
+        padding: 0.5rem 0.75rem;
+    }
+}
+
+/* DESKTOP PEQUENO (993px - 1200px) */
+@media (min-width: 993px) and (max-width: 1200px) {
+    .container {
+        max-width: 960px;
+    }
+
+    .tab-content {
+        padding: 2.25rem;
+    }
+}
+
+/* DESKTOP GRANDE (1201px+) */
+@media (min-width: 1201px) {
+    .container {
+        max-width: 1140px;
+    }
+
+    .tab-content {
+        padding: 2.5rem;
+    }
+}
+
+/* ESPECÍFICO PARA PINE EM MOBILE/TABLET */
+@media (max-width: 767.98px) {
+    #pine-filters .card-body {
+        padding: 1rem;
+    }
+
+    #pine-filters .row {
+        margin: 0;
+    }
+
+    #pine-filters .row > [class*="col-"] {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    #pine-filters .row > [class*="col-"]:last-child {
+        margin-bottom: 0;
+    }
+
+    .btn-group {
+        flex-direction: column;
+        width: 100%;
+        gap: 0.25rem;
+    }
+
+    .btn-group .btn {
+        border-radius: 0.375rem !important;
+        margin-bottom: 0;
+        width: 100%;
+        text-align: center;
+        padding: 0.75rem 1rem;
+        font-size: 0.9rem;
+    }
+
+    .btn-group .btn:last-child {
+        margin-bottom: 0;
+    }
+
+    .form-select, .form-control {
+        font-size: 0.9rem;
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+    }
+
+    .form-label {
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+
+    .input-group .input-group-text {
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem 0 0 0.5rem;
+    }
+
+    .input-group .form-control {
+        border-radius: 0 0.5rem 0.5rem 0;
+    }
+
+    .dropdown-toggle {
+        text-align: left;
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+    }
+
+    #pine-dashboard .row > [class*="col-"] {
+        margin-bottom: 1rem;
+    }
+
+    #pine-dashboard .row > [class*="col-"]:last-child {
+        margin-bottom: 0;
+    }
+
+    #pine-dashboard .row {
+        margin: 0 -0.5rem;
+    }
+
+    #pine-dashboard .row > [class*="col-"] {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    #pine-dashboard .row > [class*="col-"]:last-child {
+        margin-bottom: 0;
+    }
+
+    .stats-card {
+        padding: 1rem;
+        margin-bottom: 0;
+    }
+
+    .stats-card .d-flex {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .stats-card .icon {
+        margin-bottom: 0.5rem !important;
+        margin-right: 0 !important;
+    }
+}
+
+/* ESPECÍFICO PARA CPF EM MOBILE/TABLET */
+@media (max-width: 768px) {
+    .cpf-controls-section .row {
+        text-align: center;
+    }
+
+    .cpf-controls-section .col-md-4 {
+        margin-top: 1rem;
+    }
+
+    .stats-card h3 {
+        font-size: 1.5rem;
+    }
+
+    .stats-card .icon {
+        font-size: 1.5rem !important;
+    }
+
+    .orgao-badge {
+        max-width: 120px;
+        font-size: 0.75rem;
+        padding: 0.4rem 0.6rem;
+    }
+
+    #pine-filters .row .col-md-4,
+    #pine-filters .row .col-md-3,
+    #pine-filters .row .col-md-2 {
+        margin-bottom: 1rem;
+    }
+
+    #pine-filters .row .col-md-2:last-child {
+        margin-bottom: 0;
+    }
+}

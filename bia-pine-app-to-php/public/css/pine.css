@@ -1,0 +1,191 @@
+/* ========================================
+   ESTILOS ESPECÍFICOS DO MÓDULO PINE
+   ======================================== */
+
+/* FILTROS PINE */
+#pine-filters .card {
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow);
+}
+
+#pine-filters .card-title {
+    color: var(--primary-color);
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+#pine-filters .card-body {
+    padding: 1.5rem;
+}
+
+.pine-filters-enhanced .form-control,
+.pine-filters-enhanced .form-select {
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.pine-filters-enhanced .form-control:focus,
+.pine-filters-enhanced .form-select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(61, 107, 53, 0.1);
+}
+
+.pine-filters-enhanced .btn-group .btn {
+    border-radius: 6px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.pine-filters-enhanced .btn-group .btn:hover {
+    transform: translateY(-1px);
+}
+
+#clear-search {
+    border-left: none;
+}
+
+#clear-search:hover {
+    background: var(--danger-color);
+    color: white;
+}
+
+/* DASHBOARD PINE */
+#pine-dashboard {
+    margin-top: 1.5rem;
+}
+
+#pine-dashboard .stats-card {
+    cursor: pointer;
+}
+
+#pine-dashboard .stats-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+#pine-dashboard .stats-card .stat-icon {
+    transition: transform 0.3s ease;
+}
+
+#pine-dashboard .stats-card:hover .stat-icon {
+    transform: scale(1.1);
+}
+
+/* TABELA PINE */
+.pine-table-compact {
+    font-size: 0.9rem;
+}
+
+.pine-table-compact .compact-cell {
+    padding: 0.75rem 0.5rem;
+    vertical-align: middle;
+}
+
+.pine-table-compact .dataset-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.3;
+}
+
+.pine-table-compact .orgao-name {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.pine-table-compact .update-info {
+    font-size: 0.8rem;
+    line-height: 1.2;
+}
+
+.pine-table-compact .status-badge {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.pine-table-compact .resource-count {
+    font-size: 0.8rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 3px;
+}
+
+#datasets-table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+#datasets-table tbody tr:hover {
+    background-color: var(--light-bg);
+}
+
+/* BOTÕES DE GRUPO PINE */
+.btn-group .btn-check:checked + .btn {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn-group .btn {
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+.btn-group .btn:hover {
+    transform: translateY(-1px);
+}
+
+/* INDICADORES DE FILTRO ATIVO */
+.filter-active {
+    position: relative;
+}
+
+.filter-active::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    background: var(--warning-color);
+    border-radius: 50%;
+    border: 2px solid white;
+}
+
+/* TOOLTIPS PERSONALIZADOS */
+.custom-tooltip {
+    position: relative;
+    cursor: help;
+}
+
+.custom-tooltip:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    z-index: 1000;
+}
+
+/* LOADING E ESTADOS VAZIOS */
+#pine-loading {
+    text-align: center;
+    padding: 3rem 0;
+}
+
+#pine-no-data {
+    text-center;
+    padding: 3rem 0;
+}
+
+#pine-no-data .icon {
+    font-size: 3rem;
+    color: #6c757d;
+    opacity: 0.3;
+}
