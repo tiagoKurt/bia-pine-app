@@ -211,6 +211,9 @@ class CkanScannerService
 
         // Se a fila de recursos não existe, descobre e cria.
         if (!file_exists($queueFile)) {
+            $this->updateProgress(['current_step' => 'Limpando registros antigos de CPF...']);
+            $this->limparRegistrosAntigos();
+            
             $this->updateProgress(['current_step' => 'Descobrindo todos os recursos do portal...']);
             $this->_discoverAllResources($queueFile, $lockFile);
             // Recarrega o status após a descoberta
@@ -220,6 +223,20 @@ class CkanScannerService
         // Processa todos os recursos em uma única fase
         $this->updateProgress(['current_step' => 'Processando recursos...']);
         return $this->processarTodosRecursos($queueFile, $lockFile);
+    }
+
+    private function limparRegistrosAntigos(): void
+    {
+        try {
+            echo "🗑️  Limpando registros antigos de CPF...\n";
+            
+            $this->cpfRepository->limparRecursosComCpf();
+            
+            echo "✓ Registros antigos limpos com sucesso!\n";
+            
+        } catch (Exception $e) {
+            error_log("Erro ao limpar registros antigos: " . $e->getMessage());
+        }
     }
 
     /**

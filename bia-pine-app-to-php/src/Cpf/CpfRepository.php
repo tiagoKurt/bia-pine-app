@@ -71,4 +71,20 @@ class CpfRepository
             throw $e;
         }
     }
+
+    public function limparRecursosComCpf(): void
+    {
+        try {
+            $sql = "DELETE FROM mpda_recursos_com_cpf";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute();
+            
+            $rowsDeleted = $stmt->rowCount();
+            echo "✓ Tabela mpda_recursos_com_cpf limpa: {$rowsDeleted} registros removidos\n";
+            
+        } catch (\PDOException $e) {
+            error_log("Erro ao limpar tabela mpda_recursos_com_cpf: " . $e->getMessage());
+            throw $e;
+        }
+    }
 }
