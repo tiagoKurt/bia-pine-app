@@ -3847,5 +3847,211 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </div>
+
+    <!-- Script Anonimizador de CPF -->
+    <script>
+        let currentOutputFile = null;
+        
+        // Drag and Drop
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        
+        if (uploadArea) {
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, () => {
+                    uploadArea.classList.add('border-primary', 'bg-light');
+                }, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, () => {
+                    uploadArea.classList.remove('border-primary', 'bg-light');
+                }, false);
+            });
+            
+            uploadArea.addEventListener('drop', handleDrop, false);
+        }
+        
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        }
+        
+        if (fileInput) {
+            fileInput.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    handleFile(this.files[0]);
+                }
+            });
+        }
+        
+        function handleFile(file) {
+            // Validar tipo de arquivo
+            const allowedTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+            const allowedExtensions = ['.csv', '.xls', '.xlsx'];
+            
+            const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
+                showError('Formato de arquivo não suportado. Use CSV, Excel ou PDF.');
+                return;
+            }
+            
+            // Validar tamanho
+            if (file.size > 10485760) { // 10MB
+                showError('Arquivo muito grande. Tamanho máximo: 10MB');
+                return;
+            }
+            
+            // Mostrar progresso
+            document.getElementById('uploadArea').classList.add('d-none');
+            document.getElementById('progressArea').classList.remove('d-none');
+            document.getElementById('fileName').textContent = file.name;
+            
+            // Upload
+            uploadFile(file);
+        }
+        
+        function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('action', 'upload');
+            
+            const xhr = new XMLHttpRequest();
+            
+            // Usar baseUrl como nas outras APIs
+            const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
+            const apiUrl = `${baseUrl}api/cpf_anonymizer.php`;
+            
+            console.log('📤 Enviando para:', apiUrl);
+            console.log('📁 Arquivo:', file.name, '(' + file.size + ' bytes)');
+            
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    const percentComplete = Math.round((e.loaded / e.total) * 100);
+                    updateProgress(percentComplete, 'Enviando arquivo...');
+                }
+            });
+            
+            xhr.addEventListener('load', function() {
+                console.log('📥 Resposta recebida. Status:', xhr.status);
+                console.log('📄 Response:', xhr.responseText);
+                
+                if (xhr.status === 200) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.success) {
+                            showResults(response.data);
+                        } else {
+                            showError(response.message || 'Erro ao processar arquivo');
+                        }
+                    } catch (e) {
+                        console.error('❌ Erro ao parsear JSON:', e);
+                        showError('Erro ao processar resposta do servidor: ' + e.message);
+                    }
+                } else {
+                    console.error('❌ Erro HTTP:', xhr.status);
+                    showError('Erro no servidor. Código: ' + xhr.status);
+                }
+            });
+            
+            xhr.addEventListener('error', function() {
+                console.error('❌ Erro de conexão');
+                showError('Erro de conexão com o servidor');
+            });
+            
+            xhr.open('POST', apiUrl);
+            xhr.send(formData);
+            
+            updateProgress(0, 'Processando arquivo...');
+        }
+        
+        function updateProgress(percent, text) {
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            
+            if (progressBar) {
+                progressBar.style.width = percent + '%';
+                progressBar.textContent = percent + '%';
+            }
+            
+            if (progressText) {
+                progressText.textContent = text;
+            }
+        }
+        
+        function showResults(data) {
+            document.getElementById('progressArea').classList.add('d-none');
+            document.getElementById('resultsArea').classList.remove('d-none');
+            
+            document.getElementById('resultOriginalFile').textContent = data.arquivo_original;
+            document.getElementById('resultCpfCount').textContent = data.total_cpfs + ' CPF(s)';
+            
+            currentOutputFile = data.arquivo_saida;
+            
+            // Mostrar lista de CPFs se houver
+            if (data.cpfs_encontrados && data.cpfs_encontrados.length > 0) {
+                const cpfListContainer = document.getElementById('cpfListContainer');
+                const cpfList = document.getElementById('cpfList');
+                
+                cpfListContainer.classList.remove('d-none');
+                cpfList.innerHTML = data.cpfs_encontrados.map(cpf => 
+                    `<span class="badge bg-secondary me-2 mb-2">${cpf}</span>`
+                ).join('');
+            }
+            
+            // Configurar botão de download
+            const btnDownload = document.getElementById('btnDownload');
+            if (btnDownload) {
+                btnDownload.onclick = function() {
+                    const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
+                    const downloadUrl = `${baseUrl}api/cpf_anonymizer.php?action=download&filename=` + encodeURIComponent(currentOutputFile);
+                    console.log('📥 Baixando de:', downloadUrl);
+                    window.location.href = downloadUrl;
+                };
+            }
+        }
+        
+        function showError(message) {
+            document.getElementById('uploadArea').classList.add('d-none');
+            document.getElementById('progressArea').classList.add('d-none');
+            document.getElementById('errorArea').classList.remove('d-none');
+            document.getElementById('errorMessage').textContent = message;
+        }
+        
+        function resetAnonymizer() {
+            document.getElementById('uploadArea').classList.remove('d-none');
+            document.getElementById('progressArea').classList.add('d-none');
+            document.getElementById('resultsArea').classList.add('d-none');
+            document.getElementById('errorArea').classList.add('d-none');
+            document.getElementById('cpfListContainer').classList.add('d-none');
+            
+            if (fileInput) {
+                fileInput.value = '';
+            }
+            
+            currentOutputFile = null;
+        }
+        
+        // Reset ao fechar modal
+        const modalAnonymizer = document.getElementById('modalAnonymizer');
+        if (modalAnonymizer) {
+            modalAnonymizer.addEventListener('hidden.bs.modal', function() {
+                resetAnonymizer();
+            });
+        }
+    </script>
 </body>
 </html>

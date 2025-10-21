@@ -68,7 +68,7 @@
             </h5>
         </div>
         <div class="card-body">
-            <div class="row align-items-center">
+            <div class="row align-items-center mb-3">
                 <div class="col-md-8">
                     <div class="d-flex align-items-center">
                         <div class="status-indicator bg-primary me-3"></div>
@@ -83,6 +83,124 @@
                         <i class="fas fa-search me-2"></i>
                         Executar Análise
                     </button>
+                </div>
+            </div>
+            
+            <hr class="my-3">
+            
+            <!-- Nova Ferramenta: Anonimização de Arquivos -->
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <div class="d-flex align-items-center">
+                        <div class="status-indicator bg-success me-3"></div>
+                        <div>
+                            <h6 class="mb-1">Anonimizar CPFs em Arquivos</h6>
+                            <p class="mb-0 text-muted">Faça upload de arquivos (CSV, Excel, PDF) para detectar e anonimizar CPFs automaticamente.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 text-end">
+                    <button type="button" class="btn btn-success btn-lg" data-bs-toggle="modal" data-bs-target="#modalAnonymizer">
+                        <i class="fas fa-file-upload me-2"></i>
+                        Anonimizar Arquivo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Anonimizador -->
+<div class="modal fade" id="modalAnonymizer" tabindex="-1" aria-labelledby="modalAnonymizerLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalAnonymizerLabel">
+                    <i class="fas fa-user-secret me-2"></i>
+                    Anonimizar CPFs em Arquivos
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Upload Area -->
+                <div id="uploadArea" class="upload-area text-center p-5 border border-2 border-dashed rounded">
+                    <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                    <h5>Arraste um arquivo ou clique para selecionar</h5>
+                    <p class="text-muted mb-3">Formatos suportados: CSV, Excel (.xlsx, .xls)</p>
+                    <p class="text-muted small">Tamanho máximo: 10MB</p>
+                    <div class="alert alert-warning small mt-3 mb-0">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        <strong>Nota:</strong> PDFs não são suportados. Converta para Excel antes de processar.
+                    </div>
+                    <input type="file" id="fileInput" class="d-none" accept=".csv,.xlsx,.xls">
+                    <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                        <i class="fas fa-folder-open me-2"></i>
+                        Selecionar Arquivo
+                    </button>
+                </div>
+                
+                <!-- Progress Area -->
+                <div id="progressArea" class="d-none mt-4">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="fas fa-file me-2"></i>
+                        <span id="fileName" class="fw-bold"></span>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%">0%</div>
+                    </div>
+                    <p id="progressText" class="text-muted mt-2 mb-0"></p>
+                </div>
+                
+                <!-- Results Area -->
+                <div id="resultsArea" class="d-none mt-4">
+                    <div class="alert alert-success">
+                        <h6 class="alert-heading">
+                            <i class="fas fa-check-circle me-2"></i>
+                            Processamento Concluído!
+                        </h6>
+                        <hr>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p class="mb-1"><strong>Arquivo Original:</strong></p>
+                                <p id="resultOriginalFile" class="text-muted"></p>
+                            </div>
+                            <div class="col-md-6">
+                                <p class="mb-1"><strong>CPFs Encontrados:</strong></p>
+                                <p id="resultCpfCount" class="text-muted"></p>
+                            </div>
+                        </div>
+                        
+                        <div id="cpfListContainer" class="mt-3 d-none">
+                            <p class="mb-2"><strong>CPFs Detectados:</strong></p>
+                            <div id="cpfList" class="p-3 bg-light rounded" style="max-height: 200px; overflow-y: auto;"></div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button id="btnDownload" class="btn btn-success">
+                                <i class="fas fa-download me-2"></i>
+                                Baixar Arquivo Anonimizado
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="resetAnonymizer()">
+                                <i class="fas fa-redo me-2"></i>
+                                Processar Outro Arquivo
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Error Area -->
+                <div id="errorArea" class="d-none mt-4">
+                    <div class="alert alert-danger">
+                        <h6 class="alert-heading">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Erro no Processamento
+                        </h6>
+                        <p id="errorMessage" class="mb-0"></p>
+                        <button type="button" class="btn btn-sm btn-outline-danger mt-2" onclick="resetAnonymizer()">
+                            <i class="fas fa-redo me-2"></i>
+                            Tentar Novamente
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

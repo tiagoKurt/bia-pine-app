@@ -273,3 +273,38 @@
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
 }
+
+/* Estilos para Anonimizador de CPF */
+.upload-area {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.upload-area:hover {
+    background-color: #f8f9fa;
+    border-color: #0d6efd !important;
+}
+
+.upload-area.border-primary {
+    background-color: #e7f1ff;
+}
+
+#progressArea .progress {
+    background-color: #e9ecef;
+}
+
+#progressArea .progress-bar {
+    background-color: #0d6efd;
+}
+
+#cpfList .badge {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+}
+
+.status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+}
