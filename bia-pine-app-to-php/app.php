@@ -443,15 +443,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if ($action === 'export_pine_excel') {
         try {
-            // Obter os filtros da sessão ou de POST/GET, se aplicável
-            $organization = $_SESSION['pine_filters']['organization'] ?? $_POST['organization'] ?? '';
-            $status = $_SESSION['pine_filters']['status'] ?? $_POST['status'] ?? '';
-            $search = $_SESSION['pine_filters']['search'] ?? $_POST['search'] ?? '';
+            $organization = $_POST['organization'] ?? '';
+            $status = $_POST['status'] ?? '';
+            $search = $_POST['search'] ?? '';
+            $exportPortalUrl = $_POST['portal_url'] ?? $portalUrl;
+            
+            error_log("Exportando PINE com filtros: org={$organization}, status={$status}, search={$search}, portal={$exportPortalUrl}");
             
             // Usar a função que aceita filtros
             $exportData = $pine->getDatasetsPaginadosComFiltros(
                 $pdo,
-                $portalUrl,
+                $exportPortalUrl,
                 1,
                 999999, // um número grande para pegar todos os registros
                 $organization,
@@ -466,12 +468,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
                 $sheet = $spreadsheet->getActiveSheet();
                 
-                // Cabeçalhos relevantes
+                $sheet->setCellValue('A1', 'Análise PINE - Monitoramento de Datasets');
+                $sheet->mergeCells('A1:G1');
+                $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+                $sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+                
+                $row = 2;
+                $sheet->setCellValue('A' . $row, 'Data de Exportação: ' . date('d/m/Y H:i:s'));
+                $sheet->mergeCells('A' . $row . ':G' . $row);
+                $row++;
+                
+                $filtrosAplicados = [];
+                if (!empty($organization)) $filtrosAplicados[] = "Órgão: {$organization}";
+                if (!empty($status)) $filtrosAplicados[] = "Status: {$status}";
+                if (!empty($search)) $filtrosAplicados[] = "Busca: {$search}";
+                
+                if (!empty($filtrosAplicados)) {
+                    $sheet->setCellValue('A' . $row, 'Filtros Aplicados: ' . implode(' | ', $filtrosAplicados));
+                    $sheet->mergeCells('A' . $row . ':G' . $row);
+                    $sheet->getStyle('A' . $row)->getFont()->setItalic(true);
+                    $row++;
+                } else {
+                    $sheet->setCellValue('A' . $row, 'Filtros: Nenhum filtro aplicado (todos os datasets)');
+                    $sheet->mergeCells('A' . $row . ':G' . $row);
+                    $sheet->getStyle('A' . $row)->getFont()->setItalic(true);
+                    $row++;
+                }
+                
+                $sheet->setCellValue('A' . $row, 'Total de Registros: ' . count($exportData['datasets']));
+                $sheet->mergeCells('A' . $row . ':G' . $row);
+                $sheet->getStyle('A' . $row)->getFont()->setBold(true);
+                $row++;
+                
+                $row++;
+                
                 $headers = ['Nome do Dataset', 'Órgão', 'Status', 'Última Atualização', 'Dias Desatualizado', 'Quantidade Recursos', 'Link'];
-                $sheet->fromArray($headers, null, 'A1');
+                $sheet->fromArray($headers, null, 'A' . $row);
+                $sheet->getStyle('A' . $row . ':G' . $row)->getFont()->setBold(true);
+                $sheet->getStyle('A' . $row . ':G' . $row)->getFill()
+                    ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                    ->getStartColor()->setARGB('FF3D6B35');
+                $sheet->getStyle('A' . $row . ':G' . $row)->getFont()->getColor()->setARGB('FFFFFFFF');
+                $row++;
                 
                 // Dados
-                $row = 2;
                 foreach ($exportData['datasets'] as $dataset) {
                     $sheet->setCellValue('A' . $row, $dataset['name']);
                     $sheet->setCellValue('B' . $row, $dataset['organization']);
@@ -480,17 +520,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $sheet->setCellValue('E' . $row, $dataset['days_since_update'] === PHP_INT_MAX ? 'N/A' : $dataset['days_since_update']);
                     $sheet->setCellValue('F' . $row, $dataset['resources_count']);
                     $sheet->setCellValue('G' . $row, $dataset['url']);
+                    
+                    if ($dataset['status'] === 'Atualizado') {
+                        $sheet->getStyle('C' . $row)->getFill()
+                            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                            ->getStartColor()->setARGB('FFD4EDDA');
+                    } else {
+                        $sheet->getStyle('C' . $row)->getFill()
+                            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                            ->getStartColor()->setARGB('FFF8D7DA');
+                    }
+                    
                     $row++;
                 }
                 
+                foreach (range('A', 'G') as $col) {
+                    $sheet->getColumnDimension($col)->setAutoSize(true);
+                }
+                
                 // Configurar cabeçalhos para download
-                $filename = 'analise_pine_' . date('Y-m-d_H-i-s') . '.xlsx';
+                $filenameParts = ['analise_pine'];
+                if (!empty($organization)) {
+                    $filenameParts[] = 'org_' . preg_replace('/[^a-zA-Z0-9]/', '_', substr($organization, 0, 20));
+                }
+                if (!empty($status)) {
+                    $filenameParts[] = strtolower($status);
+                }
+                $filenameParts[] = date('Y-m-d_H-i-s');
+                $filename = implode('_', $filenameParts) . '.xlsx';
+                
                 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
                 header('Content-Disposition: attachment;filename="' . $filename . '"');
                 header('Cache-Control: max-age=0');
                 
                 $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
                 $writer->save('php://output');
+                exit;
+            } else {
+                $_SESSION['message'] = 'Nenhum dado encontrado para exportar com os filtros aplicados.';
+                $_SESSION['messageType'] = 'warning';
+                header("Location: " . $_SERVER['PHP_SELF'] . "?tab=pine");
                 exit;
             }
         } catch (Exception $e) {
@@ -1289,19 +1358,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (organizationList) {
                 organizationList.addEventListener('click', function(e) {
-                    e.preventDefault();
                     const item = e.target.closest('.dropdown-item');
                     if (item) {
+                        e.preventDefault();
+                        
                         const value = item.getAttribute('data-value');
-                        const text = item.textContent;
+                        const text = item.textContent.trim();
+                        
+                        console.log('🏢 Órgão selecionado:', text, '| Valor:', value);
                         
                         document.getElementById('filter-organization').value = value;
-                        document.getElementById('organization-text').textContent = text;
+                        document.getElementById('organization-text').textContent = text || 'Todos';
+                        
+                        // Atualizar tooltip do botão com o nome completo
+                        const dropdownButton = document.getElementById('organizationDropdown');
+                        if (dropdownButton) {
+                            dropdownButton.setAttribute('title', text || 'Todos os órgãos');
+                        }
+                        
+                        // Fechar o dropdown manualmente
+                        const dropdownElement = document.getElementById('organizationDropdown');
+                        const dropdown = bootstrap.Dropdown.getInstance(dropdownElement);
+                        if (dropdown) {
+                            dropdown.hide();
+                        }
                         
                         applyFilters();
                     }
                 });
                 console.log('Event listener para organização adicionado');
+            }
+            
+            // Event listener para o item "Todos os órgãos" que está fora do organization-list
+            const allOrgsItem = document.querySelector('.dropdown-menu .dropdown-item[data-value=""]');
+            if (allOrgsItem) {
+                allOrgsItem.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    console.log('🏢 Selecionado: Todos os órgãos');
+                    
+                    document.getElementById('filter-organization').value = '';
+                    document.getElementById('organization-text').textContent = 'Todos';
+                    
+                    // Atualizar tooltip do botão
+                    const dropdownButton = document.getElementById('organizationDropdown');
+                    if (dropdownButton) {
+                        dropdownButton.setAttribute('title', 'Todos os órgãos');
+                    }
+                    
+                    // Fechar o dropdown manualmente
+                    const dropdownElement = document.getElementById('organizationDropdown');
+                    const dropdown = bootstrap.Dropdown.getInstance(dropdownElement);
+                    if (dropdown) {
+                        dropdown.hide();
+                    }
+                    
+                    applyFilters();
+                });
+                console.log('Event listener para "Todos os órgãos" adicionado');
             }
 
             if (statusRadios.length > 0) {
@@ -1329,6 +1443,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 console.log('Botão exportar CSV não encontrado');
             }
+            
+            const exportExcelForm = document.getElementById('export-excel-form');
+            if (exportExcelForm) {
+                exportExcelForm.addEventListener('submit', function(e) {
+                    const btn = this.querySelector('button[type="submit"]');
+                    if (btn) {
+                        const originalHtml = btn.innerHTML;
+                        btn.disabled = true;
+                        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Exportando...';
+                        
+                        setTimeout(() => {
+                            btn.disabled = false;
+                            btn.innerHTML = originalHtml;
+                        }, 3000);
+                    }
+                });
+                console.log('Event listener para exportação Excel adicionado');
+            }
+            
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    const activeTab = document.querySelector('.tab-pane.active');
+                    if (activeTab && activeTab.id === 'pine') {
+                        clearFiltersFunction();
+                        console.log('⌨️ Filtros limpos via tecla ESC');
+                    }
+                }
+            });
 
             // Marcar como configurado
             pineEventListenersSetup = true;
@@ -1381,8 +1523,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         document.getElementById('portal_url').value = statsData.portal_url;
                     }
                     
+                    // Sincronizar filtros com formulário de exportação
+                    syncExportFilters();
+                    
                     showPineSections(['pine-dashboard', 'pine-filters']);
                     console.log('✅ Dashboard e filtros exibidos');
+                    
+                    // Verificar se realmente foram exibidos
+                    setTimeout(() => {
+                        const dashboardElement = document.getElementById('pine-dashboard');
+                        const filtersElement = document.getElementById('pine-filters');
+                        console.log('🔍 Verificação pós-exibição:');
+                        console.log('  - Dashboard display:', dashboardElement ? dashboardElement.style.display : 'não encontrado');
+                        console.log('  - Filtros display:', filtersElement ? filtersElement.style.display : 'não encontrado');
+                    }, 200);
                     
                     console.log('📋 Carregando datasets...');
                     await loadPineDatasets();
@@ -1495,8 +1649,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         isLoadingDatasets = true;
                         console.log('🚀 Iniciando carregamento de datasets...');
 
-                        // Mostrar indicador de loading
-                        showPineSection('pine-loading');
+                        // Mostrar indicador de loading (sem esconder dashboard e filtros)
+                        const loadingElement = document.getElementById('pine-loading');
+                        if (loadingElement) {
+                            loadingElement.style.display = 'block';
+                        }
+                        
+                        // Esconder apenas a seção de datasets e no-data
+                        const datasetsElement = document.getElementById('pine-datasets');
+                        const noDataElement = document.getElementById('pine-no-data');
+                        if (datasetsElement) datasetsElement.style.display = 'none';
+                        if (noDataElement) noDataElement.style.display = 'none';
 
                         const portalUrl = currentPortalUrl || document.getElementById('portal_url').value;
 
@@ -1530,13 +1693,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             updateDatasetsTitle(data.total);
                             
                             setTimeout(() => {
-                                showPineSection('pine-datasets');
-                                hidePineLoading(); 
+                                // Mostrar datasets sem esconder dashboard e filtros
+                                const datasetsElement = document.getElementById('pine-datasets');
+                                const loadingElement = document.getElementById('pine-loading');
+                                const noDataElement = document.getElementById('pine-no-data');
+                                
+                                if (datasetsElement) {
+                                    datasetsElement.style.display = 'block';
+                                    datasetsElement.classList.remove('hidden');
+                                    datasetsElement.classList.add('visible');
+                                }
+                                if (loadingElement) loadingElement.style.display = 'none';
+                                if (noDataElement) noDataElement.style.display = 'none';
+                                
+                                console.log('✅ Datasets exibidos (mantendo dashboard e filtros)');
                             }, 100);
                         } else {
                             console.log('❌ Erro ao carregar datasets:', data.message);
-                            showPineSection('pine-no-data');
-                            hidePineLoading(); 
+                            
+                            // Mostrar no-data sem esconder dashboard e filtros
+                            const noDataElement = document.getElementById('pine-no-data');
+                            const loadingElement = document.getElementById('pine-loading');
+                            const datasetsElement = document.getElementById('pine-datasets');
+                            
+                            if (noDataElement) {
+                                noDataElement.style.display = 'block';
+                                noDataElement.classList.remove('hidden');
+                                noDataElement.classList.add('visible');
+                            }
+                            if (loadingElement) loadingElement.style.display = 'none';
+                            if (datasetsElement) datasetsElement.style.display = 'none';
                         }
 
                         resolve(data);
@@ -1545,8 +1731,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             console.log('🚫 Requisição cancelada (nova requisição iniciada)');
                         } else {
                             console.error('Erro ao carregar datasets:', error);
-                            showPineSection('pine-no-data');
-                            hidePineLoading(); // Garantir que o loading seja escondido
+                            
+                            // Mostrar no-data sem esconder dashboard e filtros
+                            const noDataElement = document.getElementById('pine-no-data');
+                            const loadingElement = document.getElementById('pine-loading');
+                            const datasetsElement = document.getElementById('pine-datasets');
+                            
+                            if (noDataElement) {
+                                noDataElement.style.display = 'block';
+                                noDataElement.classList.remove('hidden');
+                                noDataElement.classList.add('visible');
+                            }
+                            if (loadingElement) loadingElement.style.display = 'none';
+                            if (datasetsElement) datasetsElement.style.display = 'none';
                         }
                         resolve(null);
                     } finally {
@@ -1579,9 +1776,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const a = document.createElement('a');
                 a.className = 'dropdown-item';
                 a.setAttribute('data-value', org);
+                a.setAttribute('href', 'javascript:void(0);');
+                a.setAttribute('title', org); // Tooltip nativo
+                a.setAttribute('data-bs-toggle', 'tooltip'); // Bootstrap tooltip
+                a.setAttribute('data-bs-placement', 'right'); // Posição à direita
                 a.textContent = org;
+                
                 li.appendChild(a);
                 organizationList.appendChild(li);
+            });
+            
+            // Inicializar tooltips do Bootstrap
+            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+            tooltipTriggerList.forEach(tooltipTriggerEl => {
+                new bootstrap.Tooltip(tooltipTriggerEl, {
+                    delay: { show: 500, hide: 100 }
+                });
             });
             
             console.log(`✅ ${organizations.length} organizações carregadas no dropdown`);
@@ -1838,7 +2048,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 hasAbortController: !!currentAbortController
             });
             
+            syncExportFilters();
+            
             loadPineDatasets();
+        }
+        
+        function syncExportFilters() {
+            const exportOrg = document.getElementById('export-organization');
+            const exportStatus = document.getElementById('export-status');
+            const exportSearch = document.getElementById('export-search');
+            const exportPortalUrl = document.getElementById('export-portal-url');
+            
+            if (exportOrg) exportOrg.value = currentFilters.organization || '';
+            if (exportStatus) exportStatus.value = currentFilters.status || '';
+            if (exportSearch) exportSearch.value = currentFilters.search || '';
+            if (exportPortalUrl) exportPortalUrl.value = currentPortalUrl || '';
+            
+            updateActiveFiltersCount();
+            
+            console.log('📤 Filtros sincronizados para exportação:', {
+                organization: currentFilters.organization,
+                status: currentFilters.status,
+                search: currentFilters.search,
+                portal_url: currentPortalUrl
+            });
+        }
+        
+        function updateActiveFiltersCount() {
+            let activeCount = 0;
+            
+            if (currentFilters.organization) activeCount++;
+            if (currentFilters.status) activeCount++;
+            if (currentFilters.search) activeCount++;
+            
+            const filterTitle = document.querySelector('.filters-header h6');
+            if (filterTitle) {
+                const existingBadge = filterTitle.querySelector('.filters-active-badge');
+                if (existingBadge) {
+                    existingBadge.remove();
+                }
+                
+                if (activeCount > 0) {
+                    const badge = document.createElement('span');
+                    badge.className = 'filters-active-badge';
+                    badge.textContent = `${activeCount}`;
+                    badge.title = `${activeCount} ${activeCount === 1 ? 'filtro ativo' : 'filtros ativos'}`;
+                    filterTitle.appendChild(badge);
+                }
+            }
+            
+            console.log(`🔢 Filtros ativos: ${activeCount}`);
         }
 
         // Limpar filtros
@@ -1859,6 +2118,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 status: '',
                 page: 1
             };
+            
+            syncExportFilters();
 
             console.log('✅ Filtros limpos, recarregando datasets...');
             loadPineDatasets();
@@ -1912,9 +2173,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function showPineSections(sectionIds) {
-            console.log('Mostrando múltiplas seções:', sectionIds);
+            console.log('🎯 Mostrando múltiplas seções:', sectionIds);
+            
+            // Lista de todas as seções PINE
+            const allSections = ['pine-dashboard', 'pine-filters', 'pine-datasets', 'pine-loading', 'pine-no-data'];
+            
+            // Esconder todas as seções primeiro
+            allSections.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.classList.remove('visible');
+                    element.classList.add('hidden');
+                    element.style.display = 'none';
+                }
+            });
+            
+            // Mostrar apenas as seções solicitadas
             sectionIds.forEach(sectionId => {
-                showPineSection(sectionId);
+                const targetElement = document.getElementById(sectionId);
+                if (targetElement) {
+                    targetElement.classList.remove('hidden');
+                    targetElement.classList.add('visible');
+                    targetElement.style.display = 'block';
+                    console.log('✅ Seção exibida:', sectionId);
+                } else {
+                    console.log('❌ Elemento não encontrado:', sectionId);
+                }
             });
         }
 
