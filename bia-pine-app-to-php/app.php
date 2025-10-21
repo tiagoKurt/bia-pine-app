@@ -1180,12 +1180,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         </div>
                     </div>
-                    <div class="footer-right">
+                    <!-- <div class="footer-right">
                         <div class="footer-info">
                             <p><strong>SIMDA</strong> — Sistema de Monitoramento de Dados Abertos</p>
                             <p>Controladoria-Geral do Estado de Goiás</p>
                         </div>
-                    </div>
+                    </div> -->
                 </div>
             </div>
         </footer>
