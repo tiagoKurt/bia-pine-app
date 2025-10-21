@@ -1,6 +1,19 @@
 <?php
+/**
+ * SIMDA — Sistema de Monitoramento de Dados Abertos
+ * 
+ * Sistema completo para análise e monitoramento de portais de dados abertos
+ * Controladoria-Geral do Estado de Goiás
+ * 
+ * Funcionalidades:
+ * - BIA: Geração de dicionários de dados
+ * - PINE: Análise de datasets e recursos
+ * - CPF: Verificação de dados pessoais
+ * - Painel: Métricas e estatísticas
+ */
+
 // Debug: verificar se o arquivo está sendo executado
-error_log("DEBUG: app.php iniciado - " . date('Y-m-d H:i:s'));
+error_log("DEBUG: SIMDA app.php iniciado - " . date('Y-m-d H:i:s'));
 error_log("DEBUG: REQUEST_URI = " . ($_SERVER['REQUEST_URI'] ?? 'N/A'));
 error_log("DEBUG: SCRIPT_NAME = " . ($_SERVER['SCRIPT_NAME'] ?? 'N/A'));
 
@@ -187,7 +200,7 @@ const DIAS_PARA_DESATUALIZADO = 40;
 $portalUrl = $_SESSION['portalUrl'] ?? '';
 
 $paginaAtual = isset($_GET['page']) && isset($_GET['tab']) && $_GET['tab'] === 'pine' ? (int)$_GET['page'] : 1;
-$itensPorPagina = 15;
+$itensPorPagina = 10;
 
 $analysisResults = []; 
 if (!empty($portalUrl) && $pine) {
@@ -1037,7 +1050,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitoramento Portal de Dados Abertos - CGE</title>
+    <meta name="description" content="SIMDA - Sistema de Monitoramento de Dados Abertos. Análise e monitoramento de portais de dados abertos do Estado de Goiás.">
+    <meta name="keywords" content="dados abertos, CKAN, monitoramento, análise, transparência, governo, Goiás">
+    <meta name="author" content="Controladoria-Geral do Estado de Goiás">
+    <title>SIMDA — Sistema de Monitoramento de Dados Abertos</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -1059,14 +1075,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="system-logo">
                             <i class="fas fa-chart-bar"></i>
                             <div>
-                                <h1 class="system-title">Monitoramento Portal de Dados Abertos</h1>
+                                <h1 class="system-title">SIMDA</h1>
+                                <p class="system-subtitle">Sistema de Monitoramento de Dados Abertos</p>
                             </div>
                         </div>
                     </div>
                     <div class="header-right">
                         <div class="government-logos">
                             <div class="gov-go-logo">
-                                <img src="assets/img/logo-cge-e-estado-goias.png" alt="CGE e Estado de Goiás" class="logo-image">
+                                <img src="assets/img/CGE_Abreviada_negativo.png" alt="CGE e Estado de Goiás" class="logo-image">
                             </div>
                         </div>
                     </div>
@@ -1088,8 +1105,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <!-- Welcome Section -->
                 <div class="welcome-section mb-4">
                     <div class="welcome-banner">
-                        <h2>Bem-vindo ao Sistema de Monitoramento!</h2>
-                        <p>Monitore métricas, verifique e analise o desempenho dos portais de dados abertos.</p>
+                        <h2>Bem-vindo ao SIMDA!</h2>
+                        <p>Sistema de Monitoramento de Dados Abertos - Monitore métricas, verifique e analise o desempenho do Portal de Dados Abertos do Estado de Goiás.</p>
                     </div>
                 </div>
 
@@ -1159,11 +1176,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="footer-left">
                         <div class="government-logos">
                             <div class="gov-go-logo">
-                                <img src="assets/img/logo-cge-e-estado-goias.png" alt="CGE e Estado de Goiás" class="logo-image">
+                                <img src="assets/img/CGE_Abreviada_negativo.png" alt="CGE e Estado de Goiás" class="logo-image">
                             </div>
                         </div>
                     </div>
                     <div class="footer-right">
+                        <div class="footer-info">
+                            <p><strong>SIMDA</strong> — Sistema de Monitoramento de Dados Abertos</p>
+                            <p>Controladoria-Geral do Estado de Goiás</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1216,7 +1237,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }, 200);
         });
 
+        // Variável para controlar se os event listeners já foram configurados
+        let pineEventListenersSetup = false;
+
         function setupPineEventListeners() {
+            // Evitar configurar event listeners múltiplas vezes
+            if (pineEventListenersSetup) {
+                console.log('⚠️ Event listeners PINE já configurados, ignorando...');
+                return;
+            }
+
             const pineTab = document.getElementById('pine-tab');
             if (pineTab) {
                 console.log('PINE tab encontrada');
@@ -1299,6 +1329,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 console.log('Botão exportar CSV não encontrado');
             }
+
+            // Marcar como configurado
+            pineEventListenersSetup = true;
+            console.log('✅ Event listeners PINE configurados com sucesso');
         }
 
         function checkForExistingPortalUrl() {
@@ -1436,40 +1470,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // Variáveis de controle para evitar requisições duplicadas
+        let isLoadingDatasets = false;
+        let loadDatasetsTimeout = null;
+        let currentAbortController = null;
+
         // Função para carregar datasets com filtros
         async function loadPineDatasets() {
-            const portalUrl = currentPortalUrl || document.getElementById('portal_url').value;
-
-            const params = new URLSearchParams({
-                action: 'datasets',
-                portal_url: portalUrl,
-                page: currentFilters.page,
-                per_page: 15,
-                organization: currentFilters.organization,
-                status: currentFilters.status,
-                search: currentFilters.search
-            });
-
-            try {
-                const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
-                const response = await fetch(`${baseUrl}api/pine-data.php?${params}`);
-                const data = await response.json();
-
-                console.log('📋 Dados dos datasets recebidos:', data);
-
-                if (data.success) {
-                    updatePineDatasetsTable(data.datasets);
-                    updatePinePagination(data);
-                    updateDatasetsTitle(data.total);
-                    showPineSection('pine-datasets');
-                } else {
-                    console.log('❌ Erro ao carregar datasets:', data.message);
-                    showPineSection('pine-no-data');
-                }
-            } catch (error) {
-                console.error('Erro ao carregar datasets:', error);
-                showPineSection('pine-no-data');
+            // Evitar múltiplas requisições simultâneas
+            if (isLoadingDatasets) {
+                console.log('⏳ Requisição já em andamento, ignorando...');
+                return;
             }
+
+            // Limpar timeout anterior se existir
+            if (loadDatasetsTimeout) {
+                clearTimeout(loadDatasetsTimeout);
+            }
+
+            // Debounce de 300ms para evitar chamadas muito rápidas
+            return new Promise((resolve) => {
+                loadDatasetsTimeout = setTimeout(async () => {
+                    try {
+                        isLoadingDatasets = true;
+                        console.log('🚀 Iniciando carregamento de datasets...');
+
+                        // Mostrar indicador de loading
+                        showPineSection('pine-loading');
+
+                        const portalUrl = currentPortalUrl || document.getElementById('portal_url').value;
+
+                        const params = new URLSearchParams({
+                            action: 'datasets',
+                            portal_url: portalUrl,
+                            page: currentFilters.page,
+                            per_page: 10,
+                            organization: currentFilters.organization,
+                            status: currentFilters.status,
+                            search: currentFilters.search
+                        });
+
+                        if (currentAbortController) {
+                            currentAbortController.abort();
+                        }
+
+                        currentAbortController = new AbortController();
+
+                        const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
+                        const response = await fetch(`${baseUrl}api/pine-data.php?${params}`, {
+                            signal: currentAbortController.signal
+                        });
+                        const data = await response.json();
+
+                        console.log('📋 Dados dos datasets recebidos:', data);
+
+                        if (data.success) {
+                            updatePineDatasetsTable(data.datasets);
+                            updatePinePagination(data);
+                            updateDatasetsTitle(data.total);
+                            
+                            setTimeout(() => {
+                                showPineSection('pine-datasets');
+                                hidePineLoading(); 
+                            }, 100);
+                        } else {
+                            console.log('❌ Erro ao carregar datasets:', data.message);
+                            showPineSection('pine-no-data');
+                            hidePineLoading(); 
+                        }
+
+                        resolve(data);
+                    } catch (error) {
+                        if (error.name === 'AbortError') {
+                            console.log('🚫 Requisição cancelada (nova requisição iniciada)');
+                        } else {
+                            console.error('Erro ao carregar datasets:', error);
+                            showPineSection('pine-no-data');
+                            hidePineLoading(); // Garantir que o loading seja escondido
+                        }
+                        resolve(null);
+                    } finally {
+                        isLoadingDatasets = false;
+                        currentAbortController = null;
+                        console.log('✅ Carregamento de datasets finalizado');
+                    }
+                }, 300);
+            });
         }
 
         // Atualizar dashboard
@@ -1586,6 +1672,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Funções removidas - não são mais necessárias para a tabela Pine simplificada
 
+        // Variável para controlar se o event listener já foi adicionado
+        let paginationListenerAdded = false;
+
         // Atualizar paginação
         function updatePinePagination(data) {
             const pagination = document.getElementById('pine-pagination');
@@ -1597,45 +1686,141 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 return;
             }
 
-            let paginationHtml = '<ul class="pagination justify-content-center">';
+            let paginationHtml = '<ul class="pagination justify-content-center flex-wrap">';
             
             // Botão anterior
             paginationHtml += `<li class="page-item ${currentPage <= 1 ? 'disabled' : ''}">
-                <a class="page-link" href="#" data-page="${currentPage - 1}">Anterior</a>
+                <a class="page-link" href="#" data-page="${currentPage - 1}">
+                    <i class="fas fa-chevron-left"></i> Anterior
+                </a>
             </li>`;
 
-            // Páginas
-            for (let i = 1; i <= totalPages; i++) {
+            // Lógica de paginação inteligente
+            const maxVisiblePages = 5; // Máximo de páginas visíveis por vez
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+            
+            // Ajustar se não temos páginas suficientes no final
+            if (endPage - startPage + 1 < maxVisiblePages) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+
+            // Primeira página (se não estiver no range)
+            if (startPage > 1) {
+                paginationHtml += `<li class="page-item">
+                    <a class="page-link" href="#" data-page="1">1</a>
+                </li>`;
+                
+                if (startPage > 2) {
+                    paginationHtml += `<li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>`;
+                }
+            }
+
+            // Páginas do range atual
+            for (let i = startPage; i <= endPage; i++) {
                 paginationHtml += `<li class="page-item ${i === currentPage ? 'active' : ''}">
                     <a class="page-link" href="#" data-page="${i}">${i}</a>
                 </li>`;
             }
 
+            // Última página (se não estiver no range)
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    paginationHtml += `<li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>`;
+                }
+                
+                paginationHtml += `<li class="page-item ${totalPages === currentPage ? 'active' : ''}">
+                    <a class="page-link" href="#" data-page="${totalPages}">${totalPages}</a>
+                </li>`;
+            }
+
             // Botão próximo
             paginationHtml += `<li class="page-item ${currentPage >= totalPages ? 'disabled' : ''}">
-                <a class="page-link" href="#" data-page="${currentPage + 1}">Próximo</a>
+                <a class="page-link" href="#" data-page="${currentPage + 1}">
+                    Próximo <i class="fas fa-chevron-right"></i>
+                </a>
             </li>`;
 
             paginationHtml += '</ul>';
             pagination.innerHTML = paginationHtml;
 
-            // Event listeners para paginação
-            pagination.addEventListener('click', function(e) {
-                e.preventDefault();
-                const pageLink = e.target.closest('.page-link');
-                if (pageLink && !pageLink.parentElement.classList.contains('disabled')) {
-                    const page = parseInt(pageLink.getAttribute('data-page'));
-                    if (page && page !== currentPage) {
-                        currentFilters.page = page;
-                        loadPineDatasets();
-                    }
+            // Adicionar event listener apenas uma vez usando delegação de eventos
+            if (!paginationListenerAdded) {
+                pagination.addEventListener('click', handlePaginationClick);
+                paginationListenerAdded = true;
+                console.log('🔗 Event listener de paginação adicionado');
+            }
+        }
+
+        // Função separada para lidar com cliques na paginação
+        function handlePaginationClick(e) {
+            e.preventDefault();
+            const pageLink = e.target.closest('.page-link');
+            
+            if (pageLink && !pageLink.parentElement.classList.contains('disabled')) {
+                const page = parseInt(pageLink.getAttribute('data-page'));
+                
+                if (page && page !== currentFilters.page) {
+                    console.log(`📄 Navegando para página ${page}`);
+                    currentFilters.page = page;
+                    loadPineDatasets();
                 }
-            });
+            }
+        }
+
+        function hidePineLoading() {
+            const loadingElement = document.getElementById('pine-loading');
+            if (loadingElement) {
+                loadingElement.style.display = 'none';
+                loadingElement.classList.add('hidden');
+                loadingElement.classList.remove('visible');
+            }
+        }
+
+        function resetPineRequestControls() {
+            isLoadingDatasets = false;
+            paginationListenerAdded = false;
+            pineEventListenersSetup = false;
+            
+            if (currentAbortController) {
+                currentAbortController.abort();
+                currentAbortController = null;
+            }
+            
+            if (loadDatasetsTimeout) {
+                clearTimeout(loadDatasetsTimeout);
+                loadDatasetsTimeout = null;
+            }
+            
+            hidePineLoading();
+            
+            console.log('🔄 Controles de requisição PINE resetados');
         }
 
         // Atualizar título da lista
         function updateDatasetsTitle(total) {
             document.getElementById('datasets-title').textContent = `Lista de Datasets (${total})`;
+            
+            // Atualizar informações de paginação
+            const datasetsInfo = document.getElementById('datasets-info');
+            if (datasetsInfo) {
+                const totalPages = Math.ceil(total / 10);
+                if (total > 10) {
+                    datasetsInfo.innerHTML = `
+                        <i class="fas fa-info-circle me-1"></i>
+                        Exibindo 10 itens por página • ${totalPages} páginas no total
+                    `;
+                } else {
+                    datasetsInfo.innerHTML = `
+                        <i class="fas fa-info-circle me-1"></i>
+                        Exibindo ${total} ${total === 1 ? 'item' : 'itens'}
+                    `;
+                }
+            }
         }
 
         // Aplicar filtros
@@ -1646,6 +1831,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             currentFilters.page = 1; // Reset para primeira página
 
             console.log('🔍 Aplicando filtros:', currentFilters);
+            console.log('📊 Status de controles:', {
+                isLoadingDatasets,
+                paginationListenerAdded,
+                pineEventListenersSetup,
+                hasAbortController: !!currentAbortController
+            });
+            
             loadPineDatasets();
         }
 
@@ -1692,17 +1884,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function showPineSection(sectionId) {
-            console.log('Mostrando seção:', sectionId);
-            const element = document.getElementById(sectionId);
-            if (element) {
-                // Forçar exibição com !important
-                element.style.setProperty('display', 'block', 'important');
-                element.style.setProperty('visibility', 'visible', 'important');
-                element.style.setProperty('opacity', '1', 'important');
-                console.log('✅ Seção exibida:', sectionId);
-                console.log('   - display:', element.style.display);
-                console.log('   - visibility:', element.style.visibility);
-                console.log('   - opacity:', element.style.opacity);
+            console.log('🎯 Mostrando seção:', sectionId);
+            
+            // Lista de todas as seções PINE
+            const allSections = ['pine-dashboard', 'pine-filters', 'pine-datasets', 'pine-loading', 'pine-no-data'];
+            
+            // Esconder todas as seções primeiro
+            allSections.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.classList.remove('visible');
+                    element.classList.add('hidden');
+                    element.style.display = 'none';
+                }
+            });
+            
+            // Mostrar apenas a seção solicitada
+            const targetElement = document.getElementById(sectionId);
+            if (targetElement) {
+                targetElement.classList.remove('hidden');
+                targetElement.classList.add('visible');
+                targetElement.style.display = 'block';
+                console.log('✅ Seção exibida com sucesso:', sectionId);
             } else {
                 console.log('❌ Elemento não encontrado:', sectionId);
             }
@@ -3150,7 +3353,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const btnLimpar = document.getElementById('btnLimparFiltro');
             
             if (botaoTexto) {
-                botaoTexto.textContent = texto;
+                // Truncar o texto se for muito longo para o botão
+                let textoTruncado = texto;
+                if (texto.length > 30) {
+                    textoTruncado = texto.substring(0, 30) + '...';
+                }
+                botaoTexto.textContent = textoTruncado;
+                
+                // Adicionar tooltip com o nome completo se foi truncado
+                if (texto.length > 30) {
+                    botaoDropdown.setAttribute('title', texto);
+                } else {
+                    botaoDropdown.removeAttribute('title');
+                }
             }
             
             if (valor === '') {
@@ -4050,6 +4265,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (modalAnonymizer) {
             modalAnonymizer.addEventListener('hidden.bs.modal', function() {
                 resetAnonymizer();
+            });
+        }
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const orgaoBadges = document.querySelectorAll('.orgao-badge-compact[title]');
+            orgaoBadges.forEach(function(badge) {
+                new bootstrap.Tooltip(badge, {
+                    placement: 'top',
+                    trigger: 'hover focus'
+                });
+            });
+            
+            const filtroButton = document.getElementById('filtroOrgaoDropdown');
+            if (filtroButton && filtroButton.hasAttribute('title')) {
+                new bootstrap.Tooltip(filtroButton, {
+                    placement: 'bottom',
+                    trigger: 'hover focus'
+                });
+            }
+            
+            const dropdownItems = document.querySelectorAll('.dropdown-item[title]');
+            dropdownItems.forEach(function(item) {
+                new bootstrap.Tooltip(item, {
+                    placement: 'right',
+                    trigger: 'hover focus'
+                });
+            });
+        });
+        
+        function reinitializeTooltips() {
+            const existingTooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+            existingTooltips.forEach(function(element) {
+                const tooltip = bootstrap.Tooltip.getInstance(element);
+                if (tooltip) {
+                    tooltip.dispose();
+                }
+            });
+            
+            const elementsWithTitle = document.querySelectorAll('[title]');
+            elementsWithTitle.forEach(function(element) {
+                if (element.classList.contains('orgao-badge-compact') || 
+                    element.id === 'filtroOrgaoDropdown' || 
+                    element.classList.contains('dropdown-item')) {
+                    new bootstrap.Tooltip(element, {
+                        placement: element.classList.contains('dropdown-item') ? 'right' : 'top',
+                        trigger: 'hover focus'
+                    });
+                }
             });
         }
     </script>

@@ -31,7 +31,7 @@
 </form>
 
 <!-- Dashboard de Estatísticas -->
-<div id="pine-dashboard" class="mt-4" style="display: none !important;">
+<div id="pine-dashboard" class="mt-4 pine-section" style="display: none;">
     <div class="row g-3 mb-4">
         <div class="col-6 col-md-3">
             <div class="stats-card">
@@ -81,7 +81,7 @@
 </div>
 
 <!-- Filtros e Busca -->
-<div id="pine-filters" class="mt-4" style="display: none !important;">
+<div id="pine-filters" class="mt-4 pine-section" style="display: none;">
     <div class="card">
         <div class="card-body">
             <h5 class="card-title">
@@ -157,12 +157,18 @@
 </div>
 
 <!-- Lista de Datasets -->
-<div id="pine-datasets" class="mt-4" style="display: none !important;">
+<div id="pine-datasets" class="mt-4 pine-section" style="display: none;">
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
-        <h3 class="mb-0">
-            <i class="fas fa-list icon"></i>
-            <span id="datasets-title">Lista de Datasets</span>
-        </h3>
+        <div>
+            <h3 class="mb-0">
+                <i class="fas fa-list icon"></i>
+                <span id="datasets-title">Lista de Datasets</span>
+            </h3>
+            <small class="text-muted" id="datasets-info">
+                <i class="fas fa-info-circle me-1"></i>
+                Exibindo até 10 itens por página
+            </small>
+        </div>
         <div class="w-100 w-md-auto">
             <form method="POST" class="d-inline w-100">
                 <input type="hidden" name="action" value="export_pine_excel">
@@ -173,32 +179,38 @@
         </div>
     </div>
 
-    <div class="table-responsive">
-        <table class="table table-hover pine-table-compact" id="datasets-table">
-            <thead>
-                <tr>
-                    <th style="width: 35%;">Dataset</th>
-                    <th style="width: 25%;">Órgão</th>
-                    <th style="width: 15%;">Última Atualização</th>
-                    <th style="width: 12%;">Status</th>
-                    <th style="width: 8%;">Recursos</th>
-                    <th style="width: 5%;">Link</th>
-                </tr>
-            </thead>
-            <tbody id="datasets-tbody">
-                <!-- Dados carregados via AJAX -->
-            </tbody>
-        </table>
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                <table class="table table-hover pine-table-compact mb-0" id="datasets-table">
+                    <thead class="sticky-top">
+                        <tr>
+                            <th style="width: 35%;">Dataset</th>
+                            <th style="width: 25%;">Órgão</th>
+                            <th style="width: 15%;">Última Atualização</th>
+                            <th style="width: 12%;">Status</th>
+                            <th style="width: 8%;">Recursos</th>
+                            <th style="width: 5%;">Link</th>
+                        </tr>
+                    </thead>
+                    <tbody id="datasets-tbody">
+                        <!-- Dados carregados via AJAX -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Paginação dentro do card -->
+        <div class="card-footer bg-light">
+            <nav id="pine-pagination">
+                <!-- Paginação carregada via AJAX -->
+            </nav>
+        </div>
     </div>
-
-    <!-- Paginação -->
-    <nav class="mt-4" id="pine-pagination">
-        <!-- Paginação carregada via AJAX -->
-    </nav>
 </div>
 
 <!-- Loading -->
-<div id="pine-loading" class="text-center py-5" style="display: none !important;">
+<div id="pine-loading" class="text-center py-5 pine-section" style="display: none;">
     <div class="spinner-border text-primary" role="status">
         <span class="visually-hidden">Carregando...</span>
     </div>
@@ -206,7 +218,7 @@
 </div>
 
 <!-- Mensagem quando não há dados -->
-<div id="pine-no-data" class="text-center py-5" style="display: none !important;">
+<div id="pine-no-data" class="text-center py-5 pine-section" style="display: none;">
     <i class="fas fa-inbox icon" style="font-size: 3rem; color: #6c757d;"></i>
     <h4 class="mt-3">Nenhum dataset encontrado</h4>
     <p class="text-muted">Execute uma análise para visualizar os datasets do portal.</p>

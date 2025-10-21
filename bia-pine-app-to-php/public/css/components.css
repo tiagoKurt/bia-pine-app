@@ -14,8 +14,9 @@
 
 .form-control:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    box-shadow: 0 0 0 3px rgba(5, 184, 219, 0.15);
     background: white;
+    outline: none;
 }
 
 .form-control.is-valid {
@@ -44,8 +45,9 @@
 
 .form-select:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    box-shadow: 0 0 0 3px rgba(5, 184, 219, 0.15);
     background: white;
+    outline: none;
 }
 
 /* BOTÕES */
@@ -59,14 +61,31 @@
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    background: var(--gradient-primary);
     border: none;
     border-radius: 12px;
     padding: 1rem 2rem;
     font-weight: 600;
     font-size: 1rem;
-    transition: all 0.3s ease;
-    box-shadow: var(--shadow);
+    transition: var(--transition);
+    box-shadow: var(--shadow-md);
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-primary::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 0.5s;
+}
+
+.btn-primary:hover::before {
+    left: 100%;
 }
 
 .btn-primary:hover {
@@ -165,34 +184,49 @@
 }
 
 .stat-card {
-    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    background: var(--gradient-primary);
     color: white;
-    border-radius: 12px;
-    padding: 1.5rem;
+    border-radius: 16px;
+    padding: 2rem;
     display: flex;
     align-items: center;
-    gap: 1rem;
-    box-shadow: var(--shadow);
-    transition: all 0.3s ease;
+    gap: 1.5rem;
+    box-shadow: var(--shadow-md);
+    transition: var(--transition);
     height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
 }
 
 .stat-card:hover {
-    transform: translateY(-2px);
+    transform: translateY(-4px) scale(1.02);
     box-shadow: var(--shadow-lg);
 }
 
 .stat-card.bg-danger {
-    background: linear-gradient(135deg, var(--danger-color) 0%, #dc2626 100%);
+    background: linear-gradient(135deg, var(--danger-color) 0%, #C5304B 100%);
 }
 
 .stat-card.bg-warning {
-    background: linear-gradient(135deg, var(--warning-color) 0%, #d97706 100%);
-    color: #1f2937;
+    background: linear-gradient(135deg, var(--warning-color) 0%, #E67700 100%);
 }
 
 .stat-card.bg-info {
-    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    background: linear-gradient(135deg, var(--accent-purple) 0%, #3046AD 100%);
+}
+
+.stat-card.bg-success {
+    background: var(--gradient-secondary);
 }
 
 .stat-icon {
@@ -295,12 +329,15 @@
 }
 
 .table thead th {
-    background: var(--primary-color);
+    background: var(--gradient-primary);
     color: white;
     border: none;
-    padding: 1rem;
+    padding: 1.25rem 1rem;
     font-weight: 600;
     text-align: center;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
 }
 
 .table tbody td {
@@ -309,14 +346,18 @@
     vertical-align: middle;
 }
 
+.table tbody tr {
+    transition: var(--transition);
+}
+
 .table tbody tr:hover {
-    background: var(--light-bg);
+    background: linear-gradient(90deg, rgba(5, 184, 219, 0.05) 0%, transparent 100%);
+    transform: translateX(4px);
 }
 
 .table-hover tbody tr:hover {
-    background-color: rgba(0, 123, 255, 0.05);
-    transform: translateX(2px);
-    transition: all 0.2s ease;
+    background: linear-gradient(90deg, rgba(5, 184, 219, 0.08) 0%, transparent 100%);
+    transform: translateX(4px);
 }
 
 /* DROPDOWNS */
@@ -428,4 +469,284 @@
 
 .gap-3 {
     gap: 1rem !important;
+}
+
+
+/* ========================================
+   COMPONENTES INTERATIVOS MODERNOS
+   ======================================== */
+
+/* Botões com efeito ripple */
+.btn-ripple {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-ripple::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn-ripple:active::after {
+    width: 300px;
+    height: 300px;
+}
+
+/* Cards com hover effect */
+.interactive-card {
+    transition: var(--transition);
+    cursor: pointer;
+    position: relative;
+}
+
+.interactive-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    opacity: 0;
+    transition: opacity 0.3s;
+    border-radius: inherit;
+    z-index: -1;
+}
+
+.interactive-card:hover::before {
+    opacity: 0.05;
+}
+
+.interactive-card:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-lg);
+}
+
+/* Progress bars animadas */
+.progress-animated {
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-animated::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: progressShine 2s infinite;
+}
+
+@keyframes progressShine {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* Skeleton loaders */
+.skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+    border-radius: 8px;
+}
+
+@keyframes skeleton-loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.skeleton-text {
+    height: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.skeleton-title {
+    height: 2rem;
+    width: 60%;
+    margin-bottom: 1rem;
+}
+
+/* Tooltips customizados */
+.custom-tooltip {
+    position: relative;
+    cursor: help;
+}
+
+.custom-tooltip::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%) scale(0);
+    background: var(--dark-bg);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    opacity: 0;
+    transition: all 0.3s;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.custom-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: 115%;
+    left: 50%;
+    transform: translateX(-50%) scale(0);
+    border: 6px solid transparent;
+    border-top-color: var(--dark-bg);
+    opacity: 0;
+    transition: all 0.3s;
+}
+
+.custom-tooltip:hover::before,
+.custom-tooltip:hover::after {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+}
+
+/* Badges animados */
+.badge-pulse {
+    animation: badge-pulse 2s infinite;
+}
+
+@keyframes badge-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(5, 184, 219, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(5, 184, 219, 0);
+    }
+}
+
+/* Inputs com ícones */
+.input-with-icon {
+    position: relative;
+}
+
+.input-with-icon input {
+    padding-left: 3rem;
+}
+
+.input-with-icon .input-icon {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+    transition: var(--transition);
+}
+
+.input-with-icon input:focus + .input-icon {
+    color: var(--primary-color);
+}
+
+/* Dividers decorativos */
+.divider-gradient {
+    height: 3px;
+    background: var(--gradient-primary);
+    border-radius: 3px;
+    margin: 2rem 0;
+}
+
+/* Chips/Tags */
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--light-bg);
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: var(--transition);
+}
+
+.chip:hover {
+    background: var(--primary-light);
+    color: white;
+    transform: scale(1.05);
+}
+
+.chip-primary {
+    background: var(--gradient-primary);
+    color: white;
+}
+
+.chip-close {
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.chip-close:hover {
+    opacity: 1;
+}
+
+/* Responsive utilities */
+@media (max-width: 768px) {
+    .stat-card {
+        padding: 1.5rem;
+    }
+    
+    .stat-content h3 {
+        font-size: 1.5rem;
+    }
+    
+    .custom-tooltip::before {
+        font-size: 0.75rem;
+        padding: 0.4rem 0.8rem;
+    }
+}
+
+
+/* ========================================
+   PAINEL DE INSIGHTS - CARDS
+   ======================================== */
+
+/* Garantir que números e textos nos cards coloridos sejam brancos */
+.card.text-white h2,
+.card.text-white .card-title {
+    color: #FFFFFF !important;
+}
+
+.card.text-white h6,
+.card.text-white .card-subtitle {
+    color: #FFFFFF !important;
+    opacity: 0.95;
+}
+
+.card.text-white small {
+    color: #FFFFFF !important;
+    opacity: 0.9;
+}
+
+/* Cards do painel com gradientes atualizados */
+.painel-card-primary {
+    background: var(--gradient-primary) !important;
+}
+
+.painel-card-success {
+    background: var(--gradient-secondary) !important;
+}
+
+.painel-card-warning {
+    background: linear-gradient(135deg, var(--warning-color) 0%, #E67700 100%) !important;
+}
+
+.painel-card-info {
+    background: linear-gradient(135deg, var(--accent-purple) 0%, #3046AD 100%) !important;
 }

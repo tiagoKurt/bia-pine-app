@@ -46,25 +46,25 @@ $percentualDesatualizado = $estatisticasPainel['total_datasets'] > 0
     Painel de Insights
 </h2>
 <p class="description-text">
-    Visão geral e insights relevantes sobre os dados do portal de dados abertos.
+    Visão geral e insights relevantes sobre os dados do portal de dados abertos do estado de Goiás.
 </p>
 
 <!-- Estatísticas Principais -->
 <div class="row g-4 mt-3">
     <!-- Card: Total de Datasets -->
     <div class="col-12 col-md-6 col-lg-3">
-        <div class="card text-white" style="background: linear-gradient(135deg, #3d6b35 0%, #2d5a27 100%); border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <div class="card text-white painel-card-primary" style="border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <h6 class="card-subtitle mb-2" style="opacity: 0.9;">Total de Datasets</h6>
-                        <h2 class="card-title mb-0" style="font-size: 2.5rem; font-weight: 700;">
+                        <h6 class="card-subtitle mb-2" style="color: white !important; opacity: 0.9;">Total de Datasets</h6>
+                        <h2 class="card-title mb-0" style="font-size: 2.5rem; font-weight: 700; color: white !important;">
                             <?= number_format($estatisticasPainel['total_datasets'], 0, ',', '.') ?>
                         </h2>
-                        <small style="opacity: 0.9;">&nbsp;</small>
+                        <small style="color: white !important; opacity: 0.9;">&nbsp;</small>
                     </div>
                     <div class="bg-white bg-opacity-25 rounded-circle p-3">
-                        <i class="fas fa-database" style="font-size: 1.5rem;"></i>
+                        <i class="fas fa-database" style="font-size: 1.5rem; color: white;"></i>
                     </div>
                 </div>
             </div>
@@ -73,18 +73,18 @@ $percentualDesatualizado = $estatisticasPainel['total_datasets'] > 0
 
     <!-- Card: Datasets Atualizados -->
     <div class="col-12 col-md-6 col-lg-3">
-        <div class="card text-white" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <div class="card text-white painel-card-success" style="border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <h6 class="card-subtitle mb-2" style="opacity: 0.9;">Atualizados</h6>
-                        <h2 class="card-title mb-0" style="font-size: 2.5rem; font-weight: 700;">
+                        <h6 class="card-subtitle mb-2" style="color: white !important; opacity: 0.9;">Atualizados</h6>
+                        <h2 class="card-title mb-0" style="font-size: 2.5rem; font-weight: 700; color: white !important;">
                             <?= number_format($estatisticasPainel['datasets_atualizados'], 0, ',', '.') ?>
                         </h2>
-                        <small style="opacity: 0.9;"><?= $percentualAtualizado ?>% do total</small>
+                        <small style="color: white !important; opacity: 0.9;"><?= $percentualAtualizado ?>% do total</small>
                     </div>
                     <div class="bg-white bg-opacity-25 rounded-circle p-3">
-                        <i class="fas fa-check-circle" style="font-size: 1.5rem;"></i>
+                        <i class="fas fa-check-circle" style="font-size: 1.5rem; color: white;"></i>
                     </div>
                 </div>
             </div>
@@ -93,18 +93,18 @@ $percentualDesatualizado = $estatisticasPainel['total_datasets'] > 0
 
     <!-- Card: Datasets Desatualizados -->
     <div class="col-12 col-md-6 col-lg-3">
-        <div class="card text-white" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <div class="card text-white painel-card-warning" style="border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <h6 class="card-subtitle mb-2" style="opacity: 0.9;">Desatualizados</h6>
-                        <h2 class="card-title mb-0" style="font-size: 2.5rem; font-weight: 700;">
+                        <h6 class="card-subtitle mb-2" style="color: white !important; opacity: 0.9;">Desatualizados</h6>
+                        <h2 class="card-title mb-0" style="font-size: 2.5rem; font-weight: 700; color: white !important;">
                             <?= number_format($estatisticasPainel['datasets_desatualizados'], 0, ',', '.') ?>
                         </h2>
-                        <small style="opacity: 0.9;"><?= $percentualDesatualizado ?>% do total</small>
+                        <small style="color: white !important; opacity: 0.9;"><?= $percentualDesatualizado ?>% do total</small>
                     </div>
                     <div class="bg-white bg-opacity-25 rounded-circle p-3">
-                        <i class="fas fa-exclamation-triangle" style="font-size: 1.5rem;"></i>
+                        <i class="fas fa-exclamation-triangle" style="font-size: 1.5rem; color: white;"></i>
                     </div>
                 </div>
             </div>
@@ -113,18 +113,18 @@ $percentualDesatualizado = $estatisticasPainel['total_datasets'] > 0
 
     <!-- Card: Total de Órgãos -->
     <div class="col-12 col-md-6 col-lg-3">
-        <div class="card text-white" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <div class="card text-white painel-card-info" style="border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <h6 class="card-subtitle mb-2" style="opacity: 0.9;">Órgãos</h6>
-                        <h2 class="card-title mb-0" style="font-size: 2.5rem; font-weight: 700;">
+                        <h6 class="card-subtitle mb-2" style="color: white !important; opacity: 0.9;">Órgãos</h6>
+                        <h2 class="card-title mb-0" style="font-size: 2.5rem; font-weight: 700; color: white !important;">
                             <?= number_format($estatisticasPainel['total_orgaos'], 0, ',', '.') ?>
                         </h2>
-                        <small style="opacity: 0.9;">&nbsp;</small>
+                        <small style="color: white !important; opacity: 0.9;">&nbsp;</small>
                     </div>
                     <div class="bg-white bg-opacity-25 rounded-circle p-3">
-                        <i class="fas fa-building" style="font-size: 1.5rem;"></i>
+                        <i class="fas fa-building" style="font-size: 1.5rem; color: white;"></i>
                     </div>
                 </div>
             </div>
@@ -196,8 +196,8 @@ $percentualDesatualizado = $estatisticasPainel['total_datasets'] > 0
 <div class="row g-4 mt-3">
     <div class="col-12">
         <div class="card" style="border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <div class="card-header" style="background: linear-gradient(135deg, #3d6b35 0%, #2d5a27 100%); color: white;">
-                <h5 class="mb-0">
+            <div class="card-header" style="background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%); color: white;">
+                <h5 class="mb-0" style="color: white !important;">
                     <i class="fas fa-info-circle me-2"></i>
                     Sobre o Painel
                 </h5>

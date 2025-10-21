@@ -291,9 +291,12 @@
                                         foreach ($orgaos as $orgao):
                                 ?>
                                     <li>
-                                        <a class="dropdown-item" href="#" onclick="selecionarOrgao('<?= htmlspecialchars($orgao['orgao'], ENT_QUOTES) ?>', '<?= htmlspecialchars($orgao['orgao'], ENT_QUOTES) ?>', <?= $orgao['total'] ?>); return false;">
+                                        <?php 
+                                            $orgaoDisplayName = strlen($orgao['orgao']) > 50 ? substr($orgao['orgao'], 0, 50) . '...' : $orgao['orgao'];
+                                        ?>
+                                        <a class="dropdown-item" href="#" onclick="selecionarOrgao('<?= htmlspecialchars($orgao['orgao'], ENT_QUOTES) ?>', '<?= htmlspecialchars($orgao['orgao'], ENT_QUOTES) ?>', <?= $orgao['total'] ?>); return false;" title="<?= htmlspecialchars($orgao['orgao']) ?>">
                                             <i class="fas fa-building me-2 text-primary"></i>
-                                            <?= htmlspecialchars($orgao['orgao']) ?>
+                                            <span class="orgao-dropdown-text"><?= htmlspecialchars($orgaoDisplayName) ?></span>
                                             <span class="badge bg-secondary ms-2"><?= $orgao['total'] ?></span>
                                         </a>
                                     </li>
@@ -342,7 +345,7 @@
                                 <?php foreach ($cpfFindings as $index => $finding): 
                                     $datasetName = strlen($finding['dataset_name']) > 40 ? substr($finding['dataset_name'], 0, 40) . '...' : $finding['dataset_name'];
                                     $resourceName = strlen($finding['resource_name']) > 35 ? substr($finding['resource_name'], 0, 35) . '...' : $finding['resource_name'];
-                                    $orgaoName = strlen($finding['dataset_organization']) > 15 ? substr($finding['dataset_organization'], 0, 15) . '...' : $finding['dataset_organization'];
+                                    $orgaoName = strlen($finding['dataset_organization']) > 20 ? substr($finding['dataset_organization'], 0, 20) . '...' : $finding['dataset_organization'];
                                     $datasetId = substr($finding['dataset_id'], 0, 8) . '...';
                                 ?>
                                     <tr>

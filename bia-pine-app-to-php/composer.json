@@ -1,6 +1,6 @@
 {
-    "name": "bia-pine-app/php",
-    "description": "Aplicativo PHP BIA/PINE convertido do Python",
+    "name": "cge-go/simda",
+    "description": "SIMDA Sistema de Monitoramento de Dados Abertos da Controladoria-Geral do Estado de Goiás",
     "type": "project",
     "require": {
         "php": ">=8.0",

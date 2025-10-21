@@ -108,6 +108,13 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    position: relative;
+}
+
+.cpf-table-compact .orgao-badge-compact:hover {
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
 }
 
 .cpf-table-compact .format-badge {
@@ -205,6 +212,10 @@
     color: var(--primary-color);
     font-weight: 500;
     transition: all 0.3s ease;
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 #filtroOrgaoDropdown:hover,
@@ -223,6 +234,70 @@
 #contadorOrgao {
     font-size: 0.7rem;
     padding: 0.2rem 0.4rem;
+}
+
+/* DROPDOWN DE ÓRGÃOS */
+.dropdown-menu {
+    max-width: 400px;
+}
+
+.dropdown-item {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+}
+
+.orgao-dropdown-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: 0.5rem;
+}
+
+.dropdown-item .badge {
+    flex-shrink: 0;
+}
+
+/* RESPONSIVIDADE PARA DISPOSITIVOS MÓVEIS */
+@media (max-width: 768px) {
+    #filtroOrgaoDropdown {
+        max-width: 200px;
+        font-size: 0.9rem;
+    }
+    
+    .dropdown-menu {
+        max-width: 300px;
+    }
+    
+    .orgao-dropdown-text {
+        font-size: 0.9rem;
+    }
+    
+    .cpf-table-compact .orgao-badge-compact {
+        font-size: 0.7rem;
+        padding: 0.3rem 0.5rem;
+    }
+}
+
+@media (max-width: 576px) {
+    #filtroOrgaoDropdown {
+        max-width: 150px;
+        font-size: 0.8rem;
+    }
+    
+    .dropdown-menu {
+        max-width: 250px;
+    }
+    
+    .cpf-table-compact .orgao-badge-compact {
+        font-size: 0.65rem;
+        padding: 0.25rem 0.4rem;
+    }
 }
 
 /* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO */
