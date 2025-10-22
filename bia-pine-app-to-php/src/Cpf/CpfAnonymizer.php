@@ -10,7 +10,16 @@ use Exception;
  */
 class CpfAnonymizer
 {
-    private const CPF_PATTERN = '/(\d{2,3}[\s\.\-]?\d{3}[\s\.\-]?\d{3}[\s\.\/-]?\d{2})/';
+    // Padrões específicos para CPF (MESMO padrão usado no scanner CKAN)
+    // Evita capturar CNPJs que têm 14 dígitos
+    private const CPF_PATTERNS = [
+        '/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/',      // 000.000.000-00
+        '/\b\d{3}\.\d{3}\.\d{5}\b/',            // 000.000.00000
+        '/\b\d{9}-\d{2}\b/',                    // 000000000-00
+        '/\b\d{3}\s\d{3}\s\d{3}\s\d{2}\b/',     // 000 000 000 00
+        '/\b\d{11}\b/',                         // 00000000000 (apenas 11 dígitos com word boundaries)
+    ];
+    
     private const UPLOAD_DIR = __DIR__ . '/../../uploads/cpf_anonymizer';
     private const OUTPUT_DIR = __DIR__ . '/../../uploads/cpf_anonymizer/output';
     
@@ -37,33 +46,34 @@ class CpfAnonymizer
     
     /**
      * Valida CPF usando algoritmo de dígitos verificadores
+     * IMPORTANTE: Usa o MESMO algoritmo da análise CKAN (validaCPF em functions.php)
      */
     public function validarCpf(string $cpf): bool
     {
-        $cpfLimpo = preg_replace('/[\s\.\-\/]/', '', $cpf);
-        
-        if (strlen($cpfLimpo) !== 11 || preg_match('/^(\d)\1{10}$/', $cpfLimpo)) {
+        // Remover caracteres não numéricos (mesmo padrão do CKAN)
+        $cpf = preg_replace('/[^0-9]/is', '', $cpf);
+
+        // Verificar se tem 11 dígitos
+        if (strlen($cpf) != 11) {
             return false;
         }
-        
-        // Primeiro dígito verificador
-        $soma = 0;
-        for ($i = 0; $i < 9; $i++) {
-            $soma += intval($cpfLimpo[$i]) * (10 - $i);
+
+        // Verificar se todos os dígitos são iguais (CPF inválido)
+        if (preg_match('/(\d)\1{10}/', $cpf)) {
+            return false;
         }
-        $resto = ($soma * 10) % 11;
-        if ($resto === 10) $resto = 0;
-        if ($resto !== intval($cpfLimpo[9])) return false;
-        
-        // Segundo dígito verificador
-        $soma = 0;
-        for ($i = 0; $i < 10; $i++) {
-            $soma += intval($cpfLimpo[$i]) * (11 - $i);
+
+        // Validar dígitos verificadores (algoritmo oficial brasileiro)
+        for ($t = 9; $t < 11; $t++) {
+            for ($d = 0, $c = 0; $c < $t; $c++) {
+                $d += $cpf[$c] * (($t + 1) - $c);
+            }
+            $d = ((10 * $d) % 11) % 10;
+            if ($cpf[$c] != $d) {
+                return false;
+            }
         }
-        $resto = ($soma * 10) % 11;
-        if ($resto === 10) $resto = 0;
-        if ($resto !== intval($cpfLimpo[10])) return false;
-        
+
         return true;
     }
     
@@ -161,7 +171,34 @@ class CpfAnonymizer
     {
         $cpfsEncontrados = [];
         $linhasProcessadas = 0;
-        $outputPath = self::OUTPUT_DIR . '/' . basename($filepath, '.csv') . '_anonimizado.csv';
+        
+        // Manter nome original com sufixo _anonimizado
+        $pathInfo = pathinfo($filepath);
+        $nomeOriginal = $pathInfo['filename'];
+        $outputPath = self::OUTPUT_DIR . '/' . $nomeOriginal . '_anonimizado.csv';
+        
+        // Detectar encoding e delimitador
+        $content = file_get_contents($filepath);
+        $encoding = mb_detect_encoding($content, ['UTF-8', 'ISO-8859-1', 'Windows-1252'], true);
+        
+        // Log para debug
+        error_log("CPF Anonymizer: Processando arquivo CSV: " . basename($filepath));
+        error_log("CPF Anonymizer: Encoding detectado: " . ($encoding ?: 'UTF-8'));
+        
+        // Detectar delimitador
+        $firstLine = strtok($content, "\n");
+        $delimiters = [',', ';', "\t", '|'];
+        $delimiter = ',';
+        $maxCount = 0;
+        foreach ($delimiters as $del) {
+            $count = substr_count($firstLine, $del);
+            if ($count > $maxCount) {
+                $maxCount = $count;
+                $delimiter = $del;
+            }
+        }
+        
+        error_log("CPF Anonymizer: Delimitador detectado: " . ($delimiter === "\t" ? 'TAB' : $delimiter));
         
         $inputHandle = fopen($filepath, 'r');
         $outputHandle = fopen($outputPath, 'w');
@@ -170,29 +207,36 @@ class CpfAnonymizer
             throw new Exception('Erro ao abrir arquivo CSV');
         }
         
-        while (($row = fgetcsv($inputHandle)) !== false) {
+        // Processar linha por linha mantendo estrutura original
+        while (($row = fgetcsv($inputHandle, 0, $delimiter)) !== false) {
             $newRow = [];
             foreach ($row as $cell) {
-                $newCell = preg_replace_callback(self::CPF_PATTERN, function($matches) use (&$cpfsEncontrados) {
-                    $cpf = $matches[1];
-                    if ($this->validarCpf($cpf)) {
-                        $cpfsEncontrados[] = $cpf;
-                        return $this->anonimizarCpf($cpf);
-                    }
-                    return $cpf;
-                }, $cell);
+                // Converter encoding se necessário
+                if ($encoding && $encoding !== 'UTF-8') {
+                    $cell = mb_convert_encoding($cell, 'UTF-8', $encoding);
+                }
+                
+                // Substituir apenas CPFs válidos usando a mesma lógica do scanner CKAN
+                $newCell = $this->anonimizarCpfsNaString($cell, $cpfsEncontrados);
                 $newRow[] = $newCell;
             }
-            fputcsv($outputHandle, $newRow);
+            fputcsv($outputHandle, $newRow, $delimiter);
             $linhasProcessadas++;
         }
         
         fclose($inputHandle);
         fclose($outputHandle);
         
+        // Remover duplicatas e contar
+        $cpfsUnicos = array_unique($cpfsEncontrados);
+        
+        error_log("CPF Anonymizer: CPFs encontrados (com duplicatas): " . count($cpfsEncontrados));
+        error_log("CPF Anonymizer: CPFs únicos: " . count($cpfsUnicos));
+        error_log("CPF Anonymizer: Linhas processadas: " . $linhasProcessadas);
+        
         return [
-            'cpfs_encontrados' => array_unique($cpfsEncontrados),
-            'total_cpfs' => count($cpfsEncontrados),
+            'cpfs_encontrados' => $cpfsUnicos,
+            'total_cpfs' => count($cpfsUnicos), // Usar CPFs únicos
             'linhas_processadas' => $linhasProcessadas,
             'arquivo_saida' => basename($outputPath),
             'caminho_saida' => $outputPath
@@ -204,44 +248,71 @@ class CpfAnonymizer
      */
     private function processarExcel(string $filepath): array
     {
-        // Verifica se a biblioteca PhpSpreadsheet está disponível
         if (!class_exists('\PhpOffice\PhpSpreadsheet\IOFactory')) {
             throw new Exception('Biblioteca PhpSpreadsheet não instalada. Execute: composer require phpoffice/phpspreadsheet');
         }
         
         $cpfsEncontrados = [];
-        $celulasProcessadas = 0;
+        $celulasModificadas = 0;
         
         try {
-            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($filepath);
-            $worksheet = $spreadsheet->getActiveSheet();
+            error_log("CPF Anonymizer: Processando arquivo Excel: " . basename($filepath));
             
-            foreach ($worksheet->getRowIterator() as $row) {
-                foreach ($row->getCellIterator() as $cell) {
-                    $value = $cell->getValue();
-                    if (is_string($value)) {
-                        $newValue = preg_replace_callback(self::CPF_PATTERN, function($matches) use (&$cpfsEncontrados) {
-                            $cpf = $matches[1];
-                            if ($this->validarCpf($cpf)) {
-                                $cpfsEncontrados[] = $cpf;
-                                return $this->anonimizarCpf($cpf);
+            // Carregar arquivo mantendo formatação original
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($filepath);
+            
+            // Processar todas as planilhas
+            foreach ($spreadsheet->getAllSheets() as $worksheet) {
+                $sheetName = $worksheet->getTitle();
+                error_log("CPF Anonymizer: Processando planilha: " . $sheetName);
+                
+                $highestRow = $worksheet->getHighestRow();
+                $highestColumn = $worksheet->getHighestColumn();
+                
+                // Iterar apenas pelas células com conteúdo
+                for ($row = 1; $row <= $highestRow; $row++) {
+                    for ($col = 'A'; $col <= $highestColumn; $col++) {
+                        $cell = $worksheet->getCell($col . $row);
+                        $value = $cell->getValue();
+                        
+                        // Processar apenas strings
+                        if (is_string($value) && !empty($value)) {
+                            $originalValue = $value;
+                            
+                            // Substituir apenas CPFs válidos usando a mesma lógica do scanner CKAN
+                            $newValue = $this->anonimizarCpfsNaString($value, $cpfsEncontrados);
+                            
+                            // Atualizar apenas se houve mudança
+                            if ($newValue !== $originalValue) {
+                                $cell->setValue($newValue);
+                                $celulasModificadas++;
                             }
-                            return $cpf;
-                        }, $value);
-                        $cell->setValue($newValue);
-                        $celulasProcessadas++;
+                        }
                     }
                 }
             }
             
-            $outputPath = self::OUTPUT_DIR . '/' . basename($filepath, '.xlsx') . '_anonimizado.xlsx';
-            $writer = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
+            // Manter nome original com sufixo _anonimizado
+            $pathInfo = pathinfo($filepath);
+            $nomeOriginal = $pathInfo['filename'];
+            $extensao = $pathInfo['extension'];
+            $outputPath = self::OUTPUT_DIR . '/' . $nomeOriginal . '_anonimizado.' . $extensao;
+            
+            // Salvar mantendo formato original
+            $writer = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, ucfirst(strtolower($extensao)));
             $writer->save($outputPath);
             
+            // Remover duplicatas e contar
+            $cpfsUnicos = array_unique($cpfsEncontrados);
+            
+            error_log("CPF Anonymizer: CPFs encontrados (com duplicatas): " . count($cpfsEncontrados));
+            error_log("CPF Anonymizer: CPFs únicos: " . count($cpfsUnicos));
+            error_log("CPF Anonymizer: Células modificadas: " . $celulasModificadas);
+            
             return [
-                'cpfs_encontrados' => array_unique($cpfsEncontrados),
-                'total_cpfs' => count($cpfsEncontrados),
-                'celulas_processadas' => $celulasProcessadas,
+                'cpfs_encontrados' => $cpfsUnicos,
+                'total_cpfs' => count($cpfsUnicos), // Usar CPFs únicos
+                'celulas_modificadas' => $celulasModificadas,
                 'arquivo_saida' => basename($outputPath),
                 'caminho_saida' => $outputPath
             ];
@@ -249,6 +320,91 @@ class CpfAnonymizer
         } catch (Exception $e) {
             throw new Exception('Erro ao processar Excel: ' . $e->getMessage());
         }
+    }
+    
+    /**
+     * Detecta CPFs válidos em uma string usando EXATAMENTE a mesma lógica do scanner CKAN
+     * IMPORTANTE: Implementação idêntica ao LogicBasedScanner
+     */
+    private function detectarCpfsValidos(string $textContent): array
+    {
+        if (empty(trim($textContent))) {
+            return [];
+        }
+
+        // Limpeza idêntica ao scanner CKAN
+        $textContent = str_replace(' |SEPARATOR| ', ' ', $textContent);
+        $textContent = preg_replace('/\s+/', ' ', $textContent);
+
+        $validCpfs = [];
+        $seenCpfs = []; // Para evitar duplicatas (escopo global à função)
+        
+        // Processar cada padrão EXATAMENTE como o scanner CKAN
+        foreach (self::CPF_PATTERNS as $pattern) {
+            preg_match_all($pattern, $textContent, $matches);
+            
+            foreach ($matches[0] as $cpf) {
+                if (empty($cpf)) continue;
+                
+                $normalizedCpf = preg_replace('/[^0-9]/', '', $cpf);
+                
+                // Pular se já processamos este CPF (MESMA lógica do scanner)
+                if (isset($seenCpfs[$normalizedCpf])) {
+                    continue;
+                }
+                
+                $seenCpfs[$normalizedCpf] = true;
+                
+                // SEMPRE validar o dígito verificador antes de aceitar
+                if ($this->validarCpf($normalizedCpf)) {
+                    $validCpfs[] = $normalizedCpf;
+                }
+            }
+        }
+
+        return array_values(array_unique($validCpfs));
+    }
+    
+    /**
+     * Anonimiza CPFs em uma string usando EXATAMENTE a mesma detecção do scanner CKAN
+     */
+    private function anonimizarCpfsNaString(string $text, array &$cpfsEncontrados): string
+    {
+        // Primeiro, detectar todos os CPFs válidos usando a mesma lógica do scanner
+        $cpfsValidos = $this->detectarCpfsValidos($text);
+        
+        // Adicionar à lista de CPFs encontrados
+        foreach ($cpfsValidos as $cpf) {
+            $cpfsEncontrados[] = $cpf;
+        }
+        
+        // Agora substituir cada CPF válido encontrado
+        foreach ($cpfsValidos as $cpf) {
+            $cpfFormatado = $this->formatarCpfParaBusca($cpf);
+            $anonimizado = $this->anonimizarCpf($cpf);
+            
+            // Substituir todas as ocorrências deste CPF específico
+            foreach (self::CPF_PATTERNS as $pattern) {
+                $text = preg_replace_callback($pattern, function($matches) use ($cpf, $anonimizado) {
+                    $cpfEncontrado = preg_replace('/[^0-9]/', '', $matches[0]);
+                    if ($cpfEncontrado === $cpf) {
+                        return $anonimizado;
+                    }
+                    return $matches[0];
+                }, $text);
+            }
+        }
+        
+        return $text;
+    }
+    
+    /**
+     * Formata CPF para busca (mantém formatação original se possível)
+     */
+    private function formatarCpfParaBusca(string $cpf): string
+    {
+        // Retorna o CPF limpo (apenas números)
+        return $cpf;
     }
     
     /**
