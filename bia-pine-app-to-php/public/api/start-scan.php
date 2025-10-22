@@ -42,8 +42,9 @@ try {
                 http_response_code(409);
                 echo json_encode([
                     'success' => false,
-                    'message' => 'Uma análise já está em execução. Deseja forçar uma nova análise?',
-                    'current_status' => $status
+                    'message' => 'Uma análise já está em execução.',
+                    'current_status' => $status,
+                    'requires_confirmation' => true
                 ], JSON_UNESCAPED_UNICODE);
                 exit;
             }
@@ -51,20 +52,25 @@ try {
             if (in_array($status, ['running', 'pending']) && $force) {
                 // Se rodando e FOR para forçar, marca o status como 'cancelling'
                 $lockData['status'] = 'cancelling';
-                $lockData['message'] = 'Análise anterior cancelada. Iniciando nova análise...';
+                $lockData['message'] = 'Análise anterior cancelada. Reiniciando...';
                 $lockData['lastUpdate'] = date('c');
                 file_put_contents($lockFile, json_encode($lockData, JSON_PRETTY_PRINT));
-                
-                // Aguarda para o worker antigo detectar o cancelamento
-                sleep(2);
                 
                 // Remove o arquivo de fila para forçar nova descoberta
                 $queueFile = $cacheDir . '/scan_queue.json';
                 if (file_exists($queueFile)) {
                     @unlink($queueFile);
                 }
+                
+                sleep(3);
             }
         }
+    }
+    
+    $queueFile = $cacheDir . '/scan_queue.json';
+    if (file_exists($queueFile)) {
+        @unlink($queueFile);
+        error_log("Arquivo de fila removido para forçar limpeza da base de dados");
     }
 
     // 2. Cria arquivo de status inicial com 'pending'

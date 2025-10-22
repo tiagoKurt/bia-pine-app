@@ -573,8 +573,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'export_cpf_excel') {
         // Buscar todos os dados do banco para exportação completa
         try {
-            // Obter o órgão do filtro (assumindo que está sendo passado via POST/GET ou sessão)
-            $orgaoFiltro = $_POST['orgao'] ?? $_SESSION['cpf_orgao_filter'] ?? '';
+            $orgaoFiltro = $_POST['orgao'] ?? '';
+            
             $allCpfData = getCpfFindingsPaginadoComFiltro($pdo, 1, 999999, $orgaoFiltro);
             $allFindings = $allCpfData['findings'] ?? [];
             
@@ -584,9 +584,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
             
+            $tituloRelatorio = 'Relatório de CPFs Detectados';
+            if (!empty($orgaoFiltro)) {
+                $tituloRelatorio .= ' - ' . $orgaoFiltro;
+            }
+            
             // Cabeçalhos
             $headers = ['Dataset', 'Órgão', 'Recurso', 'Formato', 'Quantidade CPFs', 'Data Verificação'];
             $sheet->fromArray($headers, null, 'A1');
+            
+            $headerStyle = [
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+                'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 'startColor' => ['rgb' => '4472C4']],
+                'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER]
+            ];
+            $sheet->getStyle('A1:F1')->applyFromArray($headerStyle);
             
             // Dados
             $row = 2;
@@ -600,8 +612,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $row++;
             }
             
+            // Auto-ajustar largura das colunas
+            foreach (range('A', 'F') as $col) {
+                $sheet->getColumnDimension($col)->setAutoSize(true);
+            }
+            
             // Configurar cabeçalhos para download
-            $filename = 'cpf_findings_' . date('Y-m-d_H-i-s') . '.xlsx';
+            $filename = 'relatorio_cpf_' . date('Y-m-d_H-i-s');
+            if (!empty($orgaoFiltro)) {
+                $orgaoSlug = preg_replace('/[^a-z0-9]+/i', '_', strtolower($orgaoFiltro));
+                $orgaoSlug = substr($orgaoSlug, 0, 30); // Limitar tamanho
+                $filename .= '_' . $orgaoSlug;
+            }
+            $filename .= '.xlsx';
+            
             header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             header('Content-Disposition: attachment;filename="' . $filename . '"');
             header('Cache-Control: max-age=0');
@@ -611,6 +635,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
             
         } catch (Exception $e) {
+            error_log("Erro ao exportar CPF: " . $e->getMessage());
             $_SESSION['message'] = 'Erro ao exportar dados: ' . $e->getMessage();
             $_SESSION['messageType'] = 'error';
             header("Location: " . $_SERVER['PHP_SELF'] . "?tab=cpf");
@@ -2873,97 +2898,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        function showForceAnalysisDialog(message, timeout) {
-            const dialogHtml = `
-                <div class="modal fade" id="forceAnalysisModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-                    <div class="modal-dialog modal-dialog-centered modal-lg">
-                        <div class="modal-content">
-                            <div class="modal-header bg-warning text-dark">
-                                <h5 class="modal-title">
-                                    <i class="fas fa-exclamation-triangle"></i> Análise em Andamento
-                                </h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="alert alert-info mb-3">
-                                    <i class="fas fa-info-circle"></i>
-                                    <strong>Uma análise já está em execução.</strong>
-                                </div>
-                                
-                                <p class="mb-3">Você tem duas opções:</p>
-                                
-                                <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <div class="card border-success">
-                                            <div class="card-body">
-                                                <h6 class="card-title text-success">
-                                                    <i class="fas fa-clock"></i> Aguardar (Recomendado)
-                                                </h6>
-                                                <p class="card-text small">
-                                                    A análise atual continuará normalmente até ser concluída.
-                                                    Você pode fechar esta janela e acompanhar o progresso.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="card border-warning">
-                                            <div class="card-body">
-                                                <h6 class="card-title text-warning">
-                                                    <i class="fas fa-redo"></i> Forçar Nova Análise
-                                                </h6>
-                                                <p class="card-text small">
-                                                    A análise atual será cancelada e uma nova será iniciada do zero.
-                                                    <strong>Use apenas se necessário.</strong>
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="modal-footer d-flex flex-column flex-md-row gap-2">
-                                <button type="button" class="btn btn-success w-100 w-md-auto" data-bs-dismiss="modal">
-                                    <i class="fas fa-check"></i> Aguardar Análise Atual
-                                </button>
-                                <button type="button" class="btn btn-warning w-100 w-md-auto" onclick="forceNewAnalysis()">
-                                    <i class="fas fa-redo"></i> Forçar Nova Análise
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            const existingModal = document.getElementById('forceAnalysisModal');
-            if (existingModal) {
-                existingModal.remove();
-            }
-            
-            document.body.insertAdjacentHTML('beforeend', dialogHtml);
-            
-            const modal = new bootstrap.Modal(document.getElementById('forceAnalysisModal'));
-            modal.show();
-        }
-
-        function forceNewAnalysis() {
-            // Fechar modal de confirmação
-            const modal = document.getElementById('forceAnalysisModal');
-            if (modal) {
-                const bootstrapModal = bootstrap.Modal.getInstance(modal);
-                if (bootstrapModal) {
-                    bootstrapModal.hide();
-                }
-                // Remover modal após animação
-                setTimeout(() => {
-                    modal.remove();
-                }, 300);
-            }
-            
-            // Aguardar um pouco para o modal fechar antes de iniciar
-            setTimeout(() => {
-                executeScanCkan(true);
-            }, 400);
-        }
+        // Funções antigas removidas - agora usando showConfirmDialog() para confirmação de análise
 
         // Função para lidar com download automático (CSP-safe)
         function handleAutoDownload() {
@@ -3045,8 +2980,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Conflito - análise já em andamento (apenas se não for force)
                     return response.json().then(data => {
                         hideAsyncProgressModal();
-                        showForceAnalysisDialog(data.message, 0);
-                        throw new Error('Análise já em andamento');
+                        
+                        // Restaurar botão
+                        if (btnScanCkan) {
+                            btnScanCkan.disabled = false;
+                            btnScanCkan.innerHTML = '<i class="fas fa-search me-2"></i>Executar Análise';
+                        }
+                        
+                        // Mostrar diálogo de confirmação
+                        showConfirmDialog(
+                            'Análise em Andamento',
+                            'Uma análise já está sendo executada no momento. Deseja cancelar a análise anterior e iniciar uma nova? Todos os dados antigos serão removidos.',
+                            'Sim, forçar nova análise',
+                            'Não, manter análise atual',
+                            () => {
+                                executeScanCkan(true); // Forçar nova análise
+                            },
+                            () => {
+                                // Usuário cancelou - não fazer nada
+                                console.log('Usuário optou por manter análise atual');
+                            }
+                        );
+                        
+                        throw new Error('Análise já em andamento - aguardando confirmação');
                     });
                 }
                 
@@ -3228,50 +3184,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         return;
                     }
                     
-                    // Desabilitar botão temporariamente para evitar cliques múltiplos
-                    btnScanCkan.disabled = true;
-                    const originalText = btnScanCkan.innerHTML;
-                    btnScanCkan.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Verificando...';
-                    
-                    // Verificar se já há uma análise em andamento
-                    const baseUrl = window.location.origin + window.location.pathname.replace('app.php', '');
-                    fetch(`${baseUrl}api/scan-status.php`, {
-                        method: 'GET',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.inProgress) {
-                            // Análise já em andamento - mostrar dialog de confirmação
-                            btnScanCkan.disabled = false;
-                            btnScanCkan.innerHTML = originalText;
-                            
-                            showConfirmDialog(
-                                'Análise em Andamento',
-                                'Uma análise já está sendo executada no momento. Deseja cancelar a análise anterior e iniciar uma nova?',
-                                'Sim, iniciar nova análise',
-                                'Cancelar',
-                                () => {
-                                    executeScanCkan(true); // Forçar nova análise
-                                },
-                                () => {
-                                    // Usuário cancelou - não fazer nada
-                                }
-                            );
-                        } else {
-                            // Iniciar nova análise
-                            executeScanCkan(false);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Erro ao verificar status:', error);
-                        // Se houver erro ao verificar, restaurar botão e tentar iniciar
-                        btnScanCkan.disabled = false;
-                        btnScanCkan.innerHTML = originalText;
-                        executeScanCkan(false);
-                    });
+                    // Iniciar análise (a verificação de conflito será feita na API)
+                    executeScanCkan(false);
                 });
             } else {
                 console.warn('⚠️ Botão de análise CKAN não encontrado');
@@ -3629,6 +3543,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Função para selecionar órgão no dropdown
         function selecionarOrgao(valor, texto, total = null) {
             orgaoAtual = valor;
+            
+            // Atualizar campo hidden do formulário de exportação
+            const inputOrgaoExport = document.getElementById('inputOrgaoExport');
+            if (inputOrgaoExport) {
+                inputOrgaoExport.value = valor;
+            }
             
             // Atualizar texto do botão
             const botaoTexto = document.getElementById('orgaoSelecionadoText');

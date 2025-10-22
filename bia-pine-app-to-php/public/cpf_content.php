@@ -316,8 +316,9 @@
                         </button>
                         
                         <!-- Botão Exportar -->
-                        <form method="POST" class="d-inline">
+                        <form method="POST" class="d-inline" id="formExportarCpf">
                             <input type="hidden" name="action" value="export_cpf_excel">
+                            <input type="hidden" name="orgao" id="inputOrgaoExport" value="">
                             <button type="submit" class="btn btn-success">
                                 <i class="fas fa-file-excel me-1"></i>
                                 <span class="d-none d-md-inline">Exportar</span>

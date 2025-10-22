@@ -52,8 +52,9 @@ try {
             if (in_array($status, ['running', 'pending']) && !$force) {
                 echo json_encode([
                     'success' => false,
-                    'message' => 'Uma análise já está em execução. Cancele-a antes de iniciar uma nova.',
-                    'current_status' => $status
+                    'message' => 'Uma análise já está em execução.',
+                    'current_status' => $status,
+                    'requires_confirmation' => true
                 ], JSON_UNESCAPED_UNICODE);
                 http_response_code(409);
                 exit;
@@ -62,13 +63,25 @@ try {
             // Se for para forçar, cancela a análise anterior
             if (in_array($status, ['running', 'pending']) && $force) {
                 $lockData['status'] = 'cancelling';
-                $lockData['message'] = 'Scan anterior marcado para cancelamento. Reiniciando...';
+                $lockData['message'] = 'Análise anterior cancelada. Reiniciando...';
                 $lockData['lastUpdate'] = date('c');
                 file_put_contents($lockFile, json_encode($lockData, JSON_PRETTY_PRINT));
                 
+                $queueFile = $cacheDir . '/scan_queue.json';
+                if (file_exists($queueFile)) {
+                    @unlink($queueFile);
+                }
+                
                 // Aguarda um pouco para o worker anterior sair
-                sleep(2);
+                sleep(3);
             }
+        }
+    }
+    
+    if ($force || !file_exists($lockFile)) {
+        $queueFile = $cacheDir . '/scan_queue.json';
+        if (file_exists($queueFile)) {
+            @unlink($queueFile);
         }
     }
 
