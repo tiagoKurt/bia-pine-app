@@ -24,7 +24,7 @@ class CpfAnonymizer
     private const OUTPUT_DIR = __DIR__ . '/../../uploads/cpf_anonymizer/output';
     
     private array $allowedExtensions = ['csv', 'xlsx', 'xls'];
-    private int $maxFileSize = 10485760; // 10MB
+    private int $maxFileSize = 104857600; // 100MB
     
     public function __construct()
     {
@@ -115,7 +115,7 @@ class CpfAnonymizer
         }
         
         if ($file['size'] > $this->maxFileSize) {
-            throw new Exception('Arquivo muito grande. Máximo: 10MB');
+            throw new Exception('Arquivo muito grande. Máximo: 100MB');
         }
         
         $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));

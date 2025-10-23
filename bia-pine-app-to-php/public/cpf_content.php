@@ -127,7 +127,7 @@
                     <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
                     <h5>Arraste um arquivo ou clique para selecionar</h5>
                     <p class="text-muted mb-3">Formatos suportados: CSV, Excel (.xlsx, .xls)</p>
-                    <p class="text-muted small">Tamanho máximo: 10MB</p>
+                    <p class="text-muted small">Tamanho máximo: 100MB</p>
                     <div class="alert alert-warning small mt-3 mb-0">
                         <i class="fas fa-exclamation-triangle me-1"></i>
                         <strong>Nota:</strong> PDFs não são suportados. Converta para Excel antes de processar.

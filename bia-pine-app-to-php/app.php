@@ -4329,7 +4329,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             // Validar tamanho
-            if (file.size > 10485760) { // 10MB
+            if (file.size > 104857600) { // 100MB
                 showError('Arquivo muito grande. Tamanho máximo: 10MB');
                 return;
             }

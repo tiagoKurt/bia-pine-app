@@ -46,7 +46,7 @@ $percentualDesatualizado = $estatisticasPainel['total_datasets'] > 0
     Painel de Insights
 </h2>
 <p class="description-text">
-    Visão geral e insights relevantes sobre os dados do portal de dados abertos do estado de Goiás.
+    Visão geral e insights relevantes sobre os dados do Portal de Dados Abertos do Estado de Goiás.
 </p>
 
 <!-- Estatísticas Principais -->
